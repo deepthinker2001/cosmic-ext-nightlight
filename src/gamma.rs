@@ -24,6 +24,10 @@ pub const DEFAULT_TEMPERATURE: u32 = 3500;
 /// Neutral temperature: produces an identity ramp.
 pub const NEUTRAL_TEMPERATURE: u32 = 6500;
 
+/// Largest gamma table size accepted from the compositor (real hardware
+/// reports 256 to 4096 entries); bounds the ramp allocation.
+pub const MAX_GAMMA_SIZE: u32 = 65536;
+
 const MANAGER_INTERFACE: &str = "zwlr_gamma_control_manager_v1";
 
 #[derive(Debug)]
@@ -222,6 +226,15 @@ impl Dispatch<ZwlrGammaControlV1, u32> for State {
         let Some(idx) = state.index_of(*name) else { return };
         match event {
             zwlr_gamma_control_v1::Event::GammaSize { size } => {
+                if size == 0 || size > MAX_GAMMA_SIZE {
+                    // Untrusted value: refuse rather than allocate a huge ramp.
+                    eprintln!("nightlight: ignoring bad gamma size {size} for output {name}");
+                    control.destroy();
+                    let e = &mut state.outputs[idx];
+                    e.control = None;
+                    e.failed = true;
+                    return;
+                }
                 state.outputs[idx].gamma_size = size;
                 state.apply(idx);
             }
