@@ -2,7 +2,7 @@
   "format": 1,
   "id": "agent-4c9jx3",
   "title": "Work on issue FV-R03W5C: Connect the toggle to the backend and remember its…",
-  "outcome": "in_progress",
+  "outcome": "merged",
   "project": "cosmic-ext-nightlight",
   "agent": {
     "name": "Engineer 1",
@@ -13,13 +13,16 @@
   },
   "branch": "fv-r03w5c-connect-the-toggle-to-the-backend-and-re",
   "base_commit": "4b273b5f2b794a88f8a509dd4a65f8606aba4868",
-  "head_commit": "",
+  "head_commit": "6a3a86c3c27709c76c5b12a1ec128fbcf8d134c4",
+  "commits": [
+    "6a3a86c3c27709c76c5b12a1ec128fbcf8d134c4"
+  ],
   "issue": {
     "id": "FV-R03W5C",
     "title": "Connect the toggle to the backend and remember its state"
   },
   "started": 1794361448,
-  "finished": 1794361531,
+  "finished": 1794361680,
   "usage": {
     "input_tokens": 0,
     "output_tokens": 0,
@@ -36,5 +39,83 @@
       "removed": 3
     }
   ],
-  "summary": ""
+  "tests": [
+    {
+      "passed": 6,
+      "failed": 0
+    }
+  ],
+  "progress": [
+    "Toggle now drives the gamma backend off the UI thread; state persisted via cosmic-config. Compiles; not run live."
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "The toggle now sends requests to a worker thread that owns the blocking Wayland gamma backend, applies the result through Message::Applied, shows the icon from the confirmed state, saves the state with cosmic-config on success, and restores it in init. It builds, and cargo test passes (6 passed, 1 ignored, all in gamma.rs, none for the new code). No clear defect found, so nothing must be fixed before merge; the points below are for the backlog.",
+      "findings": [
+        {
+          "file": "src/main.rs",
+          "line": 42,
+          "severity": "should_fix",
+          "comment": "If b.enable() fails partway (after some outputs were already set), the error is returned without calling disable, so some outputs may stay at the night-light ramp while the icon shows off."
+        },
+        {
+          "file": "src/main.rs",
+          "line": 60,
+          "severity": "should_fix",
+          "comment": "No test covers the new behaviour: toggle-while-busy, Applied success saving to config, Applied failure keeping the real state, startup restore. The only tests are the existing gamma.rs ones."
+        },
+        {
+          "file": "src/main.rs",
+          "line": 107,
+          "severity": "suggestion",
+          "comment": "If the saved state is on and enabling fails (for example no outputs), the config stays true, so every start retries and the icon stays off. That may be intended, but it isn't written down."
+        }
+      ],
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The toggle now runs the gamma backend on a worker thread, so the UI doesn't block. The icon follows the confirmed result, and failures are logged and leave the icon off. The state is saved with cosmic-config and restored at startup. It builds and the tests pass, but I didn't run the applet.",
+      "findings": [
+        {
+          "file": "src/main.rs",
+          "line": 112,
+          "severity": "suggestion",
+          "comment": "If restoring the saved state fails at startup, the saved 'enabled' stays true and the failure is only printed to stderr. That is acceptable, but you could clear it or show an error state."
+        },
+        {
+          "file": "src/main.rs",
+          "line": 30,
+          "severity": "suggestion",
+          "comment": "The worker thread's sender is never dropped explicitly. Whether the gamma backend resets on exit depends on its Drop. Confirm that quitting the applet restores neutral gamma."
+        }
+      ],
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The change adds a worker thread that owns the blocking Wayland gamma backend, a oneshot reply into an iced Task, and a single bool saved with cosmic-config. It adds no dependencies, no unsafe code, no subprocesses and no file paths built from input. The only thing it reads from outside is a typed bool from the user's own config, and a missing or bad value falls back to off. Errors are logged to stderr with nothing sensitive in them. Builds, and 6 tests pass (1 ignored).",
+      "findings": [
+        {
+          "file": "src/main.rs",
+          "line": 36,
+          "severity": "suggestion",
+          "comment": "The worker only touches the Wayland connection when the user toggles, so events the compositor sends while it sits idle (outputs added or removed, gamma control 'failed') are never read. The icon can then show 'on' after the compositor has dropped the gamma control. This isn't a security problem. It is a robustness gap: if the socket buffer fills up, the compositor may disconnect the client."
+        }
+      ],
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
+  ],
+  "learned": [
+    "Applet: Gamma backend runs on a dedicated worker thread (src/main.rs Worker); the UI talks to it with Task::perform + oneshot. cosmic-config is used without the derive via cosmic::cosmic_config::Config get/set with key 'enabled' (version 1). Futures come from cosmic::iced::futures. Not tested live: cosmic-comp may not offer zwlr_gamma_control, in which case the icon stays off and the error is printed to stderr."
+  ],
+  "summary": "The panel toggle now turns night light on and off through the gamma backend, and the on/off state is saved and restored at startup. It builds with `cargo check` and the 6 unit tests pass. I haven't run the applet or tried the toggle against a real compositor. The changes are committed.\n\n- **Backend off the UI thread:** a worker thread in `src/main.rs` owns the gamma backend. The toggle sends it a request and the UI isn't blocked while the compositor answers. A second press while a request is still running is ignored.\n- **Icon follows the real state:** the icon only changes to \"on\" once the backend confirms it. If enabling fails, the icon stays off and the error goes to stderr. This includes the case where the compositor doesn't offer gamma control, which I haven't confirmed for cosmic-comp. Enabling also counts as failed if no output accepts gamma control.\n- **Saved state:** the state is saved with cosmic-config under the key `enabled` after each successful change. If it was on when the applet last ran, the applet tries to turn it on again at startup. A failed enable leaves the saved value alone, so the next start retries it.\n- **No cosmic-config derive:** I read and write the key directly because the derive needs a direct `cosmic-config` dependency. This avoids adding one.\n- **No on-screen error:** failures are only printed to stderr, with no message in the panel. A tooltip would be the natural follow-up if you want one."
 }
