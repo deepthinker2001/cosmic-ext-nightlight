@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=Night Light
+Comment=Toggle night light from the panel
+Type=Application
+Exec=cosmic-ext-nightlight
+Terminal=false
+Categories=COSMIC;
+Keywords=COSMIC;night;light;
+Icon=io.github.cosmic_ext.Nightlight-on-symbolic
+StartupNotify=true
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
+X-OverflowPriority=10
