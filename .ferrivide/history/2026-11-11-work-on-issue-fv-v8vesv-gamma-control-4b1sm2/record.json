@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "id": "agent-4b1sm2",
+  "title": "Work on issue FV-V8VESV: Gamma control backend over Wayland",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-v8vesv-gamma-control-backend-over-wayland",
+  "base_commit": "bfcd27531c1e2e6455662ff7c9ef468b5c9682a3",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-V8VESV",
+    "title": "Gamma control backend over Wayland"
+  },
+  "started": 1794361059,
+  "finished": 1794361148,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-V8VESV: Gamma control backend over Wayland\n\nWrite a module that binds zwlr_gamma_control_manager_v1 and gets a gamma control for each wl_output. It builds gamma ramps from a colour temperature (default about 3500 K), applies them on enable, and restores normal colour on disable. Handle outputs being added and removed, and handle the 'failed' event. Keep the control objects alive while night light is on, because the compositor resets gamma when they are destroyed. First check that cosmic-comp advertises the protocol, and report clearly if it does not. Add unit tests for the temperature-to-ramp maths.\n\nLabels: backend"
+  ],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    },
+    {
+      "path": "src/gamma.rs",
+      "status": "added",
+      "added": 412,
+      "removed": 0
+    },
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    }
+  ],
+  "summary": ""
+}
