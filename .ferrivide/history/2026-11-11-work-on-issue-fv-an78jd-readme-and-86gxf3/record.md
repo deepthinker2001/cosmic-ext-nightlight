@@ -1,6 +1,6 @@
 # Work on issue FV-AN78JD: README and install instructions
 
-**In progress** 2026-11-11 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-an78jd-readme-and-install-instructions` · FV-AN78JD: README and install instructions
+**Merged** 2026-11-11 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-an78jd-readme-and-install-instructions` · FV-AN78JD: README and install instructions
 
 About $0.00, 0 tokens in, 0 out
 
@@ -31,21 +31,23 @@ Then:
 
 No test runs were reported.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Both round-one findings are fixed in 67db758. The library list now points to libcosmic's build dependencies instead of an unverified list, and the panel menu steps are softened with a note that names may differ between COSMIC versions. The changed lines are documentation only and contain no defects, so nothing blocks the merge.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Both earlier suggestions are fixed: the library list now links to libcosmic, and the panel steps are generic.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The only change since round 1 is wording in README.md, and both earlier suggestions are handled. The library list now points to libcosmic's official repository over https. The panel steps are described generally and say the menu names may differ between COSMIC versions. Nothing new has a security bearing: no commands to paste, and the `pkill` hint was replaced by logging out and back in. `cargo test` passes: 6 passed, 1 ignored.
+
 ## Summary
 
-I replaced the one-line `README.md` with a full one and committed it. I didn't build or run anything, so the commands and panel steps are untested.
+I fixed both review findings in `README.md` and committed. I didn't build or run anything, so the commands and panel steps in the README are still untested.
 
-The README covers:
-- **What it does:** a panel toggle that sets a fixed ~3500 K tint through the Wayland protocol and remembers the on/off state across restarts.
-- **What it needs:** a compositor with `wlr-gamma-control`, which `cosmic-comp` provides. Without it the icon stays off and the error goes to stderr.
-- **Build and install:** `just build`, `sudo just install` and `sudo just uninstall`, plus where the files land under `/usr`.
-- **Adding it to the panel:** open the panel or dock applet settings and add Night Light.
+- **#1, library list:** I removed my guessed list of development libraries. The README now says the list depends on your distribution and links to the libcosmic repository for its current build dependencies. It also tells the reader to install whatever the build reports as missing.
+- **#2, panel menu wording:** I replaced the specific menu path with a general instruction. It now says to open COSMIC Settings, go to the panel or dock settings, and use the applet configuration to add Night Light. It notes that the menu names may differ between COSMIC versions. I also dropped the `pkill cosmic-panel` hint and now only suggest logging out and back in.
 
-Things to check:
-- **Build libraries:** the list of development libraries needed to build is my guess from libcosmic's usual dependencies, not checked against a build.
-- **Panel steps:** the Settings menu path for adding the applet is written from memory of COSMIC's UI, and so is the `pkill cosmic-panel` restart hint.
-- **`just prefix=$HOME/.local install`:** I wrote it as an alternative, but I haven't confirmed it works with the `justfile`. I also said the panel may not find applets outside `/usr`, which I didn't verify either.
+I also removed the `just prefix=$HOME/.local install` example, which I hadn't verified. The README now says the default `/usr` is sure to be searched. It adds that the `justfile` has a `prefix` variable and that the panel only finds applets on the XDG data path.
 
 ---
 
-From `55627f842e` to `4139b8ee7b`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `55627f842e` to `67db758aef`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
