@@ -13,7 +13,10 @@
   },
   "branch": "fv-an78jd-readme-and-install-instructions",
   "base_commit": "55627f842ebd46d02573c1cc929f6426cc2c2b20",
-  "head_commit": "",
+  "head_commit": "4139b8ee7b0284208b6f4e34e6251a46254435fd",
+  "commits": [
+    "4139b8ee7b0284208b6f4e34e6251a46254435fd"
+  ],
   "issue": {
     "id": "FV-AN78JD",
     "title": "README and install instructions"
@@ -26,15 +29,16 @@
     "cost_usd": 0.0
   },
   "requests": [
-    "Work on issue FV-AN78JD: README and install instructions\n\nDocument what the applet does, what it needs (a compositor with wlr-gamma-control, which cosmic-comp provides), how to build and install it with just, and how to add it to the panel.\n\nLabels: docs"
+    "Work on issue FV-AN78JD: README and install instructions\n\nDocument what the applet does, what it needs (a compositor with wlr-gamma-control, which cosmic-comp provides), how to build and install it with just, and how to add it to the panel.\n\nLabels: docs",
+    "[Event] Your reviewers approve, with findings to fix in this change before it merges:\n#1 [suggestion] README.md:17: The list of development libraries (libxkbcommon, libwayland, libinput, libudev, libssl) is not checked against libcosmic's actual requirements. A reader may install the wrong packages or miss some. (Quick reviewer (Haiku 5.5))\n   Suggested fix: Check the list against libcosmic's documented build dependencies, or say it is an example list and link to libcosmic's requirements.\n#2 [suggestion] README.md:42: The panel menu labels (Settings → Desktop → Panel, Configure panel applets, Configure dock applets) are written from memory and were not confirmed on a running COSMIC session. (Quick reviewer (Haiku 5.5))\n   Suggested fix: Confirm the menu wording on a running COSMIC session, or soften it to describe the panel settings generally.\nFix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. \"Out of scope\" isn't a reason. Your reviewers accept or reject each reason in the next round."
   ],
   "files": [
     {
       "path": "README.md",
       "status": "modified",
-      "added": 56,
+      "added": 55,
       "removed": 0
     }
   ],
-  "summary": ""
+  "summary": "I replaced the one-line `README.md` with a full one and committed it. I didn't build or run anything, so the commands and panel steps are untested.\n\nThe README covers:\n- **What it does:** a panel toggle that sets a fixed ~3500 K tint through the Wayland protocol and remembers the on/off state across restarts.\n- **What it needs:** a compositor with `wlr-gamma-control`, which `cosmic-comp` provides. Without it the icon stays off and the error goes to stderr.\n- **Build and install:** `just build`, `sudo just install` and `sudo just uninstall`, plus where the files land under `/usr`.\n- **Adding it to the panel:** open the panel or dock applet settings and add Night Light.\n\nThings to check:\n- **Build libraries:** the list of development libraries needed to build is my guess from libcosmic's usual dependencies, not checked against a build.\n- **Panel steps:** the Settings menu path for adding the applet is written from memory of COSMIC's UI, and so is the `pkill cosmic-panel` restart hint.\n- **`just prefix=$HOME/.local install`:** I wrote it as an alternative, but I haven't confirmed it works with the `justfile`. I also said the panel may not find applets outside `/usr`, which I didn't verify either."
 }

@@ -19,9 +19,10 @@ tint) with one click.
   printed to stderr.
 - COSMIC panel (the applet runs inside it).
 - Build tools: a recent stable Rust toolchain, [`just`](https://github.com/casey/just),
-  and the development libraries libcosmic needs (for example `libxkbcommon`,
-  `libwayland`, `libinput`, `libudev`, `libssl`, `pkg-config`). Check libcosmic's
-  documentation if the build reports a missing library.
+  and the system development libraries libcosmic needs. The exact list depends
+  on your distribution; see the
+  [libcosmic repository](https://github.com/pop-os/libcosmic) for its current
+  build dependencies, and install whatever the build reports as missing.
 
 ## Build and install
 
@@ -34,9 +35,9 @@ sudo just install       # installs under /usr
 desktop entry to `/usr/share/applications/io.github.cosmic_ext.Nightlight.desktop`,
 and the on/off icons to `/usr/share/icons/hicolor/scalable/status/`.
 
-To install somewhere else, override the prefix, e.g.
-`just prefix=$HOME/.local install` (the panel only finds applets in locations
-on the XDG data path, so `/usr` is the simplest choice).
+The default prefix is `/usr`, which the panel is sure to search. The `justfile`
+has a `prefix` variable if you need a different location, but only locations on
+the XDG data path will be found by the panel.
 
 To remove it: `sudo just uninstall`.
 
@@ -44,13 +45,11 @@ Other recipes: `just check` runs clippy, `just clean` removes build output.
 
 ## Add it to the panel
 
-1. Open **Settings → Desktop → Panel** (or **Dock**).
-2. Choose **Configure panel applets** (or **Configure dock applets**).
-3. Find **Night Light** in the applet list and add it to the start, center or
-   end of the panel.
+Open COSMIC Settings, go to the panel (or dock) settings, and use its applet
+configuration to add **Night Light** to the start, center or end of the panel.
+The exact menu names may differ between COSMIC versions.
 
-If it does not appear, restart the panel (log out and back in, or run
-`pkill cosmic-panel`; the session restarts it).
+If it does not appear, log out and back in so the panel reloads its applet list.
 
 ## License
 
