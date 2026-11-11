@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "id": "agent-4b1sm2",
+  "title": "Work on issue FV-V8VESV: Gamma control backend over Wayland",
+  "outcome": "merged",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-v8vesv-gamma-control-backend-over-wayland",
+  "base_commit": "bfcd27531c1e2e6455662ff7c9ef468b5c9682a3",
+  "head_commit": "51084c9b480f36fc23f77d0e1a4b7e78a899e4c7",
+  "commits": [
+    "51084c9b480f36fc23f77d0e1a4b7e78a899e4c7",
+    "16628bf9dccf4dbcc36a4be44d749e5f1cd33ddd"
+  ],
+  "issue": {
+    "id": "FV-V8VESV",
+    "title": "Gamma control backend over Wayland"
+  },
+  "started": 1794361059,
+  "finished": 1794361412,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-V8VESV: Gamma control backend over Wayland\n\nWrite a module that binds zwlr_gamma_control_manager_v1 and gets a gamma control for each wl_output. It builds gamma ramps from a colour temperature (default about 3500 K), applies them on enable, and restores normal colour on disable. Handle outputs being added and removed, and handle the 'failed' event. Keep the control objects alive while night light is on, because the compositor resets gamma when they are destroyed. First check that cosmic-comp advertises the protocol, and report clearly if it does not. Add unit tests for the temperature-to-ramp maths.\n\nLabels: backend",
+    "[Event] Cyber reviewer (Opus 5.5) asks for changes: The backend contains no unsafe code, no shell or path handling and no secrets. The new dependencies are crates already in Cargo.lock through libcosmic, and the memfd is created with CLOEXEC. Tests pass (6 passed, 1 ignored) and the build is clean. One must-fix: the gamma_size the compositor sends goes straight into a ramp allocation with no upper bound. A misbehaving compositor can make the applet try to allocate about 24 GiB twice and abort.\n- src/gamma.rs:225: `gamma_size` comes from the compositor as a u32, and nothing checks it before it reaches `build_ramp` (line 137). `build_ramp` makes a Vec of `3*size` u16 values, then line 138 copies it into a second Vec of bytes. With size = u32::MAX that is about 24 GiB plus 24 GiB, so the allocation fails and the process aborts (an OOM abort, not an Err). On a 32-bit target `size * 3` can also overflow. Real hardware reports 256 to 4096 entries.\nFix these and commit; your reviewers then check the fixes."
+  ],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    },
+    {
+      "path": "src/gamma.rs",
+      "status": "added",
+      "added": 425,
+      "removed": 0
+    },
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "No must-fix findings from round 1 were required, and this round's only change is the gamma_size bound. A size of 0 or above 65536 is now refused: the control is destroyed and the output marked failed, before any ramp is allocated. The build succeeds and the 6 gamma unit tests pass. The new bound path has no test, but that is a suggestion at most, not a defect.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The only change since the last round is a gamma-size bound: sizes of 0 or above 65536 destroy the control and mark it failed. It's sound, and the tests still pass.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The must-fix is fixed. The GammaSize handler now refuses a size of 0 or above MAX_GAMMA_SIZE (65536) before any allocation, and drops that output's control. The ramp allocation is therefore bounded at about 393 KB per output. Tests pass (6 passed, 1 ignored) and the build is clean.",
+      "findings": [
+        {
+          "file": "src/gamma.rs",
+          "line": 232,
+          "severity": "should_fix",
+          "comment": "The new rejection branch clears `state.outputs[idx].control` without checking that the stored control is the one sending the event. This is the same pattern as my earlier should_fix on the Failed handler. If an old control's event arrives after a newer control replaced it, the live control is dropped without being destroyed."
+        }
+      ],
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
+  ],
+  "summary": "I fixed the must-fix from the cyber review and committed it. The 6 unit tests still pass; I didn't write a test for the new size check, and the live path is unexercised because this compositor doesn't advertise the protocol.\n\nA `gamma_size` from the compositor is now checked before any ramp is built. A size of 0, or one above `MAX_GAMMA_SIZE` (65536, well over the 256–4096 real hardware reports), is refused. The output's control is destroyed and the output is marked failed, the same as a `failed` event, so it isn't retried until the next `enable`. This also closes the 32-bit `3*size` overflow, since the size can no longer get that large.\n\nThe change is in `src/gamma.rs`."
+}

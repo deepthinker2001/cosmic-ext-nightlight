@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+mod gamma;
+
 use cosmic::app::{Core, Task};
 use cosmic::Element;
 
