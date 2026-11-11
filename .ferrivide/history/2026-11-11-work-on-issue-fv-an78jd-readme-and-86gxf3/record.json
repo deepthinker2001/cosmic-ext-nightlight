@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "agent-86gxf3",
+  "title": "Work on issue FV-AN78JD: README and install instructions",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-an78jd-readme-and-install-instructions",
+  "base_commit": "55627f842ebd46d02573c1cc929f6426cc2c2b20",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-AN78JD",
+    "title": "README and install instructions"
+  },
+  "started": 1794439877,
+  "finished": 1794439894,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-AN78JD: README and install instructions\n\nDocument what the applet does, what it needs (a compositor with wlr-gamma-control, which cosmic-comp provides), how to build and install it with just, and how to add it to the panel.\n\nLabels: docs"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 56,
+      "removed": 0
+    }
+  ],
+  "summary": ""
+}
