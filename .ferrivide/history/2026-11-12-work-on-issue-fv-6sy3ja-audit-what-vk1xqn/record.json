@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "id": "agent-vk1xqn",
+  "title": "Work on issue FV-6SY3JA: Audit: what the reviews of Engineer 1's work on…",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-6sy3ja-audit-what-the-reviews-of-engineer-1-s-w",
+  "base_commit": "615516c496470c65206724a48706696a4e1ecf52",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-6SY3JA",
+    "title": "Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later"
+  },
+  "started": 1794456545,
+  "finished": 1794456688,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-6SY3JA: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later\n\nFindings that didn't hold the merge back (R24):\n\n- [should_fix] src/gamma.rs:1: The task asked the agent to first check that cosmic-comp advertises zwlr_gamma_control_manager_v1 and report clearly. Nothing in the change or the session record reports that check. The code only detects it at runtime (GammaError::Unsupported), so the answer for cosmic-comp is still unknown.\n  - Suggested fix: Check cosmic-comp's source or run a live probe (cargo test -- --ignored --nocapture on a cosmic session) and state the result in the report and the issue.\n  - Raised by Quick reviewer (Haiku 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [should_fix] src/main.rs:1: #![allow(dead_code)] is a crate-wide suppression added to silence the unused gamma module. It will hide real dead code in the applet later.\n  - Suggested fix: Remove it and mark only the gamma module or its items with #[allow(dead_code)] until the applet calls them.\n  - Raised by Quick reviewer (Haiku 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/gamma.rs:402: The ignored live probe test prints the result but asserts nothing, so it can't fail when the compositor lacks the protocol.\n  - Suggested fix: Assert Ok for a known-good compositor, or only print. Keep it as is if the probe is meant to be informational.\n  - Raised by Quick reviewer (Haiku 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/main.rs:1: The crate-wide `#![allow(dead_code)]` hides unused-code warnings for the whole crate. Remove it once the applet uses the backend, or scope it to `mod gamma`.\n  - Raised by Sonnet 5.5 on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/gamma.rs:325: `dispatch` uses `roundtrip`, which blocks. The caller must not call it from the UI thread without care. Consider non-blocking `dispatch_pending` plus reading the fd when this is wired into the applet.\n  - Raised by Sonnet 5.5 on Engineer 1's work on cosmic-ext-nightlight\n- [should_fix] src/gamma.rs:228: The Failed handler finds its entry by output name only, then sets `e.control = None` and `failed = true` without checking that the failing proxy is the one stored there. If an older control's `failed` event arrives after a newer control replaced it (for example after a quick enable/disable/enable), the live control is dropped without being destroyed. Night light then stays applied, untracked, after disable.\n  - Suggested fix: Act only when the proxies match: `if state.outputs[idx].control.as_ref() == Some(control) { ... }`. Always call `control.destroy()` on the failing proxy.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/gamma.rs:325: `dispatch()` calls `roundtrip`, which blocks until the compositor answers. Drop calls it too, through disable. If the compositor hangs, the applet's UI thread (and its drop) blocks indefinitely. The doc comment also says to call it 'when the fd is readable', which a blocking roundtrip doesn't fit.\n  - Suggested fix: Use `flush()` plus `dispatch_pending()` / `prepare_read()` for normal event processing. In Drop, destroy the controls and flush without a roundtrip.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/main.rs:1: `#![allow(dead_code)]` applies to the whole crate. It will hide unused code in every module from now on, not only the gamma module that isn't wired in yet.\n  - Suggested fix: Put `#[allow(dead_code)]` on the `mod gamma;` line only, and remove it once the module is wired into the applet.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [should_fix] src/gamma.rs:232: The new rejection branch clears `state.outputs[idx].control` without checking that the stored control is the one sending the event. This is the same pattern as my earlier should_fix on the Failed handler. If an old control's event arrives after a newer control replaced it, the live control is dropped without being destroyed.\n  - Suggested fix: Clear the entry only when `state.outputs[idx].control.as_ref() == Some(control)`. Still destroy `control` in every case.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n\nLabels: audit\n\nAlso fix the findings in issues FV-NHCWWS and FV-EDY17H (read them with the issue tool), since all three touch src/main.rs and src/gamma.rs. Fix every should_fix; do the suggestions that are cheap and sensible (pin libcosmic rev, --locked in justfile, scope dead_code allow, unit tests, comment on failed-restore choice, non-blocking dispatch). For the desktop Categories and the cosmic-comp protocol check, do what you can from source/docs and say what stays unverified. Tests must pass."
+  ],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 114,
+      "removed": 43
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "data/io.github.cosmic_ext.Nightlight.desktop",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "justfile",
+      "status": "modified",
+      "added": 2,
+      "removed": 2
+    },
+    {
+      "path": "src/gamma.rs",
+      "status": "modified",
+      "added": 62,
+      "removed": 13
+    },
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 87,
+      "removed": 23
+    }
+  ],
+  "summary": ""
+}

@@ -1,8 +1,10 @@
-#![allow(dead_code)]
+// Some backend items (temperature changes, probes) aren't used by the applet yet.
+#[allow(dead_code)]
 mod gamma;
 
 use std::sync::mpsc;
 use std::thread;
+use std::time::Duration;
 
 use cosmic::app::{Core, Task};
 use cosmic::cosmic_config::{Config, ConfigGet, ConfigSet};
@@ -22,24 +24,48 @@ fn main() -> cosmic::iced::Result {
 type Reply = oneshot::Sender<Result<(), String>>;
 
 /// Handle to a worker thread that owns the (blocking) Wayland gamma backend,
-/// so the UI never waits on the compositor.
+/// so the UI never waits on the compositor. When the applet exits the process
+/// ends and the Wayland connection closes, which makes the compositor reset
+/// gamma to neutral even though the detached thread's backend isn't dropped.
 struct Worker {
     tx: mpsc::Sender<(bool, Reply)>,
 }
+
+/// How often the idle worker drains compositor events.
+const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 impl Worker {
     fn spawn() -> Self {
         let (tx, rx) = mpsc::channel::<(bool, Reply)>();
         thread::spawn(move || {
             let mut backend: Option<gamma::GammaBackend> = None;
-            while let Ok((enable, reply)) = rx.recv() {
+            loop {
+                let (enable, reply) = match rx.recv_timeout(POLL_INTERVAL) {
+                    Ok(req) => req,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        // Keep reading events while idle so the socket never
+                        // fills; on a broken connection start afresh next time.
+                        if let Some(b) = backend.as_mut() {
+                            if let Err(e) = b.dispatch() {
+                                eprintln!("nightlight: {e}");
+                                backend = None;
+                            }
+                        }
+                        continue;
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                };
                 let result = (|| {
                     if backend.is_none() {
                         backend = Some(gamma::GammaBackend::new().map_err(|e| e.to_string())?);
                     }
                     let b = backend.as_mut().unwrap();
                     if enable {
-                        b.enable(gamma::DEFAULT_TEMPERATURE).map_err(|e| e.to_string())?;
+                        if let Err(e) = b.enable(gamma::DEFAULT_TEMPERATURE) {
+                            // Partway failure: don't leave some outputs warm.
+                            let _ = b.disable();
+                            return Err(e.to_string());
+                        }
                         if b.active_outputs() == 0 {
                             let _ = b.disable();
                             return Err("no output accepted gamma control".to_string());
@@ -67,6 +93,52 @@ impl Worker {
             },
             move |r| cosmic::Action::App(Message::Applied(enable, r)),
         )
+    }
+}
+
+/// What a toggle press asks for: `None` while a request is in flight.
+fn toggle_request(enabled: bool, busy: bool) -> Option<bool> {
+    (!busy).then_some(!enabled)
+}
+
+/// New real state and the value to save after a backend reply to a request
+/// for `want`. Success follows the request and is saved. A failure leaves the
+/// state off after a failed enable (the icon shows reality) and saves nothing:
+/// a failed startup restore deliberately keeps the saved flag set, so the next
+/// start retries (e.g. the compositor wasn't ready at login) instead of
+/// silently forgetting the user's choice.
+fn applied(enabled: bool, want: bool, ok: bool) -> (bool, Option<bool>) {
+    if ok {
+        (want, Some(want))
+    } else if want {
+        (false, None)
+    } else {
+        (enabled, None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toggle_flips_and_ignores_while_busy() {
+        assert_eq!(toggle_request(false, false), Some(true));
+        assert_eq!(toggle_request(true, false), Some(false));
+        assert_eq!(toggle_request(false, true), None);
+        assert_eq!(toggle_request(true, true), None);
+    }
+
+    #[test]
+    fn success_follows_request_and_saves() {
+        assert_eq!(applied(false, true, true), (true, Some(true)));
+        assert_eq!(applied(true, false, true), (false, Some(false)));
+    }
+
+    #[test]
+    fn failure_keeps_real_state_and_saves_nothing() {
+        assert_eq!(applied(false, true, false), (false, None));
+        assert_eq!(applied(true, false, false), (true, None));
     }
 }
 
@@ -115,30 +187,22 @@ impl cosmic::Application for Nightlight {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Toggle => {
-                if self.busy {
+                let Some(want) = toggle_request(self.enabled, self.busy) else {
                     return Task::none();
-                }
+                };
                 self.busy = true;
-                return self.worker.request(!self.enabled);
+                return self.worker.request(want);
             }
             Message::Applied(want, result) => {
                 self.busy = false;
-                match result {
-                    Ok(()) => {
-                        self.enabled = want;
-                        if let Some(c) = config() {
-                            if let Err(e) = c.set(CONFIG_KEY_ENABLED, want) {
-                                eprintln!("nightlight: cannot save state: {e}");
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        // Icon follows the real state: the request failed, so
-                        // the state is unchanged (off after a failed enable).
-                        eprintln!("nightlight: {e}");
-                        if want {
-                            self.enabled = false;
-                        }
+                if let Err(e) = &result {
+                    eprintln!("nightlight: {e}");
+                }
+                let (enabled, save) = applied(self.enabled, want, result.is_ok());
+                self.enabled = enabled;
+                if let (Some(v), Some(c)) = (save, config()) {
+                    if let Err(e) = c.set(CONFIG_KEY_ENABLED, v) {
+                        eprintln!("nightlight: cannot save state: {e}");
                     }
                 }
             }

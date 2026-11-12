@@ -6,7 +6,7 @@ description = "COSMIC panel applet to toggle night light"
 license = "GPL-3.0-only"
 
 [dependencies]
-libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["applet", "applet-token", "wayland", "tokio"] }
+libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "8fa46ccd444ca6521ce247ef62c63f9e207348e5", default-features = false, features = ["applet", "applet-token", "wayland", "tokio"] }
 wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 rustix = { version = "1", features = ["fs"] }

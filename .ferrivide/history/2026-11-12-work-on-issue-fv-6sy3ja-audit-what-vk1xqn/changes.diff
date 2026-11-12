@@ -1,0 +1,702 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 0a9e7ae..a7f6200 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -594,6 +594,14 @@ dependencies = [
+  "num-traits",
+ ]
+ 
++[[package]]
++name = "build_helpers"
++version = "0.14.0"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++dependencies = [
++ "cfg_aliases",
++]
++
+ [[package]]
+ name = "build_helpers"
+ version = "0.14.0"
+@@ -919,14 +927,14 @@ dependencies = [
+ [[package]]
+ name = "cosmic-config"
+ version = "1.0.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "atomicwrites",
+- "cosmic-config-derive",
++ "cosmic-config-derive 1.0.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "cosmic-settings-daemon-zbus",
+  "dirs",
+  "futures-util",
+- "iced_futures",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "known-folders",
+  "notify",
+  "ron",
+@@ -937,6 +945,32 @@ dependencies = [
+  "zbus 6.2.1",
+ ]
+ 
++[[package]]
++name = "cosmic-config"
++version = "1.0.0"
++source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++dependencies = [
++ "atomicwrites",
++ "cosmic-config-derive 1.0.0 (git+https://github.com/pop-os/libcosmic)",
++ "dirs",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic)",
++ "known-folders",
++ "notify",
++ "ron",
++ "serde",
++ "tracing",
++ "xdg",
++]
++
++[[package]]
++name = "cosmic-config-derive"
++version = "1.0.0"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++dependencies = [
++ "quote",
++ "syn 3.0.10",
++]
++
+ [[package]]
+ name = "cosmic-config-derive"
+ version = "1.0.0"
+@@ -973,7 +1007,7 @@ dependencies = [
+ [[package]]
+ name = "cosmic-launch"
+ version = "0.1.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "bstr",
+  "cosmic-settings-config",
+@@ -996,7 +1030,7 @@ version = "1.11.0"
+ source = "git+https://github.com/pop-os/cosmic-panel#03c1358b7c1f68dcd0f34f04ccc46eb8bf0d58f3"
+ dependencies = [
+  "anyhow",
+- "cosmic-config",
++ "cosmic-config 1.0.0 (git+https://github.com/pop-os/libcosmic)",
+  "serde",
+  "smithay-client-toolkit",
+  "tracing",
+@@ -1023,7 +1057,7 @@ name = "cosmic-settings-config"
+ version = "1.11.0"
+ source = "git+https://github.com/pop-os/cosmic-settings-daemon#2df041e6e90757782a7884729ae3723e86cee122"
+ dependencies = [
+- "cosmic-config",
++ "cosmic-config 1.0.0 (git+https://github.com/pop-os/libcosmic)",
+  "ron",
+  "serde",
+  "serde_with",
+@@ -1066,14 +1100,14 @@ dependencies = [
+ [[package]]
+ name = "cosmic-theme"
+ version = "1.0.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "almost",
+  "configparser",
+- "cosmic-config",
++ "cosmic-config 1.0.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "dirs",
+  "hex_color",
+- "iced_core",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "palette",
+  "ron",
+  "serde",
+@@ -2184,14 +2218,14 @@ dependencies = [
+ [[package]]
+ name = "iced"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "dnd",
+  "iced_accessibility",
+- "iced_core",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "iced_debug",
+- "iced_futures",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "iced_program",
+  "iced_renderer",
+  "iced_runtime",
+@@ -2206,7 +2240,7 @@ dependencies = [
+ [[package]]
+ name = "iced_accessibility"
+ version = "0.1.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "accesskit",
+  "accesskit_winit",
+@@ -2215,10 +2249,10 @@ dependencies = [
+ [[package]]
+ name = "iced_core"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "bitflags 2.13.2",
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "bytes",
+  "cosmic-client-toolkit",
+  "dnd",
+@@ -2239,22 +2273,46 @@ dependencies = [
+ ]
+ 
+ [[package]]
+-name = "iced_debug"
++name = "iced_core"
+ version = "0.14.0"
+ source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+- "iced_core",
+- "iced_futures",
++ "bitflags 2.13.2",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic)",
++ "bytes",
++ "dnd",
++ "glam",
++ "lilt",
++ "log",
++ "mime 0.1.0",
++ "num-traits",
++ "palette",
++ "raw-window-handle",
++ "rustc-hash 2.1.3",
++ "smol_str",
++ "thiserror 2.0.21",
++ "unicode-segmentation",
++ "web-time",
++ "window_clipboard",
++]
++
++[[package]]
++name = "iced_debug"
++version = "0.14.0"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++dependencies = [
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "log",
+ ]
+ 
+ [[package]]
+ name = "iced_futures"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "futures",
+- "iced_core",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "log",
+  "rustc-hash 2.1.3",
+  "tokio",
+@@ -2263,16 +2321,29 @@ dependencies = [
+ ]
+ 
+ [[package]]
+-name = "iced_graphics"
++name = "iced_futures"
+ version = "0.14.0"
+ source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++dependencies = [
++ "futures",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic)",
++ "log",
++ "rustc-hash 2.1.3",
++ "wasm-bindgen-futures",
++ "wasmtimer",
++]
++
++[[package]]
++name = "iced_graphics"
++version = "0.14.0"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "bitflags 2.13.2",
+  "bytemuck",
+  "cosmic-text",
+  "half",
+- "iced_core",
+- "iced_futures",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "image",
+  "kamadak-exif",
+  "log",
+@@ -2286,7 +2357,7 @@ dependencies = [
+ [[package]]
+ name = "iced_program"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "iced_graphics",
+  "iced_runtime",
+@@ -2295,7 +2366,7 @@ dependencies = [
+ [[package]]
+ name = "iced_renderer"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "iced_graphics",
+  "iced_tiny_skia",
+@@ -2307,14 +2378,14 @@ dependencies = [
+ [[package]]
+ name = "iced_runtime"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "bytes",
+  "cosmic-client-toolkit",
+  "dnd",
+- "iced_core",
+- "iced_futures",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "raw-window-handle",
+  "thiserror 2.0.21",
+  "window_clipboard",
+@@ -2323,7 +2394,7 @@ dependencies = [
+ [[package]]
+ name = "iced_tiny_skia"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "bytemuck",
+  "cosmic-text",
+@@ -2340,11 +2411,11 @@ dependencies = [
+ [[package]]
+ name = "iced_wgpu"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "as-raw-xcb-connection",
+  "bitflags 2.13.2",
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "bytemuck",
+  "cosmic-client-toolkit",
+  "cryoglyph",
+@@ -2372,9 +2443,9 @@ dependencies = [
+ [[package]]
+ name = "iced_widget"
+ version = "0.14.2"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "cosmic-client-toolkit",
+  "dnd",
+  "iced_renderer",
+@@ -2391,14 +2462,14 @@ dependencies = [
+ [[package]]
+ name = "iced_winit"
+ version = "0.14.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "cosmic-client-toolkit",
+  "cursor-icon",
+  "dnd",
+  "iced_debug",
+- "iced_futures",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "iced_graphics",
+  "iced_program",
+  "iced_runtime",
+@@ -2862,14 +2933,14 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
+ [[package]]
+ name = "libcosmic"
+ version = "1.0.0"
+-source = "git+https://github.com/pop-os/libcosmic#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
++source = "git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5#8fa46ccd444ca6521ce247ef62c63f9e207348e5"
+ dependencies = [
+  "apply",
+  "ashpd",
+  "auto_enums",
+- "build_helpers",
++ "build_helpers 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "cosmic-client-toolkit",
+- "cosmic-config",
++ "cosmic-config 1.0.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "cosmic-freedesktop-icons",
+  "cosmic-launch",
+  "cosmic-panel-config",
+@@ -2883,8 +2954,8 @@ dependencies = [
+  "i18n-embed",
+  "i18n-embed-fl",
+  "iced",
+- "iced_core",
+- "iced_futures",
++ "iced_core 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
++ "iced_futures 0.14.0 (git+https://github.com/pop-os/libcosmic?rev=8fa46ccd444ca6521ce247ef62c63f9e207348e5)",
+  "iced_renderer",
+  "iced_runtime",
+  "iced_tiny_skia",
+diff --git a/Cargo.toml b/Cargo.toml
+index 119a893..f9f3603 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -6,7 +6,7 @@ description = "COSMIC panel applet to toggle night light"
+ license = "GPL-3.0-only"
+ 
+ [dependencies]
+-libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = ["applet", "applet-token", "wayland", "tokio"] }
++libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "8fa46ccd444ca6521ce247ef62c63f9e207348e5", default-features = false, features = ["applet", "applet-token", "wayland", "tokio"] }
+ wayland-client = "0.31"
+ wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+ rustix = { version = "1", features = ["fs"] }
+diff --git a/data/io.github.cosmic_ext.Nightlight.desktop b/data/io.github.cosmic_ext.Nightlight.desktop
+index e6ae82f..6d1370d 100644
+--- a/data/io.github.cosmic_ext.Nightlight.desktop
++++ b/data/io.github.cosmic_ext.Nightlight.desktop
+@@ -4,7 +4,7 @@ Comment=Toggle night light from the panel
+ Type=Application
+ Exec=cosmic-ext-nightlight
+ Terminal=false
+-Categories=COSMIC;
++Categories=Utility;
+ Keywords=COSMIC;night;light;
+ Icon=io.github.cosmic_ext.Nightlight-on-symbolic
+ StartupNotify=true
+diff --git a/justfile b/justfile
+index 8477049..a8e3033 100644
+--- a/justfile
++++ b/justfile
+@@ -8,10 +8,10 @@ icon-dir := prefix / 'share/icons/hicolor/scalable/status'
+ default: build
+ 
+ build:
+-    cargo build --release
++    cargo build --release --locked
+ 
+ check:
+-    cargo clippy --all-targets
++    cargo clippy --locked --all-targets
+ 
+ clean:
+     cargo clean
+diff --git a/src/gamma.rs b/src/gamma.rs
+index 93dc52e..fe1e5c3 100644
+--- a/src/gamma.rs
++++ b/src/gamma.rs
+@@ -223,9 +223,17 @@ impl Dispatch<ZwlrGammaControlV1, u32> for State {
+         _: &Connection,
+         _: &QueueHandle<Self>,
+     ) {
+-        let Some(idx) = state.index_of(*name) else { return };
++        // Only the control currently stored for the output may change its
++        // state: a stale control's late event must not drop a newer one.
++        let current = state
++            .index_of(*name)
++            .filter(|&i| state.outputs[i].control.as_ref() == Some(control));
+         match event {
+             zwlr_gamma_control_v1::Event::GammaSize { size } => {
++                let Some(idx) = current else {
++                    control.destroy();
++                    return;
++                };
+                 if size == 0 || size > MAX_GAMMA_SIZE {
+                     // Untrusted value: refuse rather than allocate a huge ramp.
+                     eprintln!("nightlight: ignoring bad gamma size {size} for output {name}");
+@@ -240,12 +248,15 @@ impl Dispatch<ZwlrGammaControlV1, u32> for State {
+             }
+             zwlr_gamma_control_v1::Event::Failed => {
+                 // The control is now inert (output lost, or another client
+-                // holds gamma control). Drop it and don't retry blindly.
+-                eprintln!("nightlight: gamma control failed for output {name}");
++                // holds gamma control). Always destroy it; only clear the
++                // output's entry if this is the control stored there.
+                 control.destroy();
+-                let e = &mut state.outputs[idx];
+-                e.control = None;
+-                e.failed = true;
++                if let Some(idx) = current {
++                    eprintln!("nightlight: gamma control failed for output {name}");
++                    let e = &mut state.outputs[idx];
++                    e.control = None;
++                    e.failed = true;
++                }
+             }
+             _ => {}
+         }
+@@ -318,11 +329,16 @@ impl GammaBackend {
+             self.state.ensure_control(idx, &qh);
+             self.state.apply(idx); // controls that already know their size
+         }
+-        self.dispatch()
++        self.sync()
+     }
+ 
+     /// Restore normal colour by destroying every control.
+     pub fn disable(&mut self) -> Result<(), GammaError> {
++        self.release_controls();
++        self.sync()
++    }
++
++    fn release_controls(&mut self) {
+         self.state.target = None;
+         for e in &mut self.state.outputs {
+             if let Some(c) = e.control.take() {
+@@ -330,18 +346,46 @@ impl GammaBackend {
+             }
+             e.gamma_size = 0;
+         }
+-        self.dispatch()
+     }
+ 
+-    /// Process pending events (outputs added/removed, `gamma_size`, `failed`).
+-    /// Call when the Wayland fd is readable, or periodically.
+-    pub fn dispatch(&mut self) -> Result<(), GammaError> {
++    /// Blocking round trip: waits for the compositor to answer, so it must
++    /// never run on a UI thread. Used by `enable`/`disable` so their results
++    /// (gamma sizes, failures) are known when they return.
++    fn sync(&mut self) -> Result<(), GammaError> {
+         self.queue
+             .roundtrip(&mut self.state)
+             .map(|_| ())
+             .map_err(|e| GammaError::Wayland(e.to_string()))
+     }
+ 
++    /// Process pending events (outputs added/removed, `gamma_size`, `failed`)
++    /// without blocking: flushes requests, reads whatever is available and
++    /// dispatches it. Call periodically or when the Wayland fd is readable.
++    pub fn dispatch(&mut self) -> Result<(), GammaError> {
++        let werr = |e: wayland_client::backend::WaylandError| GammaError::Wayland(e.to_string());
++        self.queue
++            .dispatch_pending(&mut self.state)
++            .map_err(|e| GammaError::Wayland(e.to_string()))?;
++        match self.conn.flush() {
++            Ok(()) => {}
++            Err(wayland_client::backend::WaylandError::Io(e))
++                if e.kind() == std::io::ErrorKind::WouldBlock => {}
++            Err(e) => return Err(werr(e)),
++        }
++        if let Some(guard) = self.queue.prepare_read() {
++            match guard.read() {
++                Ok(_) => {}
++                Err(wayland_client::backend::WaylandError::Io(e))
++                    if e.kind() == std::io::ErrorKind::WouldBlock => {}
++                Err(e) => return Err(werr(e)),
++            }
++        }
++        self.queue
++            .dispatch_pending(&mut self.state)
++            .map(|_| ())
++            .map_err(|e| GammaError::Wayland(e.to_string()))
++    }
++
+     /// Number of outputs that currently have a working gamma control.
+     pub fn active_outputs(&self) -> usize {
+         self.state.outputs.iter().filter(|o| o.control.is_some()).count()
+@@ -355,7 +399,10 @@ impl GammaBackend {
+ 
+ impl Drop for GammaBackend {
+     fn drop(&mut self) {
+-        let _ = self.disable();
++        // No round trip: a hung compositor must not block exit. Destroy the
++        // controls and flush; closing the connection resets gamma anyway.
++        self.release_controls();
++        let _ = self.conn.flush();
+     }
+ }
+ 
+@@ -413,7 +460,9 @@ mod tests {
+ 
+ #[cfg(test)]
+ mod live {
+-    /// Probe the running compositor; run with `--ignored --nocapture`.
++    /// Informational probe of the running compositor (it prints and asserts
++    /// nothing, so it cannot fail on compositors lacking the protocol); run
++    /// with `--ignored --nocapture`.
+     #[test]
+     #[ignore]
+     fn probe_compositor() {
+diff --git a/src/main.rs b/src/main.rs
+index aeb4347..1b0ec10 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,8 +1,10 @@
+-#![allow(dead_code)]
++// Some backend items (temperature changes, probes) aren't used by the applet yet.
++#[allow(dead_code)]
+ mod gamma;
+ 
+ use std::sync::mpsc;
+ use std::thread;
++use std::time::Duration;
+ 
+ use cosmic::app::{Core, Task};
+ use cosmic::cosmic_config::{Config, ConfigGet, ConfigSet};
+@@ -22,24 +24,48 @@ fn main() -> cosmic::iced::Result {
+ type Reply = oneshot::Sender<Result<(), String>>;
+ 
+ /// Handle to a worker thread that owns the (blocking) Wayland gamma backend,
+-/// so the UI never waits on the compositor.
++/// so the UI never waits on the compositor. When the applet exits the process
++/// ends and the Wayland connection closes, which makes the compositor reset
++/// gamma to neutral even though the detached thread's backend isn't dropped.
+ struct Worker {
+     tx: mpsc::Sender<(bool, Reply)>,
+ }
+ 
++/// How often the idle worker drains compositor events.
++const POLL_INTERVAL: Duration = Duration::from_millis(500);
++
+ impl Worker {
+     fn spawn() -> Self {
+         let (tx, rx) = mpsc::channel::<(bool, Reply)>();
+         thread::spawn(move || {
+             let mut backend: Option<gamma::GammaBackend> = None;
+-            while let Ok((enable, reply)) = rx.recv() {
++            loop {
++                let (enable, reply) = match rx.recv_timeout(POLL_INTERVAL) {
++                    Ok(req) => req,
++                    Err(mpsc::RecvTimeoutError::Timeout) => {
++                        // Keep reading events while idle so the socket never
++                        // fills; on a broken connection start afresh next time.
++                        if let Some(b) = backend.as_mut() {
++                            if let Err(e) = b.dispatch() {
++                                eprintln!("nightlight: {e}");
++                                backend = None;
++                            }
++                        }
++                        continue;
++                    }
++                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
++                };
+                 let result = (|| {
+                     if backend.is_none() {
+                         backend = Some(gamma::GammaBackend::new().map_err(|e| e.to_string())?);
+                     }
+                     let b = backend.as_mut().unwrap();
+                     if enable {
+-                        b.enable(gamma::DEFAULT_TEMPERATURE).map_err(|e| e.to_string())?;
++                        if let Err(e) = b.enable(gamma::DEFAULT_TEMPERATURE) {
++                            // Partway failure: don't leave some outputs warm.
++                            let _ = b.disable();
++                            return Err(e.to_string());
++                        }
+                         if b.active_outputs() == 0 {
+                             let _ = b.disable();
+                             return Err("no output accepted gamma control".to_string());
+@@ -70,6 +96,52 @@ impl Worker {
+     }
+ }
+ 
++/// What a toggle press asks for: `None` while a request is in flight.
++fn toggle_request(enabled: bool, busy: bool) -> Option<bool> {
++    (!busy).then_some(!enabled)
++}
++
++/// New real state and the value to save after a backend reply to a request
++/// for `want`. Success follows the request and is saved. A failure leaves the
++/// state off after a failed enable (the icon shows reality) and saves nothing:
++/// a failed startup restore deliberately keeps the saved flag set, so the next
++/// start retries (e.g. the compositor wasn't ready at login) instead of
++/// silently forgetting the user's choice.
++fn applied(enabled: bool, want: bool, ok: bool) -> (bool, Option<bool>) {
++    if ok {
++        (want, Some(want))
++    } else if want {
++        (false, None)
++    } else {
++        (enabled, None)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn toggle_flips_and_ignores_while_busy() {
++        assert_eq!(toggle_request(false, false), Some(true));
++        assert_eq!(toggle_request(true, false), Some(false));
++        assert_eq!(toggle_request(false, true), None);
++        assert_eq!(toggle_request(true, true), None);
++    }
++
++    #[test]
++    fn success_follows_request_and_saves() {
++        assert_eq!(applied(false, true, true), (true, Some(true)));
++        assert_eq!(applied(true, false, true), (false, Some(false)));
++    }
++
++    #[test]
++    fn failure_keeps_real_state_and_saves_nothing() {
++        assert_eq!(applied(false, true, false), (false, None));
++        assert_eq!(applied(true, false, false), (true, None));
++    }
++}
++
+ fn config() -> Option<Config> {
+     Config::new(APP_ID, CONFIG_VERSION).ok()
+ }
+@@ -115,30 +187,22 @@ impl cosmic::Application for Nightlight {
+     fn update(&mut self, message: Message) -> Task<Message> {
+         match message {
+             Message::Toggle => {
+-                if self.busy {
++                let Some(want) = toggle_request(self.enabled, self.busy) else {
+                     return Task::none();
+-                }
++                };
+                 self.busy = true;
+-                return self.worker.request(!self.enabled);
++                return self.worker.request(want);
+             }
+             Message::Applied(want, result) => {
+                 self.busy = false;
+-                match result {
+-                    Ok(()) => {
+-                        self.enabled = want;
+-                        if let Some(c) = config() {
+-                            if let Err(e) = c.set(CONFIG_KEY_ENABLED, want) {
+-                                eprintln!("nightlight: cannot save state: {e}");
+-                            }
+-                        }
+-                    }
+-                    Err(e) => {
+-                        // Icon follows the real state: the request failed, so
+-                        // the state is unchanged (off after a failed enable).
+-                        eprintln!("nightlight: {e}");
+-                        if want {
+-                            self.enabled = false;
+-                        }
++                if let Err(e) = &result {
++                    eprintln!("nightlight: {e}");
++                }
++                let (enabled, save) = applied(self.enabled, want, result.is_ok());
++                self.enabled = enabled;
++                if let (Some(v), Some(c)) = (save, config()) {
++                    if let Err(e) = c.set(CONFIG_KEY_ENABLED, v) {
++                        eprintln!("nightlight: cannot save state: {e}");
+                     }
+                 }
+             }
