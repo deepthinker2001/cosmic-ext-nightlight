@@ -8,10 +8,10 @@ icon-dir := prefix / 'share/icons/hicolor/scalable/status'
 default: build
 
 build:
-    cargo build --release
+    cargo build --release --locked
 
 check:
-    cargo clippy --all-targets
+    cargo clippy --locked --all-targets
 
 clean:
     cargo clean

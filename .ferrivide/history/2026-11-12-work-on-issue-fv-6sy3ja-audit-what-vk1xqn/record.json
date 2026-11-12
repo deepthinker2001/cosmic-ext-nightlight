@@ -1,0 +1,97 @@
+{
+  "format": 1,
+  "id": "agent-vk1xqn",
+  "title": "Work on issue FV-6SY3JA: Audit: what the reviews of Engineer 1's work on…",
+  "outcome": "merged",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-6sy3ja-audit-what-the-reviews-of-engineer-1-s-w",
+  "base_commit": "615516c496470c65206724a48706696a4e1ecf52",
+  "head_commit": "99d9935211dafe192385b1a21ffa6315afd25bf2",
+  "commits": [
+    "99d9935211dafe192385b1a21ffa6315afd25bf2"
+  ],
+  "issue": {
+    "id": "FV-6SY3JA",
+    "title": "Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later"
+  },
+  "started": 1794456545,
+  "finished": 1794457082,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-6SY3JA: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later\n\nFindings that didn't hold the merge back (R24):\n\n- [should_fix] src/gamma.rs:1: The task asked the agent to first check that cosmic-comp advertises zwlr_gamma_control_manager_v1 and report clearly. Nothing in the change or the session record reports that check. The code only detects it at runtime (GammaError::Unsupported), so the answer for cosmic-comp is still unknown.\n  - Suggested fix: Check cosmic-comp's source or run a live probe (cargo test -- --ignored --nocapture on a cosmic session) and state the result in the report and the issue.\n  - Raised by Quick reviewer (Haiku 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [should_fix] src/main.rs:1: #![allow(dead_code)] is a crate-wide suppression added to silence the unused gamma module. It will hide real dead code in the applet later.\n  - Suggested fix: Remove it and mark only the gamma module or its items with #[allow(dead_code)] until the applet calls them.\n  - Raised by Quick reviewer (Haiku 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/gamma.rs:402: The ignored live probe test prints the result but asserts nothing, so it can't fail when the compositor lacks the protocol.\n  - Suggested fix: Assert Ok for a known-good compositor, or only print. Keep it as is if the probe is meant to be informational.\n  - Raised by Quick reviewer (Haiku 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/main.rs:1: The crate-wide `#![allow(dead_code)]` hides unused-code warnings for the whole crate. Remove it once the applet uses the backend, or scope it to `mod gamma`.\n  - Raised by Sonnet 5.5 on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/gamma.rs:325: `dispatch` uses `roundtrip`, which blocks. The caller must not call it from the UI thread without care. Consider non-blocking `dispatch_pending` plus reading the fd when this is wired into the applet.\n  - Raised by Sonnet 5.5 on Engineer 1's work on cosmic-ext-nightlight\n- [should_fix] src/gamma.rs:228: The Failed handler finds its entry by output name only, then sets `e.control = None` and `failed = true` without checking that the failing proxy is the one stored there. If an older control's `failed` event arrives after a newer control replaced it (for example after a quick enable/disable/enable), the live control is dropped without being destroyed. Night light then stays applied, untracked, after disable.\n  - Suggested fix: Act only when the proxies match: `if state.outputs[idx].control.as_ref() == Some(control) { ... }`. Always call `control.destroy()` on the failing proxy.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/gamma.rs:325: `dispatch()` calls `roundtrip`, which blocks until the compositor answers. Drop calls it too, through disable. If the compositor hangs, the applet's UI thread (and its drop) blocks indefinitely. The doc comment also says to call it 'when the fd is readable', which a blocking roundtrip doesn't fit.\n  - Suggested fix: Use `flush()` plus `dispatch_pending()` / `prepare_read()` for normal event processing. In Drop, destroy the controls and flush without a roundtrip.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [suggestion] src/main.rs:1: `#![allow(dead_code)]` applies to the whole crate. It will hide unused code in every module from now on, not only the gamma module that isn't wired in yet.\n  - Suggested fix: Put `#[allow(dead_code)]` on the `mod gamma;` line only, and remove it once the module is wired into the applet.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n- [should_fix] src/gamma.rs:232: The new rejection branch clears `state.outputs[idx].control` without checking that the stored control is the one sending the event. This is the same pattern as my earlier should_fix on the Failed handler. If an old control's event arrives after a newer control replaced it, the live control is dropped without being destroyed.\n  - Suggested fix: Clear the entry only when `state.outputs[idx].control.as_ref() == Some(control)`. Still destroy `control` in every case.\n  - Raised by Cyber reviewer (Opus 5.5) on Engineer 1's work on cosmic-ext-nightlight\n\nLabels: audit\n\nAlso fix the findings in issues FV-NHCWWS and FV-EDY17H (read them with the issue tool), since all three touch src/main.rs and src/gamma.rs. Fix every should_fix; do the suggestions that are cheap and sensible (pin libcosmic rev, --locked in justfile, scope dead_code allow, unit tests, comment on failed-restore choice, non-blocking dispatch). For the desktop Categories and the cosmic-comp protocol check, do what you can from source/docs and say what stays unverified. Tests must pass."
+  ],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 114,
+      "removed": 43
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "data/io.github.cosmic_ext.Nightlight.desktop",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "justfile",
+      "status": "modified",
+      "added": 2,
+      "removed": 2
+    },
+    {
+      "path": "src/gamma.rs",
+      "status": "modified",
+      "added": 62,
+      "removed": 13
+    },
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 87,
+      "removed": 23
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "The change addresses the audit findings: stale-control events are matched against the stored control before clearing it, every failed control is destroyed, dispatch is non-blocking (dispatch_pending plus prepare_read; the wayland-backend docs confirm reads return WouldBlock rather than block), Drop no longer round-trips, dead_code is scoped to mod gamma, libcosmic is pinned to a rev, and the justfile uses --locked. cargo test --locked passes: 9 passed, 1 ignored (the informational live probe). I did not run the applet itself or verify the cosmic-comp protocol check or the Categories change against a live session.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The change covers the audit findings. I ran `cargo test --locked`: 9 tests pass and the live probe is ignored. I did not run the applet on a COSMIC session. The stale-control event checks, the scoped dead_code allow, non-blocking dispatch, the pinned libcosmic rev, `--locked` in the justfile and the new unit tests are all there. No must-fix issues.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The fixes for the security findings hold up. A gamma control's events now change an output's state only when that control is the one stored for the output. A stale control is always destroyed, both on Failed and on a bad gamma size, so a live control can't be orphaned. The untrusted gamma_size bound is still in place. libcosmic is pinned by rev to the commit the lockfile already used, so no upstream code changed, and the justfile builds with --locked. Drop no longer makes a blocking round trip, and idle dispatch doesn't block (prepare_read/read). cargo test --locked gives 9 passed and 1 ignored, and clippy --locked --all-targets is clean. I found nothing that must be fixed.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
+  ],
+  "summary": "I fixed every should_fix across the three issues and most of the suggestions, and committed. The 9 unit tests pass (plus 1 ignored live probe) and clippy is clean. I never ran the applet against a live compositor, so none of the Wayland behaviour is exercised.\n\n**Should-fix items**\n- **Stale gamma control:** the `Failed` and bad-gamma-size handlers in `src/gamma.rs` now clear an output's entry only when the event comes from the control stored for it. The failing control is always destroyed.\n- **Partial enable failure:** if enabling fails partway, `src/main.rs` now calls `disable` before returning the error, so no output stays warm while the icon shows off.\n- **State tests:** the toggle and reply logic is now two plain functions, `toggle_request` and `applied`, with 3 unit tests. They cover toggle-while-busy, success saving to config, and failure keeping the real state.\n- **libcosmic pin:** `Cargo.toml` now has `rev = 8fa46cc…`, the commit the lockfile already used.\n- **Desktop Categories:** `Categories=COSMIC;` is now `Utility;`. I didn't run `desktop-file-validate`, and I kept `COSMIC` in `Keywords`.\n\n**Suggestions done**\n- **Dead-code allow:** `#[allow(dead_code)]` is now only on `mod gamma`.\n- **`--locked`:** added to the justfile build and clippy targets.\n- **Non-blocking dispatch:** `dispatch()` no longer round-trips; it flushes, reads what's available and dispatches. `enable` and `disable` still do a blocking round-trip so their result is known, which is safe because they only run on the worker thread. `Drop` now destroys the controls and flushes without waiting on the compositor.\n- **Idle worker:** it now drains compositor events every 500 ms, and starts a fresh connection after a broken one.\n- **Failed-restore choice:** a failed startup restore keeps the saved flag set, so the next start retries. This is explained in a comment on `applied`.\n- **Quit behaviour:** a comment records that the process exit closes the Wayland connection, which makes the compositor reset gamma, even though the detached worker thread's backend is never dropped.\n- **Live probe:** its doc comment now says it is informational and asserts nothing.\n\n**Not done or unverified**\n- **cosmic-comp protocol check:** I couldn't confirm that it advertises `zwlr_gamma_control_manager_v1`. The code still detects this only at runtime, as `GammaError::Unsupported`. Someone needs to run `cargo test -- --ignored --nocapture probe_compositor` on a COSMIC session.\n- **Stale \"on\" icon:** the worker now reads events, but it doesn't tell the UI when the compositor drops every gamma control. The icon can still show \"on\" in that case.\n- **Desktop entry:** whether the panel still finds the applet through `X-CosmicApplet` is unconfirmed on a COSMIC session."
+}

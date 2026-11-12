@@ -223,9 +223,17 @@ impl Dispatch<ZwlrGammaControlV1, u32> for State {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let Some(idx) = state.index_of(*name) else { return };
+        // Only the control currently stored for the output may change its
+        // state: a stale control's late event must not drop a newer one.
+        let current = state
+            .index_of(*name)
+            .filter(|&i| state.outputs[i].control.as_ref() == Some(control));
         match event {
             zwlr_gamma_control_v1::Event::GammaSize { size } => {
+                let Some(idx) = current else {
+                    control.destroy();
+                    return;
+                };
                 if size == 0 || size > MAX_GAMMA_SIZE {
                     // Untrusted value: refuse rather than allocate a huge ramp.
                     eprintln!("nightlight: ignoring bad gamma size {size} for output {name}");
@@ -240,12 +248,15 @@ impl Dispatch<ZwlrGammaControlV1, u32> for State {
             }
             zwlr_gamma_control_v1::Event::Failed => {
                 // The control is now inert (output lost, or another client
-                // holds gamma control). Drop it and don't retry blindly.
-                eprintln!("nightlight: gamma control failed for output {name}");
+                // holds gamma control). Always destroy it; only clear the
+                // output's entry if this is the control stored there.
                 control.destroy();
-                let e = &mut state.outputs[idx];
-                e.control = None;
-                e.failed = true;
+                if let Some(idx) = current {
+                    eprintln!("nightlight: gamma control failed for output {name}");
+                    let e = &mut state.outputs[idx];
+                    e.control = None;
+                    e.failed = true;
+                }
             }
             _ => {}
         }
@@ -318,11 +329,16 @@ impl GammaBackend {
             self.state.ensure_control(idx, &qh);
             self.state.apply(idx); // controls that already know their size
         }
-        self.dispatch()
+        self.sync()
     }
 
     /// Restore normal colour by destroying every control.
     pub fn disable(&mut self) -> Result<(), GammaError> {
+        self.release_controls();
+        self.sync()
+    }
+
+    fn release_controls(&mut self) {
         self.state.target = None;
         for e in &mut self.state.outputs {
             if let Some(c) = e.control.take() {
@@ -330,14 +346,42 @@ impl GammaBackend {
             }
             e.gamma_size = 0;
         }
-        self.dispatch()
     }
 
-    /// Process pending events (outputs added/removed, `gamma_size`, `failed`).
-    /// Call when the Wayland fd is readable, or periodically.
-    pub fn dispatch(&mut self) -> Result<(), GammaError> {
+    /// Blocking round trip: waits for the compositor to answer, so it must
+    /// never run on a UI thread. Used by `enable`/`disable` so their results
+    /// (gamma sizes, failures) are known when they return.
+    fn sync(&mut self) -> Result<(), GammaError> {
         self.queue
             .roundtrip(&mut self.state)
+            .map(|_| ())
+            .map_err(|e| GammaError::Wayland(e.to_string()))
+    }
+
+    /// Process pending events (outputs added/removed, `gamma_size`, `failed`)
+    /// without blocking: flushes requests, reads whatever is available and
+    /// dispatches it. Call periodically or when the Wayland fd is readable.
+    pub fn dispatch(&mut self) -> Result<(), GammaError> {
+        let werr = |e: wayland_client::backend::WaylandError| GammaError::Wayland(e.to_string());
+        self.queue
+            .dispatch_pending(&mut self.state)
+            .map_err(|e| GammaError::Wayland(e.to_string()))?;
+        match self.conn.flush() {
+            Ok(()) => {}
+            Err(wayland_client::backend::WaylandError::Io(e))
+                if e.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(e) => return Err(werr(e)),
+        }
+        if let Some(guard) = self.queue.prepare_read() {
+            match guard.read() {
+                Ok(_) => {}
+                Err(wayland_client::backend::WaylandError::Io(e))
+                    if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(e) => return Err(werr(e)),
+            }
+        }
+        self.queue
+            .dispatch_pending(&mut self.state)
             .map(|_| ())
             .map_err(|e| GammaError::Wayland(e.to_string()))
     }
@@ -355,7 +399,10 @@ impl GammaBackend {
 
 impl Drop for GammaBackend {
     fn drop(&mut self) {
-        let _ = self.disable();
+        // No round trip: a hung compositor must not block exit. Destroy the
+        // controls and flush; closing the connection resets gamma anyway.
+        self.release_controls();
+        let _ = self.conn.flush();
     }
 }
 
@@ -413,7 +460,9 @@ mod tests {
 
 #[cfg(test)]
 mod live {
-    /// Probe the running compositor; run with `--ignored --nocapture`.
+    /// Informational probe of the running compositor (it prints and asserts
+    /// nothing, so it cannot fail on compositors lacking the protocol); run
+    /// with `--ignored --nocapture`.
     #[test]
     #[ignore]
     fn probe_compositor() {
