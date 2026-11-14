@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "agent-c51qg5",
+  "title": "Work on issue FV-96NK8A: README: install from release, verify signature, badges",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-96nk8a-readme-install-from-release-verify-signa",
+  "base_commit": "9f5fb1a4a506177537897c7eb00bb667e9a5196b",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-96NK8A",
+    "title": "README: install from release, verify signature, badges"
+  },
+  "started": 1794626250,
+  "finished": 1794626266,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-96NK8A: README: install from release, verify signature, badges\n\nUpdate README with the CI badge, installing the signed .deb, verifying the signature, the public key location, and how to cut a release.\n\nLabels: Release\n\nMuch of the install/verify/release docs now exist in README from the .deb and release work. Review and tidy: add CI badge, a clear 'install from release' section, signature verification, how to cut a release, and how to create the signing key and fill in the fingerprint. Don't invent a fingerprint; keep the placeholder."
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 47,
+      "removed": 4
+    }
+  ],
+  "summary": "Tidy the last duplicate sentence about the fingerprint."
+}

@@ -1,0 +1,89 @@
+diff --git a/README.md b/README.md
+index 37f7b78..1ead712 100644
+--- a/README.md
++++ b/README.md
+@@ -1,5 +1,9 @@
+ # cosmic-ext-nightlight
+ 
++[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
++
++<!-- Replace OWNER/REPO in the badge above with this repository's GitHub path. -->
++
+ A COSMIC panel applet that toggles a night light (a warmer, lower-blue screen
+ tint) with one click.
+ 
+@@ -24,6 +28,17 @@ tint) with one click.
+   [libcosmic repository](https://github.com/pop-os/libcosmic) for its current
+   build dependencies, and install whatever the build reports as missing.
+ 
++## Install from a release (Debian, Ubuntu, Pop!_OS)
++
++1. Download the `.deb`, its `.deb.asc`, `SHA256SUMS`, `SHA256SUMS.asc` and
++   `signing-key.asc` from the latest
++   [GitHub Release](../../releases/latest) into an empty folder.
++2. [Verify the signature](#verify-a-download) before installing.
++3. Install: `sudo apt install ./cosmic-ext-nightlight_*.deb`
++4. [Add it to the panel](#add-it-to-the-panel).
++
++To build from source instead, read on.
++
+ ## Build and install
+ 
+ ```sh
+@@ -80,9 +95,10 @@ The releases are signed with the key whose full fingerprint is:
+ FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
+ ```
+ 
+-Check the fingerprint of the downloaded `signing-key.asc` against the one
+-above, and do not trust the key by itself: the copy in the release is only as
+-good as the release.
++The public key is published as `signing-key.asc` in each release. Check its
++fingerprint against the one above, and do not trust the key by itself: the copy
++in the release is only as good as the release. Once the key is listed on a
++keyserver or on the maintainer's own pages, compare against that too.
+ 
+ ```sh
+ gpg --show-keys --fingerprint signing-key.asc     # compare with the above
+@@ -102,6 +118,33 @@ gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nigh
+ The hashes are checked from the verified text, not from the unsigned
+ `SHA256SUMS`. If `gpgv` fails, do not use `SHA256SUMS.verified` or the `.deb`.
+ 
++### Create the signing key (maintainers, once)
++
++On a trusted machine:
++
++```sh
++gpg --quick-generate-key "cosmic-ext-nightlight releases <you@example.com>" ed25519 sign 2y
++gpg --list-keys --with-colons --fingerprint you@example.com   # the "fpr" line is the full fingerprint
++gpg --armor --export-secret-keys KEYID                        # for the GPG_PRIVATE_KEY secret
++```
++
++Paste the full 40-character fingerprint into the code block under
++[Verify a download](#verify-a-download), replacing the placeholder line. The
++release workflow refuses to run while that placeholder is still in this file.
++Keep a backup of the private key and its revocation certificate offline. The key
++expires after two years: extend it or make a new one before then, and update
++the fingerprint here if it changes.
++
++### Cut a release (maintainers)
++
++1. Make sure the fingerprint is filled in and CI is green on `main`.
++2. Set `version` in `Cargo.toml` (and commit the updated `Cargo.lock`).
++3. Tag and push: `git tag v0.1.0 && git push origin v0.1.0` (the tag must be
++   `v` plus the `Cargo.toml` version).
++4. Approve the run of the `release` environment when GitHub asks.
++5. Check the new release has all five files and that you can
++   [verify a download](#verify-a-download) from it.
++
+ ### Secrets (maintainers)
+ 
+ The signing key is never committed. Create a GitHub environment named
+@@ -116,7 +159,7 @@ environment (not repository secrets, which every workflow run can read):
+ | `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
+ 
+ Also add a tag ruleset protecting `v*` (restrict who can create, update and
+-delete those tags), and put the key's fingerprint in this README. The build
++delete those tags). The build
+ tools are installed at fixed versions (`just` 1.59.0, `cargo-deb` 3.8.0) in the
+ workflow; bump them by hand in a reviewed change.
+ 
