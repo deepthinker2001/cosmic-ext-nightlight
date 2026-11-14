@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "id": "agent-kz8t2p",
+  "title": "Work on issue FV-S0V7BV: Signed .deb release workflow",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-s0v7bv-signed-deb-release-workflow",
+  "base_commit": "9d2c10e0b28278725a77c0c017e244f9b6592fb1",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-S0V7BV",
+    "title": "Signed .deb release workflow"
+  },
+  "started": 1794625842,
+  "finished": 1794625860,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-S0V7BV: Signed .deb release workflow\n\nOn a version tag, build the .deb in CI, sign it (detached GPG signature and a signed checksum file, or dpkg-sig, matching the user's other projects) and attach it to a GitHub Release. The key comes from repository secrets, never committed. List the secret names needed in the README.\n\nLabels: Release\n\nCI workflow already merged: follow its hardening (read-only permissions, persist-credentials false, actions pinned to full SHAs, dependabot). Use `just deb` / cargo install cargo-deb --locked. Signing key only via secrets."
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/release.yml",
+      "status": "added",
+      "added": 93,
+      "removed": 0
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 26,
+      "removed": 0
+    }
+  ],
+  "summary": "Quick YAML check, then commit."
+}

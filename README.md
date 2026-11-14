@@ -60,6 +60,32 @@ without it the toggle will not work. The libc6 minimum is taken from the
 machine that builds the package, so build on the oldest release you want it to
 install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
 
+## Signed releases
+
+Pushing a tag like `v0.1.0` (it must equal the `version` in `Cargo.toml`) runs
+`.github/workflows/release.yml`. It builds the `.deb` with `just deb`, signs it
+and publishes a GitHub Release containing:
+
+- `cosmic-ext-nightlight_*.deb`
+- `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
+- `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
+
+Verify a download with:
+
+```sh
+gpg --verify SHA256SUMS.asc && sha256sum -c SHA256SUMS
+gpg --verify cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
+```
+
+Repository secrets the workflow needs (Settings → Secrets and variables →
+Actions); the key is never committed:
+
+| Secret | Contents |
+| --- | --- |
+| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (`gpg --armor --export-secret-keys KEYID`) |
+| `GPG_KEY_ID` | Key ID or fingerprint to sign with |
+| `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
+
 ## Add it to the panel
 
 Open COSMIC Settings, go to the panel (or dock) settings, and use its applet
