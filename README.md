@@ -42,6 +42,17 @@ sudo apt update
 sudo apt install cosmic-ext-nightlight
 ```
 
+To check that the key you downloaded is the project's, compare its fingerprint
+with this one before running `apt update`:
+
+```sh
+gpg --show-keys --with-fingerprint /usr/share/keyrings/cosmic-ext-nightlight.gpg
+```
+
+```text
+0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584
+```
+
 Then [add it to the panel](#add-it-to-the-panel).
 
 To update to a new version: `sudo apt update && sudo apt upgrade`, or just
