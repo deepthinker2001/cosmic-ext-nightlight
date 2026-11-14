@@ -2,7 +2,7 @@
   "format": 1,
   "id": "agent-wwvntr",
   "title": "Work on issue FV-SKA1WX: Audit: what the reviews of Engineer 2's work on…",
-  "outcome": "in_progress",
+  "outcome": "merged",
   "project": "cosmic-ext-nightlight",
   "agent": {
     "name": "Engineer 2",
@@ -13,8 +13,9 @@
   },
   "branch": "fv-ska1wx-audit-what-the-reviews-of-engineer-2-s-w",
   "base_commit": "626aa5bb40791d4732b64147ca66a48b98e45e93",
-  "head_commit": "a242028de6f3e978c53ffc0b25f3f817f1cac162",
+  "head_commit": "f41cad76fe02c9bc5e77719a755fa47bc3c7b6a4",
   "commits": [
+    "f41cad76fe02c9bc5e77719a755fa47bc3c7b6a4",
     "a242028de6f3e978c53ffc0b25f3f817f1cac162"
   ],
   "issue": {
@@ -22,7 +23,7 @@
     "title": "Audit: what the reviews of Engineer 2's work on cosmic-ext-nightlight left for later (Applet)"
   },
   "started": 1794663357,
-  "finished": 1794663481,
+  "finished": 1794664001,
   "usage": {
     "input_tokens": 0,
     "output_tokens": 0,
@@ -52,9 +53,48 @@
       "removed": 0
     }
   ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "The change is one new test in src/main.rs that covers the open suggestion: Settings::load returns the defaults, and save_enabled(true) round-trips through load. It uses a throwaway app id and removes its config folder afterwards. cargo fmt --check passes, cargo clippy --all-targets shows no warnings, and the new test passes. Nothing must be fixed before merge.",
+      "findings": [
+        {
+          "file": "src/main.rs",
+          "line": 475,
+          "severity": "suggestion",
+          "comment": "The round-trip assertion sits behind `if Settings::save_enabled(...).is_ok()`, so if saving fails the test still passes after checking only the defaults. The cleanup also runs only if the test gets that far, and it copies cosmic_config's config-path logic by hand (dirs_config_dir), which could drift from the real path."
+        }
+      ],
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "All three earlier findings are fixed. The test now uses a tempfile directory with Config::with_custom_path, drops the hand-built path helper, and expects success on save. Tests pass and fmt is clean.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "All three earlier findings are fixed. The test now writes only to a private, randomly named temp folder made with `tempfile::tempdir` and opened through `Config::with_custom_path`, and that folder is removed when the test ends, even after a panic. The hand-built path helper and the `remove_dir_all` call are gone, and a failure to create or save the settings now fails the test. `tempfile` is a dev-dependency only (`\"3\"`, locked). Tests (47 passed, 1 ignored), fmt and clippy are clean.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "chatgpt:gpt-6-luna",
+      "verdict": "approve",
+      "summary": "The change adds the requested Settings defaults and enabled-save round-trip test, using a temporary custom config path so it does not touch user configuration. The targeted test and all-targets check pass; no clear defects found.",
+      "transcript": "review-4.jsonl"
+    }
+  ],
   "contract": [
     "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests.",
     "C4: Commit messages describe the change itself (what and why) and never name Ferrivide agents such as \"Engineer 1\", \"Merge engineer 1\", or agent branches."
   ],
-  "summary": "Replace lines 472–494."
+  "summary": "All three findings are fixed and committed. The test passes, `cargo fmt --all -- --check` is clean, and `cargo clippy --all-targets` finished with no warnings. I ran only this one test, not the whole suite.\n\n- **Temp config directory (#3):** the test now builds its config with `Config::with_custom_path` in a `tempfile::tempdir()`. It no longer touches the real user config. The temp folder is removed on drop, even after a panic. I deleted `dirs_config_dir` and the `remove_dir_all` cleanup.\n- **No silent skips (#1, #2):** the early return and the `if ... is_ok()` check are gone. The test now uses `expect`, so a failed config or save fails the test. It checks that a fresh config loads as `Settings::default()`, then that `save_enabled(true)` is read back by `load`.\n- **Dependency change:** `tempfile = \"3\"` is now a dev-dependency in `Cargo.toml`. The `Cargo.lock` change is one line, because `tempfile` 3.27.0 was already locked. `--locked` refused to update the lockfile, so I ran the checks with `--offline` instead."
 }

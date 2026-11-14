@@ -1,6 +1,6 @@
 # Work on issue FV-SKA1WX: Audit: what the reviews of Engineer 2's work on…
 
-**In progress** 2026-11-14 · Engineer 2 (project agent) · `claude-sonnet-5-5` · branch `fv-ska1wx-audit-what-the-reviews-of-engineer-2-s-w` · FV-SKA1WX: Audit: what the reviews of Engineer 2's work on cosmic-ext-nightlight left for later (Applet)
+**Merged** 2026-11-14 · Engineer 2 (project agent) · `claude-sonnet-5-5` · branch `fv-ska1wx-audit-what-the-reviews-of-engineer-2-s-w` · FV-SKA1WX: Audit: what the reviews of Engineer 2's work on cosmic-ext-nightlight left for later (Applet)
 
 About $0.00, 0 tokens in, 0 out
 
@@ -40,9 +40,25 @@ Then:
 
 No test runs were reported.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): The change is one new test in src/main.rs that covers the open suggestion: Settings::load returns the defaults, and save_enabled(true) round-trips through load. It uses a throwaway app id and removes its config folder afterwards. cargo fmt --check passes, cargo clippy --all-targets shows no warnings, and the new test passes. Nothing must be fixed before merge.
+
+- [suggestion] `src/main.rs:475`: The round-trip assertion sits behind `if Settings::save_enabled(...).is_ok()`, so if saving fails the test still passes after checking only the defaults. The cleanup also runs only if the test gets that far, and it copies cosmic_config's config-path logic by hand (dirs_config_dir), which could drift from the real path.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): All three earlier findings are fixed. The test now uses a tempfile directory with Config::with_custom_path, drops the hand-built path helper, and expects success on save. Tests pass and fmt is clean.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): All three earlier findings are fixed. The test now writes only to a private, randomly named temp folder made with `tempfile::tempdir` and opened through `Config::with_custom_path`, and that folder is removed when the test ends, even after a panic. The hand-built path helper and the `remove_dir_all` call are gone, and a failure to create or save the settings now fails the test. `tempfile` is a dev-dependency only (`"3"`, locked). Tests (47 passed, 1 ignored), fmt and clippy are clean.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`chatgpt:gpt-6-luna`): The change adds the requested Settings defaults and enabled-save round-trip test, using a temporary custom config path so it does not touch user configuration. The targeted test and all-targets check pass; no clear defects found.
+
 ## Summary
 
-Replace lines 472–494.
+All three findings are fixed and committed. The test passes, `cargo fmt --all -- --check` is clean, and `cargo clippy --all-targets` finished with no warnings. I ran only this one test, not the whole suite.
+
+- **Temp config directory (#3):** the test now builds its config with `Config::with_custom_path` in a `tempfile::tempdir()`. It no longer touches the real user config. The temp folder is removed on drop, even after a panic. I deleted `dirs_config_dir` and the `remove_dir_all` cleanup.
+- **No silent skips (#1, #2):** the early return and the `if ... is_ok()` check are gone. The test now uses `expect`, so a failed config or save fails the test. It checks that a fresh config loads as `Settings::default()`, then that `save_enabled(true)` is read back by `load`.
+- **Dependency change:** `tempfile = "3"` is now a dev-dependency in `Cargo.toml`. The `Cargo.lock` change is one line, because `tempfile` 3.27.0 was already locked. `--locked` refused to update the lockfile, so I ran the checks with `--offline` instead.
 
 ## Contract
 
@@ -53,4 +69,4 @@ The clauses this work was bound by:
 
 ---
 
-From `626aa5bb40` to `a242028de6`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `626aa5bb40` to `f41cad76fe`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
