@@ -1,6 +1,6 @@
 # Work on issue FV-R21AS5: README: keep it user-facing, move maintainer release…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-r21as5-readme-keep-it-user-facing-move-maintain` · FV-R21AS5: README: keep it user-facing, move maintainer release steps out
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-r21as5-readme-keep-it-user-facing-move-maintain` · FV-R21AS5: README: keep it user-facing, move maintainer release steps out
 
 About $0.00, 0 tokens in, 0 out
 
@@ -29,21 +29,18 @@ Then:
 
 No test runs were reported.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): The one change since the last round (df80488) rewords the build-from-source line in README.md to point at the section by name, as finding #1 asked. The new link target, #build-and-install-from-source, matches the existing "## Build and install from source" heading. No other lines changed, so the earlier approval still holds.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The earlier suggestion is fixed: the install section now links to the "Build and install from source" section, and the anchor resolves.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): This change only touches documentation. The README's "Verify a download" section is unchanged apart from its heading level: it still says to check the fingerprint against the README and not to trust signing-key.asc on its own, it still uses gpgv against that one key, and it still checks hashes from the verified text. The FINGERPRINT-TO-BE-FILLED-IN placeholder is still in README.md, so release.yml's check still works. The maintainer guidance moved to docs/RELEASING.md without being weakened: environment secrets rather than repository secrets, the `v*` tag ruleset, piping the private key into gh, umask 077, and pinned tool versions. The new anchors (#secrets, #create-the-signing-key-once, ../README.md#verify-a-download) point at headings that exist. No code, workflow or dependency changes.
+
 ## Summary
 
-I moved the maintainer-only parts of `README.md` into a new `docs/RELEASING.md` and committed. Nothing was built or run: no workflow run and no link check. I did grep the workflow, and the placeholder it looks for is still in the README.
-
-- **README:** it now covers only what users need: what it is, requirements, installing the signed `.deb`, verifying the download with the key fingerprint, building and installing from source, adding it to the panel, and the licence. The last line links to `docs/RELEASING.md`.
-- **`docs/RELEASING.md`:** it holds the `cargo-deb` packaging details, how a release is built, creating the signing key, the GitHub `release` environment and secrets, and cutting a release.
-- **Workflow:** I left `release.yml` alone. It greps `README.md` for `FINGERPRINT-TO-BE-FILLED-IN`, and that placeholder is still in the README's fingerprint block, so the check works as before. `RELEASING.md` says to keep it there until the real fingerprint is pasted in.
-- **Links and anchors:**
-  - The README's "Verify a download" heading is now a top-level section. I kept its anchor, `#verify-a-download`, so the install steps still resolve.
-  - The links inside `RELEASING.md` use its own new section anchors and `../README.md#verify-a-download`.
-- **Wording changes you didn't ask for:**
-  - I moved the "build tools" requirement into a "to build from source" bullet.
-  - I renamed "Build and install" to "Build and install from source".
-  - I moved the `sudo apt remove` line into the install section.
+I fixed finding #1 and committed it. In `README.md`, "To build from source instead, read on." now says "see [Build and install from source](#build-and-install-from-source) below." and links to that section. I didn't open the rendered README to check that the link works.
 
 ---
 
-From `f571a7e98c` to `c25e74dfa2`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `f571a7e98c` to `df80488969`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
