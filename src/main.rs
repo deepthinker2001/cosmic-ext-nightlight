@@ -89,7 +89,8 @@ impl Worker {
                 if !sent {
                     return Err("gamma worker stopped".to_string());
                 }
-                rx.await.unwrap_or_else(|_| Err("gamma worker stopped".to_string()))
+                rx.await
+                    .unwrap_or_else(|_| Err("gamma worker stopped".to_string()))
             },
             move |r| cosmic::Action::App(Message::Applied(enable, r)),
         )
@@ -180,8 +181,20 @@ impl cosmic::Application for Nightlight {
             .and_then(|c| c.get::<bool>(CONFIG_KEY_ENABLED).ok())
             .unwrap_or(false);
         let worker = Worker::spawn();
-        let task = if saved { worker.request(true) } else { Task::none() };
-        (Self { core, enabled: false, busy: saved, worker }, task)
+        let task = if saved {
+            worker.request(true)
+        } else {
+            Task::none()
+        };
+        (
+            Self {
+                core,
+                enabled: false,
+                busy: saved,
+                worker,
+            },
+            task,
+        )
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {

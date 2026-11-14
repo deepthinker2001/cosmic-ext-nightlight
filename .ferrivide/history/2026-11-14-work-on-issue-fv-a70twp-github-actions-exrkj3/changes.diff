@@ -1,0 +1,201 @@
+diff --git a/.github/dependabot.yml b/.github/dependabot.yml
+new file mode 100644
+index 0000000..ca79ca5
+--- /dev/null
++++ b/.github/dependabot.yml
+@@ -0,0 +1,6 @@
++version: 2
++updates:
++  - package-ecosystem: github-actions
++    directory: /
++    schedule:
++      interval: weekly
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..c127331
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,51 @@
++name: CI
++
++on:
++  push:
++  pull_request:
++
++permissions:
++  contents: read
++
++concurrency:
++  group: ci-${{ github.workflow }}-${{ github.ref }}
++  cancel-in-progress: true
++
++env:
++  CARGO_TERM_COLOR: always
++
++jobs:
++  ci:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
++        with:
++          persist-credentials: false
++
++      - name: Install system dependencies
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends \
++            build-essential pkg-config cmake \
++            libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgbm-dev \
++            libdrm-dev libinput-dev libudev-dev libseat-dev libssl-dev \
++            libfontconfig-dev libfreetype-dev libexpat1-dev
++
++      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
++        with:
++          toolchain: stable
++          components: rustfmt, clippy
++
++      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
++
++      - name: Format
++        run: cargo fmt --all -- --check
++
++      - name: Clippy
++        run: cargo clippy --locked --all-targets -- -D warnings
++
++      - name: Test
++        run: cargo test --locked
++
++      - name: Build
++        run: cargo build --release --locked
+diff --git a/src/gamma.rs b/src/gamma.rs
+index fe1e5c3..0172884 100644
+--- a/src/gamma.rs
++++ b/src/gamma.rs
+@@ -91,7 +91,11 @@ pub fn build_ramp(size: usize, kelvin: u32) -> Vec<u16> {
+     let mut out = Vec::with_capacity(size * 3);
+     for m in mul {
+         for i in 0..size {
+-            let x = if size > 1 { i as f64 / (size - 1) as f64 } else { 1.0 };
++            let x = if size > 1 {
++                i as f64 / (size - 1) as f64
++            } else {
++                1.0
++            };
+             out.push((x * m * f64::from(u16::MAX)).round() as u16);
+         }
+     }
+@@ -170,7 +174,11 @@ impl Dispatch<WlRegistry, GlobalListContents> for State {
+         qh: &QueueHandle<Self>,
+     ) {
+         match event {
+-            wl_registry::Event::Global { name, interface, version } if interface == "wl_output" => {
++            wl_registry::Event::Global {
++                name,
++                interface,
++                version,
++            } if interface == "wl_output" => {
+                 let output = registry.bind::<WlOutput, _, _>(name, version.min(4), qh, ());
+                 state.outputs.push(OutputEntry {
+                     name,
+@@ -199,7 +207,15 @@ impl Dispatch<WlRegistry, GlobalListContents> for State {
+ }
+ 
+ impl Dispatch<WlOutput, ()> for State {
+-    fn event(_: &mut Self, _: &WlOutput, _: wl_output::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
++    fn event(
++        _: &mut Self,
++        _: &WlOutput,
++        _: wl_output::Event,
++        _: &(),
++        _: &Connection,
++        _: &QueueHandle<Self>,
++    ) {
++    }
+ }
+ 
+ impl Dispatch<ZwlrGammaControlManagerV1, ()> for State {
+@@ -279,8 +295,8 @@ impl GammaBackend {
+     /// `zwlr_gamma_control_manager_v1`.
+     pub fn new() -> Result<Self, GammaError> {
+         let conn = Connection::connect_to_env().map_err(|e| GammaError::Connect(e.to_string()))?;
+-        let (globals, mut queue) = registry_queue_init::<State>(&conn)
+-            .map_err(|e| GammaError::Wayland(e.to_string()))?;
++        let (globals, mut queue) =
++            registry_queue_init::<State>(&conn).map_err(|e| GammaError::Wayland(e.to_string()))?;
+         let qh = queue.handle();
+ 
+         let advertised = globals
+@@ -293,7 +309,11 @@ impl GammaBackend {
+             .bind(&qh, 1..=1, ())
+             .map_err(|_| GammaError::Unsupported)?;
+ 
+-        let mut state = State { manager, outputs: Vec::new(), target: None };
++        let mut state = State {
++            manager,
++            outputs: Vec::new(),
++            target: None,
++        };
+         let registry = globals.registry();
+         globals.contents().with_list(|list| {
+             for g in list.iter().filter(|g| g.interface == "wl_output") {
+@@ -388,7 +408,11 @@ impl GammaBackend {
+ 
+     /// Number of outputs that currently have a working gamma control.
+     pub fn active_outputs(&self) -> usize {
+-        self.state.outputs.iter().filter(|o| o.control.is_some()).count()
++        self.state
++            .outputs
++            .iter()
++            .filter(|o| o.control.is_some())
++            .count()
+     }
+ 
+     /// The underlying connection (for polling its fd).
+@@ -434,7 +458,9 @@ mod tests {
+         assert_eq!(temperature_to_rgb(0), temperature_to_rgb(1000));
+         assert_eq!(temperature_to_rgb(100_000), temperature_to_rgb(10000));
+         for k in [1000, 1500, 3500, 6500, 10000] {
+-            assert!(temperature_to_rgb(k).iter().all(|c| (0.0..=1.0).contains(c)));
++            assert!(temperature_to_rgb(k)
++                .iter()
++                .all(|c| (0.0..=1.0).contains(c)));
+         }
+     }
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 1b0ec10..adc19cc 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -89,7 +89,8 @@ impl Worker {
+                 if !sent {
+                     return Err("gamma worker stopped".to_string());
+                 }
+-                rx.await.unwrap_or_else(|_| Err("gamma worker stopped".to_string()))
++                rx.await
++                    .unwrap_or_else(|_| Err("gamma worker stopped".to_string()))
+             },
+             move |r| cosmic::Action::App(Message::Applied(enable, r)),
+         )
+@@ -180,8 +181,20 @@ impl cosmic::Application for Nightlight {
+             .and_then(|c| c.get::<bool>(CONFIG_KEY_ENABLED).ok())
+             .unwrap_or(false);
+         let worker = Worker::spawn();
+-        let task = if saved { worker.request(true) } else { Task::none() };
+-        (Self { core, enabled: false, busy: saved, worker }, task)
++        let task = if saved {
++            worker.request(true)
++        } else {
++            Task::none()
++        };
++        (
++            Self {
++                core,
++                enabled: false,
++                busy: saved,
++                worker,
++            },
++            task,
++        )
+     }
+ 
+     fn update(&mut self, message: Message) -> Task<Message> {
