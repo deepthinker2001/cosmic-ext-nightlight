@@ -1,0 +1,1093 @@
+diff --git a/README.md b/README.md
+index 9f567a8..58ef12c 100644
+--- a/README.md
++++ b/README.md
+@@ -13,6 +13,37 @@ tint) with one click.
+ - The on/off state is saved and restored the next time the applet starts.
+ - Gamma is set directly through the Wayland protocol; no other daemon is needed.
+ 
++### Auto (sunrise/sunset)
++
++Right-click the button and switch on **Auto (sunrise/sunset)**. The screen
++then warms up smoothly in the evening and cools back down in the morning,
++instead of switching at a fixed time:
++
++- Sunrise and sunset for today are calculated on your computer from your
++  location (a standard solar-position formula; polar day and night are
++  handled: the screen stays neutral all day, or fully warm all day).
++- The colour temperature slider sets the target. The ramp goes in 1% steps
++  from neutral (6500 K, 0%) to your target (100%) along a smooth sine-squared
++  curve. The evening ramp runs 0 to 100% around sunset, the morning ramp
++  100 to 0% around sunrise. Each ramp is 60 minutes long, centred on the
++  event (30 minutes before to 30 minutes after); the popup says so. The
++  length is a constant in `src/solar.rs` (`RAMP_WINDOW_MINUTES`).
++- A step is applied only when the whole percent changes, checked every 20
++  seconds, so it also catches up after the computer wakes from sleep. Moving
++  the slider applies the new target at once. The panel button still switches
++  night light on or off by hand; that holds until the next step. Switching
++  on by hand uses the current ramp temperature, or your full target when the
++  ramp is at 0% (daytime); the next 1% step then takes over.
++- **Location**: by default the coordinates of the system timezone, read from
++  `/usr/share/zoneinfo/zone.tab` (or `zone1970.tab`). You can type a latitude
++  and longitude in the popup instead (they win once both are valid), and
++  **Use timezone location** goes back to the default. If neither works, the
++  popup shows a note and Auto stays off. There is no IP lookup and no network
++  access.
++- Auto and the custom schedule exclude each other: switching one on switches
++  the other off.
++- The settings are saved with the others.
++
+ ## Requirements
+ 
+ - A Wayland compositor that supports `wlr-gamma-control`
+diff --git a/src/location.rs b/src/location.rs
+new file mode 100644
+index 0000000..c6dd26a
+--- /dev/null
++++ b/src/location.rs
+@@ -0,0 +1,163 @@
++//! The default location: the coordinates of the system timezone, read from
++//! the local tz database tables. No network, no IP lookup.
++
++use std::fs;
++
++const ZONE_TABS: [&str; 2] = [
++    "/usr/share/zoneinfo/zone.tab",
++    "/usr/share/zoneinfo/zone1970.tab",
++];
++
++/// A latitude and longitude in degrees (north and east positive).
++pub type Coords = (f64, f64);
++
++/// Whether `lat`/`lon` are valid degrees.
++pub fn valid(lat: f64, lon: f64) -> bool {
++    (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon)
++}
++
++/// Parse text typed by the user as degrees.
++pub fn parse_degrees(text: &str) -> Option<f64> {
++    text.trim().parse::<f64>().ok().filter(|v| v.is_finite())
++}
++
++/// Parse one ISO 6709 part, `+DDMM`, `+DDMMSS` (`deg_digits` degree digits).
++fn parse_part(part: &str, deg_digits: usize) -> Option<f64> {
++    let sign = match part.chars().next()? {
++        '+' => 1.0,
++        '-' => -1.0,
++        _ => return None,
++    };
++    let digits = &part[1..];
++    if !digits.bytes().all(|b| b.is_ascii_digit()) {
++        return None;
++    }
++    let field = |from: usize, len: usize| -> Option<f64> {
++        digits.get(from..from + len)?.parse::<f64>().ok()
++    };
++    let degrees = field(0, deg_digits)?;
++    let minutes = field(deg_digits, 2)?;
++    let seconds = match digits.len() - deg_digits {
++        2 => 0.0,
++        4 => field(deg_digits + 2, 2)?,
++        _ => return None,
++    };
++    Some(sign * (degrees + minutes / 60.0 + seconds / 3600.0))
++}
++
++/// Parse the coordinates column of a zone table: `+3114+12128`, `-3352+15113`
++/// or with seconds `+404251-0740023`.
++pub fn parse_iso6709(text: &str) -> Option<Coords> {
++    // The sign is one ASCII byte, so `split` is always a character boundary.
++    let rest = text.strip_prefix(['+', '-'])?;
++    let split = rest.find(['+', '-'])? + 1;
++    let (lat, lon) = text.split_at(split);
++    let coords = (parse_part(lat, 2)?, parse_part(lon, 3)?);
++    valid(coords.0, coords.1).then_some(coords)
++}
++
++/// The coordinates of `zone` in the contents of a zone table (tab separated:
++/// countries, coordinates, zone name, comments).
++pub fn find_zone(table: &str, zone: &str) -> Option<Coords> {
++    table
++        .lines()
++        .filter(|l| !l.starts_with('#'))
++        .find_map(|line| {
++            let mut cols = line.split('\t');
++            let (_, coords, name) = (cols.next()?, cols.next()?, cols.next()?);
++            (name == zone).then(|| parse_iso6709(coords)).flatten()
++        })
++}
++
++/// The zone name in a `/etc/localtime` link target such as
++/// `/usr/share/zoneinfo/Europe/Paris`.
++pub fn zone_from_link(target: &str) -> Option<&str> {
++    let (_, zone) = target.split_once("zoneinfo/")?;
++    (!zone.is_empty()).then_some(zone)
++}
++
++/// The system timezone's name, e.g. `Europe/Paris`.
++fn system_timezone() -> Option<String> {
++    if let Ok(link) = fs::read_link("/etc/localtime") {
++        if let Some(zone) = zone_from_link(&link.to_string_lossy()) {
++            return Some(zone.to_string());
++        }
++    }
++    if let Ok(name) = fs::read_to_string("/etc/timezone") {
++        let name = name.trim();
++        if !name.is_empty() {
++            return Some(name.to_string());
++        }
++    }
++    let tz = std::env::var("TZ").ok()?;
++    let tz = tz.trim_start_matches(':');
++    (!tz.is_empty()).then(|| tz.to_string())
++}
++
++/// The system timezone's coordinates, if the zone and a table are found.
++pub fn timezone_location() -> Option<Coords> {
++    let zone = system_timezone()?;
++    ZONE_TABS
++        .iter()
++        .filter_map(|path| fs::read_to_string(path).ok())
++        .find_map(|table| find_zone(&table, &zone))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn close(a: Coords, b: Coords) -> bool {
++        (a.0 - b.0).abs() < 1e-3 && (a.1 - b.1).abs() < 1e-3
++    }
++
++    #[test]
++    fn parses_degrees_and_minutes() {
++        assert!(close(parse_iso6709("+3114+12128").unwrap(), (31.2333, 121.4667)));
++        assert!(close(parse_iso6709("-3352+15113").unwrap(), (-33.8667, 151.2167)));
++        assert!(close(parse_iso6709("+4903-12307").unwrap(), (49.05, -123.1167)));
++    }
++
++    #[test]
++    fn parses_seconds() {
++        assert!(close(
++            parse_iso6709("+404251-0740023").unwrap(),
++            (40.7142, -74.0064)
++        ));
++    }
++
++    #[test]
++    fn rejects_garbage() {
++        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128", "é+3114+12128"] {
++            assert_eq!(parse_iso6709(bad), None, "{bad}");
++        }
++    }
++
++    #[test]
++    fn finds_a_zone_in_a_table() {
++        let table = "# comment\nFR\t+4852+00220\tEurope/Paris\nDE,DK\t+5230+01322\tEurope/Berlin\tmost of Germany\n";
++        assert!(close(find_zone(table, "Europe/Paris").unwrap(), (48.8667, 2.3333)));
++        assert!(close(find_zone(table, "Europe/Berlin").unwrap(), (52.5, 13.3667)));
++        assert_eq!(find_zone(table, "Europe/Nowhere"), None);
++    }
++
++    #[test]
++    fn zone_name_from_localtime_link() {
++        assert_eq!(
++            zone_from_link("/usr/share/zoneinfo/Europe/Paris"),
++            Some("Europe/Paris")
++        );
++        assert_eq!(zone_from_link("../usr/share/zoneinfo/UTC"), Some("UTC"));
++        assert_eq!(zone_from_link("/etc/other"), None);
++    }
++
++    #[test]
++    fn typed_degrees() {
++        assert_eq!(parse_degrees(" 12.5 "), Some(12.5));
++        assert_eq!(parse_degrees("abc"), None);
++        assert_eq!(parse_degrees("NaN"), None);
++        assert!(valid(90.0, -180.0));
++        assert!(!valid(90.1, 0.0));
++        assert!(!valid(0.0, 181.0));
++    }
++}
+diff --git a/src/main.rs b/src/main.rs
+index bb6dd86..4c3d9d7 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,6 +1,8 @@
+ // Some backend items (temperature changes, probes) aren't used by the applet yet.
+ #[allow(dead_code)]
+ mod gamma;
++mod location;
++mod solar;
+ 
+ use std::sync::mpsc;
+ use std::thread;
+@@ -14,7 +16,7 @@ use cosmic::iced::window::Id;
+ use cosmic::surface::action::{app_popup, destroy_popup};
+ use cosmic::iced::Subscription;
+ use cosmic::widget::{list_column, mouse_area, settings, slider, spin_button, text, toggler};
+-use chrono::Timelike;
++use chrono::{Datelike, Timelike};
+ use cosmic::Element;
+ 
+ const APP_ID: &str = "io.github.cosmic_ext.Nightlight";
+@@ -26,6 +28,10 @@ const CONFIG_KEY_TEMPERATURE: &str = "temperature";
+ const CONFIG_KEY_SCHEDULE_ON: &str = "schedule_on";
+ const CONFIG_KEY_SCHEDULE_START: &str = "schedule_start";
+ const CONFIG_KEY_SCHEDULE_END: &str = "schedule_end";
++const CONFIG_KEY_AUTO_ON: &str = "auto_on";
++const CONFIG_KEY_LOCATION_CUSTOM: &str = "location_custom";
++const CONFIG_KEY_LOCATION_LAT: &str = "location_lat";
++const CONFIG_KEY_LOCATION_LON: &str = "location_lon";
+ /// How often the schedule is checked. Also bounds how late it catches up
+ /// after the machine resumes from sleep.
+ const SCHEDULE_TICK: Duration = Duration::from_secs(20);
+@@ -69,27 +75,7 @@ impl Worker {
+                     }
+                     Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                 };
+-                let result = (|| {
+-                    if backend.is_none() {
+-                        backend = Some(gamma::GammaBackend::new().map_err(|e| e.to_string())?);
+-                    }
+-                    let b = backend.as_mut().unwrap();
+-                    if let Some(kelvin) = target {
+-                        if let Err(e) = b.enable(kelvin) {
+-                            // Partway failure: don't leave some outputs warm.
+-                            let _ = b.disable();
+-                            return Err(e.to_string());
+-                        }
+-                        if b.active_outputs() == 0 {
+-                            let _ = b.disable();
+-                            return Err("no output accepted gamma control".to_string());
+-                        }
+-                        Ok(())
+-                    } else {
+-                        b.disable().map_err(|e| e.to_string())
+-                    }
+-                })();
+-                let _ = reply.send(result);
++                let _ = reply.send(handle_request(&mut backend, target));
+             }
+         });
+         Self { tx }
+@@ -111,6 +97,38 @@ impl Worker {
+     }
+ }
+ 
++/// Serve one worker request, connecting the backend on first use (or after
++/// a broken connection). Kept out of the worker's loop body so the loop only
++/// receives and replies. Not a hot path: `GammaBackend::new` runs only while
++/// the backend is `None`, i.e. once per connection (and its `Vec::new` does
++/// not allocate until an output is pushed); requests on a live connection
++/// reuse the cached backend.
++fn handle_request(
++    backend: &mut Option<gamma::GammaBackend>,
++    target: Option<u32>,
++) -> Result<(), String> {
++    if backend.is_none() {
++        *backend = Some(gamma::GammaBackend::new().map_err(|e| e.to_string())?);
++    }
++    let Some(b) = backend.as_mut() else {
++        return Err("gamma backend unavailable".to_string());
++    };
++    if let Some(kelvin) = target {
++        if let Err(e) = b.enable(kelvin) {
++            // Partway failure: don't leave some outputs warm.
++            let _ = b.disable();
++            return Err(e.to_string());
++        }
++        if b.active_outputs() == 0 {
++            let _ = b.disable();
++            return Err("no output accepted gamma control".to_string());
++        }
++        Ok(())
++    } else {
++        b.disable().map_err(|e| e.to_string())
++    }
++}
++
+ /// What a toggle press asks for: `None` while a request is in flight.
+ fn toggle_request(enabled: bool, busy: bool) -> Option<bool> {
+     (!busy).then_some(!enabled)
+@@ -235,6 +253,33 @@ fn local_time_of_day() -> TimeOfDay {
+     TimeOfDay::from_minutes(now.hour() * 60 + now.minute())
+ }
+ 
++/// The ramp percent right now at `coords`, from the local date and time.
++fn auto_percent_now(coords: location::Coords) -> u8 {
++    let now = chrono::Local::now();
++    let sun = solar::sun_times(
++        coords.0,
++        coords.1,
++        now.ordinal(),
++        now.offset().local_minus_utc() / 60,
++    );
++    let minutes = f64::from(now.hour() * 60 + now.minute()) + f64::from(now.second()) / 60.0;
++    solar::ramp_percent(sun, minutes, solar::RAMP_WINDOW_MINUTES)
++}
++
++/// What to ask the backend for to reach ramp `percent`: `Some((true, K))` to
++/// set a temperature, `Some((false, _))` to go neutral, `None` when already
++/// neutral.
++fn auto_action(percent: u8, target: u32, enabled: bool) -> Option<(bool, u32)> {
++    if percent == 0 {
++        enabled.then_some((false, gamma::NEUTRAL_TEMPERATURE))
++    } else {
++        Some((
++            true,
++            solar::kelvin_for_percent(percent, target, gamma::NEUTRAL_TEMPERATURE),
++        ))
++    }
++}
++
+ /// What a slider move asks of the backend.
+ #[derive(Debug, PartialEq)]
+ enum Retune {
+@@ -346,6 +391,25 @@ mod tests {
+         assert_eq!(schedule_step(Schedule::Off, t(1, 0), Some(true)), (None, None));
+     }
+ 
++    #[test]
++    fn auto_action_ramps_and_goes_neutral() {
++        assert_eq!(auto_action(0, 3500, false), None);
++        assert_eq!(auto_action(0, 3500, true), Some((false, 6500)));
++        assert_eq!(auto_action(100, 3500, false), Some((true, 3500)));
++        assert_eq!(auto_action(50, 3500, true), Some((true, 5000)));
++    }
++
++    #[test]
++    fn new_target_is_used_at_once() {
++        // A slider move forgets the last step, so the same percent is applied
++        // again, now with the new target.
++        let (last, apply) = solar::auto_step(50, None);
++        assert_eq!(auto_action(apply.unwrap(), 3500, true), Some((true, 5000)));
++        assert_eq!(solar::auto_step(50, last).1, None);
++        let (_, apply) = solar::auto_step(50, None);
++        assert_eq!(auto_action(apply.unwrap(), 2500, true), Some((true, 4500)));
++    }
++
+     #[test]
+     fn hints_cover_the_range() {
+         assert_eq!(temperature_hint(1900), "Very warm");
+@@ -461,6 +525,10 @@ struct Settings {
+     schedule_on: bool,
+     schedule_start: TimeOfDay,
+     schedule_end: TimeOfDay,
++    /// Automatic sunrise/sunset ramp on.
++    auto_on: bool,
++    /// Coordinates the user typed in; they win over the timezone's.
++    custom_location: Option<location::Coords>,
+ }
+ 
+ const DEFAULT_SCHEDULE_START: TimeOfDay = TimeOfDay(21 * 60);
+@@ -474,6 +542,8 @@ impl Default for Settings {
+             schedule_on: false,
+             schedule_start: DEFAULT_SCHEDULE_START,
+             schedule_end: DEFAULT_SCHEDULE_END,
++            auto_on: false,
++            custom_location: None,
+         }
+     }
+ }
+@@ -494,7 +564,35 @@ impl Settings {
+             schedule_end: config
+                 .get::<u16>(CONFIG_KEY_SCHEDULE_END)
+                 .map_or(DEFAULT_SCHEDULE_END, |m| TimeOfDay::from_minutes(m.into())),
++            auto_on: config.get::<bool>(CONFIG_KEY_AUTO_ON).unwrap_or(false),
++            custom_location: config
++                .get::<bool>(CONFIG_KEY_LOCATION_CUSTOM)
++                .unwrap_or(false)
++                .then(|| {
++                    Some((
++                        config.get::<f64>(CONFIG_KEY_LOCATION_LAT).ok()?,
++                        config.get::<f64>(CONFIG_KEY_LOCATION_LON).ok()?,
++                    ))
++                })
++                .flatten()
++                .filter(|&(lat, lon)| location::valid(lat, lon)),
++        }
++    }
++
++    fn save_auto(config: &Config, on: bool) -> Result<(), cosmic::cosmic_config::Error> {
++        config.set(CONFIG_KEY_AUTO_ON, on)
++    }
++
++    fn save_location(
++        config: &Config,
++        custom: Option<location::Coords>,
++    ) -> Result<(), cosmic::cosmic_config::Error> {
++        config.set(CONFIG_KEY_LOCATION_CUSTOM, custom.is_some())?;
++        if let Some((lat, lon)) = custom {
++            config.set(CONFIG_KEY_LOCATION_LAT, lat)?;
++            config.set(CONFIG_KEY_LOCATION_LON, lon)?;
+         }
++        Ok(())
+     }
+ 
+     fn save_schedule(
+@@ -535,9 +633,107 @@ struct Nightlight {
+     schedule_end: TimeOfDay,
+     /// Window state seen by the last schedule check (see `schedule_step`).
+     schedule_last: Option<bool>,
++    auto: AutoState,
++}
++
++/// State of the sunrise/sunset mode.
++struct AutoState {
++    on: bool,
++    /// Coordinates typed by the user, if any.
++    custom_location: Option<location::Coords>,
++    /// Coordinates of the system timezone, read once at start-up.
++    tz_location: Option<location::Coords>,
++    /// Text in the latitude and longitude boxes.
++    lat_input: String,
++    lon_input: String,
++    /// Ramp percent applied last (see `solar::auto_step`).
++    last: Option<u8>,
+ }
+ 
+ impl Nightlight {
++    /// The location in use: the user's, else the timezone's.
++    fn location(&self) -> Option<location::Coords> {
++        self.auto.custom_location.or(self.auto.tz_location)
++    }
++
++    fn save_auto(&self) {
++        if let Some(c) = config() {
++            if let Err(e) = Settings::save_auto(&c, self.auto.on) {
++                eprintln!("nightlight: cannot save auto setting: {e}");
++            }
++        }
++    }
++
++    /// Check the ramp against the clock and start a request if the whole
++    /// percent changed. Waits while a request is in flight (the next tick
++    /// retries).
++    fn check_auto(&mut self) -> Task<Message> {
++        let Some(coords) = self.location().filter(|_| self.auto.on) else {
++            return Task::none();
++        };
++        if self.busy {
++            return Task::none();
++        }
++        let (last, apply) = solar::auto_step(auto_percent_now(coords), self.auto.last);
++        self.auto.last = last;
++        match apply.and_then(|p| auto_action(p, self.temperature, self.enabled)) {
++            Some((on, kelvin)) => {
++                self.busy = true;
++                self.worker.request(on, kelvin)
++            }
++            None => Task::none(),
++        }
++    }
++
++    fn save_location(&self) {
++        if let Some(c) = config() {
++            if let Err(e) = Settings::save_location(&c, self.auto.custom_location) {
++                eprintln!("nightlight: cannot save location: {e}");
++            }
++        }
++    }
++
++    /// The text boxes changed: once both hold valid degrees they become the
++    /// location. Half-typed or out-of-range text changes nothing.
++    fn location_edited(&mut self) -> Task<Message> {
++        let coords = location::parse_degrees(&self.auto.lat_input)
++            .zip(location::parse_degrees(&self.auto.lon_input))
++            .filter(|&(lat, lon)| location::valid(lat, lon));
++        match coords {
++            Some(c) if self.auto.custom_location != Some(c) => {
++                self.auto.custom_location = Some(c);
++                self.save_location();
++                self.location_changed()
++            }
++            _ => Task::none(),
++        }
++    }
++
++    /// The location in use changed: recompute at once, or switch auto off
++    /// when there is none left.
++    fn location_changed(&mut self) -> Task<Message> {
++        if self.auto.on && self.location().is_none() {
++            self.auto.on = false;
++            self.save_auto();
++        }
++        self.auto.last = None;
++        self.check_auto()
++    }
++
++    /// Kelvin for a manual switch-on: the current ramp step while auto is on.
++    /// At 0% (daytime) the ramp itself is neutral, but a person pressing the
++    /// button wants the warm tint, so the full target is used; the next ramp
++    /// step then takes over (documented in the README).
++    fn manual_kelvin(&self) -> u32 {
++        match self.location().filter(|_| self.auto.on) {
++            Some(coords) => match auto_percent_now(coords) {
++                0 => self.temperature,
++                p => solar::kelvin_for_percent(p, self.temperature, gamma::NEUTRAL_TEMPERATURE),
++            },
++            None => self.temperature,
++        }
++    }
++
+     fn schedule(&self) -> Schedule {
+         if self.schedule_on {
+             Schedule::Custom {
+@@ -595,10 +791,95 @@ enum Message {
+     ScheduleOn(bool),
+     ScheduleStart(TimeOfDay),
+     ScheduleEnd(TimeOfDay),
++    /// Auto (sunrise/sunset) was switched on or off.
++    AutoOn(bool),
++    LatInput(String),
++    LonInput(String),
++    /// Go back to the timezone's coordinates.
++    UseTimezoneLocation,
+     /// Time to check the schedule.
+     Tick,
+ }
+ 
++/// The settings popup's content.
++fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
++    let kelvin = state.temperature;
++    let mut content = list_column()
++        .add(settings::item(
++            "Night light",
++            toggler(state.enabled).on_toggle(|_| Message::Toggle),
++        ))
++        .add(settings::item(
++            format!("Colour temperature: {kelvin} K"),
++            text(temperature_hint(kelvin)),
++        ))
++        .add(
++            slider(
++                gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
++                kelvin,
++                Message::Temperature,
++            )
++            .step(100_u32),
++        )
++        .add(settings::item(
++            "Schedule: custom times",
++            toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
++        ));
++    if state.schedule_on {
++        let (start, end) = (state.schedule_start, state.schedule_end);
++        content = content
++            .add(settings::item(
++                "Start",
++                time_picker(start, Message::ScheduleStart),
++            ))
++            .add(settings::item(
++                "End",
++                time_picker(end, Message::ScheduleEnd),
++            ));
++    }
++    content = content.add(settings::item(
++        "Auto (sunrise/sunset)",
++        toggler(state.auto.on).on_toggle(Message::AutoOn),
++    ));
++    let note = match (state.location(), state.auto.custom_location) {
++        (None, _) => Some(
++            "No location found for this timezone: enter latitude and \
++             longitude to use Auto."
++                .to_string(),
++        ),
++        (Some((lat, lon)), custom) if state.auto.on => Some(format!(
++            "Ramps over {} min centred on sunrise and sunset, \
++             to the temperature above. Location: {lat:.2}, {lon:.2} \
++             ({}).",
++            solar::RAMP_WINDOW_MINUTES,
++            if custom.is_some() { "custom" } else { "timezone" },
++        )),
++        _ => None,
++    };
++    if let Some(note) = note {
++        content = content.add(text(note));
++    }
++    content = content
++        .add(settings::item(
++            "Latitude",
++            cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
++                .on_input(Message::LatInput),
++        ))
++        .add(settings::item(
++            "Longitude",
++            cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
++                .on_input(Message::LonInput),
++        ));
++    if state.auto.custom_location.is_some() {
++        content = content.add(
++            cosmic::widget::button::standard("Use timezone location")
++                .on_press(Message::UseTimezoneLocation),
++        );
++    }
++    Element::from(state.core.applet.popup_container(content))
++        .map(cosmic::Action::App)
++}
++
+ impl cosmic::Application for Nightlight {
+     type Executor = cosmic::SingleThreadExecutor;
+     type Flags = ();
+@@ -627,22 +908,43 @@ impl cosmic::Application for Nightlight {
+         };
+         let (schedule_last, scheduled) = schedule_step(schedule, local_time_of_day(), None);
+         let saved = scheduled.unwrap_or(settings.enabled);
+-        let worker = Worker::spawn();
+-        let task = if saved {
+-            worker.request(true, settings.temperature)
++        let tz_location = location::timezone_location();
++        let coords = settings.custom_location.or(tz_location);
++        // Auto needs a location and excludes the custom schedule.
++        let auto_coords = coords.filter(|_| settings.auto_on && !settings.schedule_on);
++        let (auto_last, auto_apply) = match auto_coords {
++            Some(c) => solar::auto_step(auto_percent_now(c), None),
++            None => (None, None),
++        };
++        let start = if auto_coords.is_some() {
++            auto_apply.and_then(|p| auto_action(p, settings.temperature, false))
+         } else {
+-            Task::none()
++            saved.then_some((true, settings.temperature))
+         };
++        let worker = Worker::spawn();
++        let task = match start {
++            Some((on, kelvin)) => worker.request(on, kelvin),
++            None => Task::none(),
++        };
++        let fmt = |v: f64| format!("{v}");
+         (
+             Self {
+                 core,
+                 enabled: false,
+-                busy: saved,
++                busy: start.is_some(),
++                auto: AutoState {
++                    on: auto_coords.is_some(),
++                    custom_location: settings.custom_location,
++                    tz_location,
++                    lat_input: settings.custom_location.map(|c| fmt(c.0)).unwrap_or_default(),
++                    lon_input: settings.custom_location.map(|c| fmt(c.1)).unwrap_or_default(),
++                    last: auto_last,
++                },
+                 worker,
+                 popup: None,
+                 temperature: settings.temperature,
+                 retune_pending: false,
+-                schedule_on: settings.schedule_on,
++                schedule_on: settings.schedule_on && auto_coords.is_none(),
+                 schedule_start: settings.schedule_start,
+                 schedule_end: settings.schedule_end,
+                 schedule_last,
+@@ -652,7 +954,7 @@ impl cosmic::Application for Nightlight {
+     }
+ 
+     fn subscription(&self) -> Subscription<Message> {
+-        if self.schedule_on {
++        if self.schedule_on || self.auto.on {
+             cosmic::iced::time::every(SCHEDULE_TICK).map(|_| Message::Tick)
+         } else {
+             Subscription::none()
+@@ -670,7 +972,7 @@ impl cosmic::Application for Nightlight {
+                     return Task::none();
+                 };
+                 self.busy = true;
+-                return self.worker.request(want, self.temperature);
++                return self.worker.request(want, self.manual_kelvin());
+             }
+             Message::Temperature(kelvin) => {
+                 let kelvin = gamma::clamp_temperature(kelvin);
+@@ -683,6 +985,17 @@ impl cosmic::Application for Nightlight {
+                         eprintln!("nightlight: cannot save temperature: {e}");
+                     }
+                 }
++                if self.auto.on {
++                    // The ramp uses the new target at once: forget the last
++                    // step so the current one is applied again. While a
++                    // request is in flight, its reply does this.
++                    self.auto.last = None;
++                    if self.busy {
++                        self.retune_pending = true;
++                        return Task::none();
++                    }
++                    return self.check_auto();
++                }
+                 match retune_on_slider(self.enabled, self.busy) {
+                     Retune::Now => {
+                         self.busy = true;
+@@ -695,9 +1008,43 @@ impl cosmic::Application for Nightlight {
+             Message::ScheduleOn(on) => {
+                 self.schedule_on = on;
+                 self.schedule_last = None;
++                if on && self.auto.on {
++                    // Auto and the custom schedule exclude each other.
++                    self.auto.on = false;
++                    self.auto.last = None;
++                    self.save_auto();
++                }
+                 self.save_schedule();
+                 return self.check_schedule();
+             }
++            Message::AutoOn(on) => {
++                // No location: leave auto off (the popup shows a note).
++                let on = on && self.location().is_some();
++                self.auto.on = on;
++                self.auto.last = None;
++                self.save_auto();
++                if on && self.schedule_on {
++                    self.schedule_on = false;
++                    self.schedule_last = None;
++                    self.save_schedule();
++                }
++                return self.check_auto();
++            }
++            Message::LatInput(text) => {
++                self.auto.lat_input = text;
++                return self.location_edited();
++            }
++            Message::LonInput(text) => {
++                self.auto.lon_input = text;
++                return self.location_edited();
++            }
++            Message::UseTimezoneLocation => {
++                self.auto.lat_input.clear();
++                self.auto.lon_input.clear();
++                self.auto.custom_location = None;
++                self.save_location();
++                return self.location_changed();
++            }
+             Message::ScheduleStart(time) => {
+                 self.schedule_start = time;
+                 self.schedule_last = None;
+@@ -710,7 +1057,13 @@ impl cosmic::Application for Nightlight {
+                 self.save_schedule();
+                 return self.check_schedule();
+             }
+-            Message::Tick => return self.check_schedule(),
++            Message::Tick => {
++                return if self.auto.on {
++                    self.check_auto()
++                } else {
++                    self.check_schedule()
++                };
++            }
+             Message::ToggleSettings => {
+                 let action = match self.popup {
+                     Some(id) => destroy_popup(id),
+@@ -727,44 +1080,7 @@ impl cosmic::Application for Nightlight {
+                                 None,
+                             )
+                         },
+-                        Some(Box::new(|state: &Nightlight| {
+-                            let kelvin = state.temperature;
+-                            let mut content = list_column()
+-                                .add(settings::item(
+-                                    "Night light",
+-                                    toggler(state.enabled).on_toggle(|_| Message::Toggle),
+-                                ))
+-                                .add(settings::item(
+-                                    format!("Colour temperature: {kelvin} K"),
+-                                    text(temperature_hint(kelvin)),
+-                                ))
+-                                .add(
+-                                    slider(
+-                                        gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
+-                                        kelvin,
+-                                        Message::Temperature,
+-                                    )
+-                                    .step(100_u32),
+-                                )
+-                                .add(settings::item(
+-                                    "Schedule: custom times",
+-                                    toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
+-                                ));
+-                            if state.schedule_on {
+-                                let (start, end) = (state.schedule_start, state.schedule_end);
+-                                content = content
+-                                    .add(settings::item(
+-                                        "Start",
+-                                        time_picker(start, Message::ScheduleStart),
+-                                    ))
+-                                    .add(settings::item(
+-                                        "End",
+-                                        time_picker(end, Message::ScheduleEnd),
+-                                    ));
+-                            }
+-                            Element::from(state.core.applet.popup_container(content))
+-                                .map(cosmic::Action::App)
+-                        })),
++                        Some(Box::new(popup_content)),
+                     ),
+                 };
+                 return cosmic::task::message(cosmic::Action::Surface(action));
+@@ -779,6 +1095,10 @@ impl cosmic::Application for Nightlight {
+                 }
+                 self.schedule_last =
+                     schedule_last_after_reply(self.schedule_last, want, result.is_ok());
++                if result.is_err() {
++                    // Forget the step so the next tick applies it again.
++                    self.auto.last = None;
++                }
+                 let (enabled, save) = applied(self.enabled, want, result.is_ok());
+                 self.enabled = enabled;
+                 if let (Some(v), Some(c)) = (save, config()) {
+@@ -787,7 +1107,11 @@ impl cosmic::Application for Nightlight {
+                     }
+                 }
+                 let pending = std::mem::take(&mut self.retune_pending);
+-                if retune_needed(self.enabled, pending) {
++                if self.auto.on {
++                    if pending {
++                        return self.check_auto();
++                    }
++                } else if retune_needed(self.enabled, pending) {
+                     self.busy = true;
+                     return self.worker.request(true, self.temperature);
+                 }
+diff --git a/src/solar.rs b/src/solar.rs
+new file mode 100644
+index 0000000..5ac673b
+--- /dev/null
++++ b/src/solar.rs
+@@ -0,0 +1,240 @@
++//! Sunrise/sunset times and the smooth ramp around them. Pure functions: no
++//! clock, no files; the caller passes the date, time and location in.
++
++use std::f64::consts::PI;
++
++/// Length of the ramp around each sunrise and sunset, in minutes. The window
++/// is centred on the event: half of it before, half after.
++pub const RAMP_WINDOW_MINUTES: f64 = 60.0;
++
++/// The sun on one day, with times in minutes since local midnight.
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub enum Sun {
++    Rises { sunrise: f64, sunset: f64 },
++    /// The sun stays up all day.
++    PolarDay,
++    /// The sun stays down all day.
++    PolarNight,
++}
++
++/// Sunrise and sunset (NOAA's general solar position formulas, accurate to
++/// a few minutes) for `lat`/`lon` in degrees (north and east positive), on
++/// day `ordinal` of the year (1 = 1 January), in a zone `utc_offset_minutes`
++/// ahead of UTC.
++pub fn sun_times(lat: f64, lon: f64, ordinal: u32, utc_offset_minutes: i32) -> Sun {
++    let g = 2.0 * PI / 365.0 * (f64::from(ordinal) - 1.0);
++    let eqtime = 229.18
++        * (0.000075 + 0.001868 * g.cos()
++            - 0.032077 * g.sin()
++            - 0.014615 * (2.0 * g).cos()
++            - 0.040849 * (2.0 * g).sin());
++    let decl = 0.006918 - 0.399912 * g.cos() + 0.070257 * g.sin()
++        - 0.006758 * (2.0 * g).cos()
++        + 0.000907 * (2.0 * g).sin()
++        - 0.002697 * (3.0 * g).cos()
++        + 0.00148 * (3.0 * g).sin();
++    let lat_r = lat.to_radians();
++    // 90.833 degrees: the sun's centre at the horizon, with refraction.
++    let cos_ha = 90.833_f64.to_radians().cos() / (lat_r.cos() * decl.cos())
++        - lat_r.tan() * decl.tan();
++    if cos_ha.is_nan() {
++        return Sun::PolarNight;
++    }
++    if cos_ha > 1.0 {
++        return Sun::PolarNight;
++    }
++    if cos_ha < -1.0 {
++        return Sun::PolarDay;
++    }
++    let ha = cos_ha.acos().to_degrees();
++    let offset = f64::from(utc_offset_minutes);
++    Sun::Rises {
++        sunrise: 720.0 - 4.0 * (lon + ha) - eqtime + offset,
++        sunset: 720.0 - 4.0 * (lon - ha) - eqtime + offset,
++    }
++}
++
++/// Half-cosine ease: 0 at `x = 0`, 1 at `x = 1`, flat at both ends.
++pub fn ease(x: f64) -> f64 {
++    (PI / 2.0 * x.clamp(0.0, 1.0)).sin().powi(2)
++}
++
++/// How far the night-light effect should be, as a whole percent: 0 is
++/// neutral, 100 is the user's target. It reaches 100 in the evening ramp
++/// around sunset, falls back to 0 in the morning ramp around sunrise.
++/// `now` is minutes since local midnight.
++pub fn ramp_percent(sun: Sun, now: f64, window: f64) -> u8 {
++    let fraction = match sun {
++        Sun::PolarDay => 0.0,
++        Sun::PolarNight => 1.0,
++        Sun::Rises { sunrise, sunset } => {
++            let half = window / 2.0;
++            // Far from its zone's meridian a sunrise can fall before 0 or a
++            // sunset after 1440. Events repeat daily, so take sunrise into
++            // 0..1440 and look at `now` within the one cycle that starts a
++            // half window before it.
++            let sunset = sunset - sunrise + sunrise.rem_euclid(1440.0);
++            let sunrise = sunrise.rem_euclid(1440.0);
++            let now = sunrise - half + (now - (sunrise - half)).rem_euclid(1440.0);
++            let morning = 1.0 - ease((now - (sunrise - half)) / window);
++            let evening = ease((now - (sunset - half)) / window);
++            // Where the windows overlap (a very short day) the stronger wins.
++            morning.max(evening)
++        }
++    };
++    (fraction * 100.0).round() as u8
++}
++
++/// The Kelvin value for `percent` of the way from neutral to `target`.
++pub fn kelvin_for_percent(percent: u8, target: u32, neutral: u32) -> u32 {
++    let (neutral, target) = (i64::from(neutral), i64::from(target));
++    let percent = i64::from(percent.min(100));
++    (neutral + (target - neutral) * percent / 100) as u32
++}
++
++/// One check of the ramp. `last` is the percent applied last (`None` at
++/// start-up, after a setting changed, after a failure, or while auto is
++/// off). Returns the new `last` and, when the whole percent changed, the
++/// percent to apply. Acting only on a changed step lets a manual toggle hold
++/// until the next step.
++pub fn auto_step(percent: u8, last: Option<u8>) -> (Option<u8>, Option<u8>) {
++    if last == Some(percent) {
++        (last, None)
++    } else {
++        (Some(percent), Some(percent))
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn rises(sun: Sun) -> (f64, f64) {
++        match sun {
++            Sun::Rises { sunrise, sunset } => (sunrise, sunset),
++            other => panic!("expected sunrise and sunset, got {other:?}"),
++        }
++    }
++
++    #[test]
++    fn london_midsummer() {
++        // 21 June 2024 (day 173): sunrise 03:43 UTC, sunset 20:21 UTC.
++        let (rise, set) = rises(sun_times(51.5, -0.12, 173, 0));
++        assert!((rise - (3.0 * 60.0 + 43.0)).abs() < 5.0, "rise {rise}");
++        assert!((set - (20.0 * 60.0 + 21.0)).abs() < 5.0, "set {set}");
++    }
++
++    #[test]
++    fn utc_offset_shifts_both_times() {
++        let (r0, s0) = rises(sun_times(51.5, -0.12, 173, 0));
++        let (r1, s1) = rises(sun_times(51.5, -0.12, 173, 60));
++        assert!((r1 - r0 - 60.0).abs() < 1e-9);
++        assert!((s1 - s0 - 60.0).abs() < 1e-9);
++    }
++
++    #[test]
++    fn equinox_at_the_equator_is_about_twelve_hours() {
++        let (rise, set) = rises(sun_times(0.0, 0.0, 80, 0));
++        assert!((set - rise - 727.0).abs() < 8.0, "day {}", set - rise);
++        assert!((rise - 360.0).abs() < 15.0);
++    }
++
++    #[test]
++    fn polar_day_and_night() {
++        assert_eq!(sun_times(80.0, 10.0, 173, 0), Sun::PolarDay);
++        assert_eq!(sun_times(80.0, 10.0, 356, 0), Sun::PolarNight);
++        assert_eq!(sun_times(-80.0, 10.0, 173, 0), Sun::PolarNight);
++        assert_eq!(sun_times(90.0, 0.0, 173, 0), Sun::PolarDay);
++    }
++
++    #[test]
++    fn ease_is_smooth_and_bounded() {
++        assert_eq!(ease(-1.0), 0.0);
++        assert_eq!(ease(0.0), 0.0);
++        assert!((ease(0.5) - 0.5).abs() < 1e-12);
++        assert!((ease(1.0) - 1.0).abs() < 1e-12);
++        assert_eq!(ease(2.0), ease(1.0));
++        let mut previous = 0.0;
++        for i in 0..=100 {
++            let v = ease(f64::from(i) / 100.0);
++            assert!(v >= previous);
++            previous = v;
++        }
++    }
++
++    const SUN: Sun = Sun::Rises {
++        sunrise: 400.0,
++        sunset: 1200.0,
++    };
++
++    #[test]
++    fn ramp_follows_the_day() {
++        let w = RAMP_WINDOW_MINUTES;
++        assert_eq!(ramp_percent(SUN, 0.0, w), 100); // night
++        assert_eq!(ramp_percent(SUN, 369.0, w), 100); // before the morning window
++        assert_eq!(ramp_percent(SUN, 400.0, w), 50); // sunrise: halfway down
++        assert_eq!(ramp_percent(SUN, 431.0, w), 0);
++        assert_eq!(ramp_percent(SUN, 800.0, w), 0); // day
++        assert_eq!(ramp_percent(SUN, 1169.0, w), 0);
++        assert_eq!(ramp_percent(SUN, 1200.0, w), 50); // sunset: halfway up
++        assert_eq!(ramp_percent(SUN, 1231.0, w), 100);
++        assert_eq!(ramp_percent(SUN, 1439.0, w), 100);
++    }
++
++    #[test]
++    fn events_outside_the_day_wrap() {
++        let w = RAMP_WINDOW_MINUTES;
++        // Sunrise at -20 (23:40 the evening before), sunset at 1000.
++        let sun = Sun::Rises { sunrise: -20.0, sunset: 1000.0 };
++        assert_eq!(ramp_percent(sun, 1420.0, w), 50); // sunrise
++        assert_eq!(ramp_percent(sun, 500.0, w), 0); // day
++        assert_eq!(ramp_percent(sun, 1000.0, w), 50); // sunset
++        assert_eq!(ramp_percent(sun, 1300.0, w), 100); // night
++        // Sunset at 1500 (01:00 the next morning), sunrise at 400.
++        let sun = Sun::Rises { sunrise: 400.0, sunset: 1500.0 };
++        assert_eq!(ramp_percent(sun, 1500.0 - 1440.0, w), 50);
++        assert_eq!(ramp_percent(sun, 10.0, w), 0); // still day
++        assert_eq!(ramp_percent(sun, 1440.0 - 10.0, w), 0);
++        assert_eq!(ramp_percent(sun, 200.0, w), 100); // night
++    }
++
++    #[test]
++    fn ramp_is_monotonic_through_each_event() {
++        let w = RAMP_WINDOW_MINUTES;
++        let mut previous = 100;
++        for m in 370..=430 {
++            let p = ramp_percent(SUN, f64::from(m), w);
++            assert!(p <= previous);
++            previous = p;
++        }
++        let mut previous = 0;
++        for m in 1170..=1230 {
++            let p = ramp_percent(SUN, f64::from(m), w);
++            assert!(p >= previous);
++            previous = p;
++        }
++    }
++
++    #[test]
++    fn polar_ramp_is_constant() {
++        assert_eq!(ramp_percent(Sun::PolarDay, 700.0, RAMP_WINDOW_MINUTES), 0);
++        assert_eq!(ramp_percent(Sun::PolarNight, 700.0, RAMP_WINDOW_MINUTES), 100);
++    }
++
++    #[test]
++    fn kelvin_runs_from_neutral_to_target() {
++        assert_eq!(kelvin_for_percent(0, 3500, 6500), 6500);
++        assert_eq!(kelvin_for_percent(100, 3500, 6500), 3500);
++        assert_eq!(kelvin_for_percent(50, 3500, 6500), 5000);
++        assert_eq!(kelvin_for_percent(200, 3500, 6500), 3500);
++    }
++
++    #[test]
++    fn step_applies_only_when_the_whole_percent_changes() {
++        assert_eq!(auto_step(40, None), (Some(40), Some(40)));
++        assert_eq!(auto_step(40, Some(40)), (Some(40), None));
++        assert_eq!(auto_step(41, Some(40)), (Some(41), Some(41)));
++        // A forgotten step (failure, new target) is applied again.
++        assert_eq!(auto_step(40, None), (Some(40), Some(40)));
++    }
++}

@@ -13,6 +13,37 @@ tint) with one click.
 - The on/off state is saved and restored the next time the applet starts.
 - Gamma is set directly through the Wayland protocol; no other daemon is needed.
 
+### Auto (sunrise/sunset)
+
+Right-click the button and switch on **Auto (sunrise/sunset)**. The screen
+then warms up smoothly in the evening and cools back down in the morning,
+instead of switching at a fixed time:
+
+- Sunrise and sunset for today are calculated on your computer from your
+  location (a standard solar-position formula; polar day and night are
+  handled: the screen stays neutral all day, or fully warm all day).
+- The colour temperature slider sets the target. The ramp goes in 1% steps
+  from neutral (6500 K, 0%) to your target (100%) along a smooth sine-squared
+  curve. The evening ramp runs 0 to 100% around sunset, the morning ramp
+  100 to 0% around sunrise. Each ramp is 60 minutes long, centred on the
+  event (30 minutes before to 30 minutes after); the popup says so. The
+  length is a constant in `src/solar.rs` (`RAMP_WINDOW_MINUTES`).
+- A step is applied only when the whole percent changes, checked every 20
+  seconds, so it also catches up after the computer wakes from sleep. Moving
+  the slider applies the new target at once. The panel button still switches
+  night light on or off by hand; that holds until the next step. Switching
+  on by hand uses the current ramp temperature, or your full target when the
+  ramp is at 0% (daytime); the next 1% step then takes over.
+- **Location**: by default the coordinates of the system timezone, read from
+  `/usr/share/zoneinfo/zone.tab` (or `zone1970.tab`). You can type a latitude
+  and longitude in the popup instead (they win once both are valid), and
+  **Use timezone location** goes back to the default. If neither works, the
+  popup shows a note and Auto stays off. There is no IP lookup and no network
+  access.
+- Auto and the custom schedule exclude each other: switching one on switches
+  the other off.
+- The settings are saved with the others.
+
 ## Requirements
 
 - A Wayland compositor that supports `wlr-gamma-control`
