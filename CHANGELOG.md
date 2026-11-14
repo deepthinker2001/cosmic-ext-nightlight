@@ -8,6 +8,13 @@ What changed in each release, for users. Maintainers: see
 - Apt setup instructions now specify `arch=amd64` to avoid the harmless
   missing-i386 notice on multiarch systems; the README explains how existing
   users can update their sources line.
+- Night light can turn on from the panel again: the applet now asks
+  cosmic-panel for the host Wayland display (`X-HostWaylandDisplay`), which
+  its gamma connection needs.
+- The applet no longer lags: settings are saved in the background instead of
+  on every slider step, a left click toggles on press, and toggles and
+  slider moves made while a change is being applied are kept and shown at
+  once instead of being ignored.
 
 ## 0.2.1 - 2026-11-14
 

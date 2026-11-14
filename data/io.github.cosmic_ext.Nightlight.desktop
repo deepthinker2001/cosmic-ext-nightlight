@@ -10,5 +10,6 @@ Icon=io.github.cosmic_ext.Nightlight-on-symbolic
 StartupNotify=true
 NoDisplay=true
 X-CosmicApplet=true
+X-HostWaylandDisplay=true
 X-CosmicHoverPopup=Auto
 X-OverflowPriority=10
