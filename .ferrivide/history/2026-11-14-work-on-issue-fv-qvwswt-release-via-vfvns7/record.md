@@ -14,13 +14,19 @@ About $0.00, 0 tokens in, 0 out
 >
 > Request read access to /home/mad/projects/cosmic-ext-dimmer with request_access (the user named it) to copy its release workflow, scripts/publish-apt.sh and APT docs.
 
+Then:
+
+> [Event] Quick reviewer (Haiku 5.5) asks for changes: The change does what the task asked: the release workflow matches cosmic-ext-dimmer's build/apt split, publish-apt.sh is a faithful copy with the names adapted, the README drops the gpgv flow and the placeholder check, and RELEASING.md covers the one-time setup. I checked the script with a throwaway key and a real .deb: it builds the pool, Packages, Release, InRelease and Release.gpg, and the signature verifies. The one thing to fix is that the signing job lost its environment gate that the project had before.
+> #1 [must fix] .github/workflows/release.yml:87: The `apt` job no longer runs in the `release` environment. The old `sign` job had `environment: release` (required reviewer, deployment limited to v* tags, secret kept as an environment secret), and RELEASING.md used to set that up. Now every published release signs with APT_SIGNING_KEY automatically, with no approval step, and the secret is a repository secret that any workflow in the repo can read. The task asked to keep this project's existing hardening, and dimmer's lack of an environment doesn't make dropping it a deliberate choice here. Fix: add `environment: release` to the `apt` job, keep APT_SIGNING_KEY and APT_SIGNING_KEY_ID as environment secret and variable in RELEASING.md's setup (as before), and state the approval gate in the doc. If the engineer drops the gate on purpose, say why in the change and have the cybersecurity stage review it. (Quick reviewer (Haiku 5.5))
+> Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
+
 ## Implemented
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `.github/workflows/release.yml` | modified | +82 −89 |  |
+| `.github/workflows/release.yml` | modified | +84 −88 |  |
 | `README.md` | modified | +27 −32 |  |
-| `docs/RELEASING.md` | modified | +74 −55 |  |
+| `docs/RELEASING.md` | modified | +83 −55 |  |
 | `scripts/publish-apt.sh` | added | +51 −0 |  |
 
 ## Tested
@@ -29,8 +35,8 @@ No test runs were reported.
 
 ## Summary
 
-Smoke-test the script with a throwaway key and a dummy package.
+Also fix the "secret and variable" heading reference if any, then commit.
 
 ---
 
-From `4b7f92a194` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `4b7f92a194` to `011f177694`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.

@@ -61,18 +61,26 @@ rerun the workflow for the latest tag), or apt will refuse the repository.
 
 ### Secret and variable
 
-In the repository settings (or with `gh`):
+Create a GitHub environment named `release` (Settings → Environments), add a
+required reviewer, and limit its deployment branches and tags to `v*` tags
+and `main` (`main` so a manual rerun from the Actions tab can run). Put the
+key in that environment, not in repository secrets, which every workflow run
+can read:
 
 ```sh
-gpg --armor --export-secret-keys FINGERPRINT | gh secret set APT_SIGNING_KEY
-gh variable set APT_SIGNING_KEY_ID --body FINGERPRINT
+gpg --armor --export-secret-keys FINGERPRINT | gh secret set APT_SIGNING_KEY --env release
+gh variable set APT_SIGNING_KEY_ID --env release --body FINGERPRINT
 ```
 
-- Secret `APT_SIGNING_KEY`: the ASCII-armoured private key. Never print it.
-- Variable `APT_SIGNING_KEY_ID`: the key's fingerprint (not secret).
+- Environment secret `APT_SIGNING_KEY`: the ASCII-armoured private key.
+  Never print it.
+- Environment variable `APT_SIGNING_KEY_ID`: the key's fingerprint (not
+  secret).
 
 Also add a tag ruleset protecting `v*` (restrict who can create, update and
-delete those tags). Only the `apt` job reads the secret.
+delete those tags). Only the `apt` job uses the environment, so every release
+(and every manual rerun) waits for the reviewer's approval before anything is
+signed.
 
 ### The gh-pages branch and GitHub Pages
 
@@ -98,7 +106,8 @@ Then in Settings → Pages, set the source to **Deploy from a branch**, branch
    `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
    (or Releases → Draft a new release on GitHub). Don't attach a `.deb`
    yourself.
-4. Watch Actions → Release: `build` and `apt` should both pass. Check the
+4. Approve the `release` environment when GitHub asks (the `apt` job waits
+   for it). Watch Actions → Release: `build` and `apt` should both pass. Check the
    release lists the `.deb` and `.sha256`, and on a machine with the
    repository added, `sudo apt update && apt policy cosmic-ext-nightlight`
    shows the new version as the candidate.

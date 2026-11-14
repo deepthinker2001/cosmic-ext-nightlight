@@ -88,6 +88,9 @@ jobs:
     # Signs only: downloads the finished .deb and runs gpg and apt-ftparchive.
     needs: build
     runs-on: ubuntu-latest
+    # The signing key and its id live in this environment (required reviewer,
+    # limited to v* tags and main), not in repository secrets.
+    environment: release
     permissions:
       contents: write # to push the gh-pages branch
     steps:
