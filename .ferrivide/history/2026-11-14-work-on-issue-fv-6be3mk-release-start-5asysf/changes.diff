@@ -1,95 +1,310 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
-index ed4b539..8fc2a2d 100644
+index ed4b539..ea43bc9 100644
 --- a/.github/workflows/release.yml
 +++ b/.github/workflows/release.yml
-@@ -1,7 +1,8 @@
+@@ -1,61 +1,101 @@
  name: Release
  
 -# Publishing a GitHub release builds the .deb, attaches it to the release and
 -# adds it to the signed apt repository on the gh-pages branch.
-+# Pushing a tag v* builds the .deb, creates the GitHub release if there isn't
-+# one, attaches the .deb to it and adds it to the signed apt repository on the
-+# gh-pages branch.
++# A push to main whose Cargo.toml version has no tag yet is a release: the
++# workflow builds the .deb, creates the tag v<version> at that commit and the
++# GitHub release, attaches the .deb and adds it to the signed apt repository
++# on the gh-pages branch. Any other push to main releases nothing.
  #
- # Three jobs so that no code from the build ever shares a runner with the
+-# Three jobs so that no code from the build ever shares a runner with the
++# Four jobs so that no code from the build ever shares a runner with the
  # signing key or a write token:
-@@ -13,8 +14,8 @@ name: Release
++#   plan   - reads the version, decides whether this is a release; read-only
++#            token, no secrets, runs no build scripts
+ #   build  - runs cargo and dependency build scripts; no secrets, read-only
+ #            token, no cache; hands over the .deb as an artifact and its hash
+-#   attach - holds the release write token; no checkout, no cargo
++#   attach - holds the release write token; no checkout, no cargo; creates the
++#            tag and the release
+ #   apt    - holds the signing key (environment `release`) and the write token
+ #            for gh-pages; no cargo; signs the artifact from `build`, not
  #            whatever is on the release
  
  on:
 -  release:
 -    types: [published]
 +  push:
-+    tags: ["v*"]
++    branches: [main]
    # To redo a release's packaging by hand, from the Actions tab.
    workflow_dispatch:
      inputs:
-@@ -32,7 +33,8 @@ concurrency:
+       tag:
+-        description: Release tag to package, such as v0.1.0
++        description: Existing release tag to package again, such as v0.1.0
+         required: true
+ 
+ permissions:
+   contents: read
+ 
+-# One release at a time: both jobs write to shared places.
++# One release at a time: the jobs write to shared places. A push that arrives
++# meanwhile waits, then sees the tag the first run made.
+ concurrency:
+   group: release
+   cancel-in-progress: false
  
  env:
    CARGO_TERM_COLOR: always
 -  TAG: ${{ github.event.release.tag_name || inputs.tag }}
-+  # inputs.tag is empty on a tag push; on a manual run ref_name is a branch.
-+  TAG: ${{ inputs.tag || github.ref_name }}
  
  jobs:
-   build:
-@@ -105,11 +107,16 @@ jobs:
+-  build:
++  plan:
+     runs-on: ubuntu-latest
+     permissions:
+       contents: read
+     outputs:
+-      sha256: ${{ steps.hash.outputs.sha256 }}
++      release: ${{ steps.plan.outputs.release }}
++      tag: ${{ steps.plan.outputs.tag }}
++      sha: ${{ steps.plan.outputs.sha }}
+     steps:
+       # Third-party actions are pinned by commit, not by movable tag.
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+-          ref: ${{ env.TAG }} # the release's own source, also when run by hand
++          # The pushed commit, or the tag when run by hand.
++          ref: ${{ inputs.tag || github.sha }}
++          fetch-tags: true
+           persist-credentials: false
+ 
+-      - name: Check the tag matches the version
++      - name: Decide whether this is a release
++        id: plan
++        env:
++          INPUT_TAG: ${{ inputs.tag }}
+         run: |
++          sha=$(git rev-parse HEAD)
++          if [ -n "$INPUT_TAG" ]; then
++            # Packaging an existing tag again.
++            echo "release=true" >> "$GITHUB_OUTPUT"
++            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
++            echo "sha=$sha" >> "$GITHUB_OUTPUT"
++            exit 0
++          fi
+           version=$(cargo metadata --locked --no-deps --format-version 1 \
+             | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
+-          if [ "$TAG" != "v$version" ]; then
+-            echo "Tag $TAG does not match the package version $version." >&2
+-            exit 1
++          [ -n "$version" ] || { echo "No package version found." >&2; exit 1; }
++          tag="v$version"
++          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
++            echo "::notice::Tag $tag already exists: nothing to release."
++            echo "release=false" >> "$GITHUB_OUTPUT"
++            exit 0
+           fi
++          echo "release=true" >> "$GITHUB_OUTPUT"
++          echo "tag=$tag" >> "$GITHUB_OUTPUT"
++          echo "sha=$sha" >> "$GITHUB_OUTPUT"
++
++  build:
++    needs: plan
++    if: needs.plan.outputs.release == 'true'
++    runs-on: ubuntu-latest
++    permissions:
++      contents: read
++    outputs:
++      sha256: ${{ steps.hash.outputs.sha256 }}
++    steps:
++      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
++        with:
++          ref: ${{ needs.plan.outputs.sha }} # the exact commit the release is made at
++          persist-credentials: false
+ 
+       - name: Install system dependencies
+         run: |
+@@ -95,21 +135,29 @@ jobs:
+ 
+   attach:
+     # Runs no cargo and no checkout: only the release's write token.
+-    needs: build
++    needs: [plan, build]
+     runs-on: ubuntu-latest
+     permissions:
+-      contents: write # to attach the .deb to the release
++      contents: write # to create the tag and release and attach the .deb
+     steps:
+       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+         with:
            name: deb
            path: debs
  
 -      - name: Attach it to the release
-+      - name: Create the release if needed, attach the .deb
++      - name: Create the tag and release if needed, attach the .deb
          env:
            GH_TOKEN: ${{ github.token }}
            SHA256: ${{ needs.build.outputs.sha256 }}
++          TAG: ${{ needs.plan.outputs.tag }}
++          SHA: ${{ needs.plan.outputs.sha }}
          run: |
-+          # A release made by hand first is kept as it is.
++          # An existing release (a redo) is kept as it is. Otherwise --target
++          # makes the tag at the commit that was built.
 +          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG" \
++            gh release create "$TAG" --target "$SHA" --generate-notes --title "$TAG" \
 +              -R "$GITHUB_REPOSITORY"
 +          fi
            cd debs
            for deb in cosmic-ext-nightlight_*.deb; do
              echo "$SHA256  $deb" | sha256sum -c -
+@@ -120,7 +168,7 @@ jobs:
+   apt:
+     # Signs only: takes the finished .deb from the build job's artifact and
+     # runs gpg and apt-ftparchive.
+-    needs: [build, attach]
++    needs: [plan, build, attach]
+     runs-on: ubuntu-latest
+     # The signing key and its id live in this environment (required reviewer,
+     # limited to v* tags and main), not in repository secrets.
+@@ -172,6 +220,7 @@ jobs:
+       - name: Publish the repository
+         env:
+           GH_TOKEN: ${{ github.token }}
++          TAG: ${{ needs.plan.outputs.tag }}
+         run: |
+           cd site
+           git config user.name "github-actions[bot]"
+diff --git a/README.md b/README.md
+index 23dd727..19ab556 100644
+--- a/README.md
++++ b/README.md
+@@ -176,4 +176,4 @@ GPL-3.0-only (see [LICENSE](LICENSE)). It is GPL-3.0-only because libcosmic's ap
+ 
+ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
+ 
+-Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for packaging and releases.
++Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for packaging and releases (a release is a commit on `main` that bumps the version, then `git push`).
 diff --git a/docs/RELEASING.md b/docs/RELEASING.md
-index 45d9287..529e7ec 100644
+index 45d9287..f859bfd 100644
 --- a/docs/RELEASING.md
 +++ b/docs/RELEASING.md
-@@ -21,7 +21,7 @@ install on.
+@@ -21,17 +21,24 @@ install on.
  
  ## How a release is built
  
 -Publishing a GitHub release runs `.github/workflows/release.yml`. It has three
-+Pushing a tag `v*` runs `.github/workflows/release.yml`. It has three
++A push to `main` runs `.github/workflows/release.yml`. It has four
  jobs, so that code from the build never shares a runner with the signing key
  or a write token:
  
-@@ -30,8 +30,10 @@ or a write token:
-   and `cargo-deb` at fixed versions) and hands the `.deb` and its hash on. It
-   has no secrets and a read-only token.
+-- `build` checks out the release's tag, checks the tag equals `v` plus the
+-  `version` in `Cargo.toml`, builds the `.deb` with `just deb` (no cache; `just`
+-  and `cargo-deb` at fixed versions) and hands the `.deb` and its hash on. It
+-  has no secrets and a read-only token.
++- `plan` reads the `version` in `Cargo.toml` (`cargo metadata --locked`). If
++  the tag `v<version>` already exists, it prints a notice and the run ends
++  there: no release, no failure, so an ordinary push releases nothing. If the
++  tag doesn't exist, this push is a release of `v<version>` at that commit.
++  It has no secrets and a read-only token, and builds nothing.
++- `build` checks out that commit, builds the `.deb` with `just deb` (no
++  cache; `just` and `cargo-deb` at fixed versions) and hands the `.deb` and
++  its hash on. It has no secrets and a read-only token.
  - `attach` holds the write token for the release. It runs no checkout and no
 -  cargo: it checks the artifact against the build's hash and attaches the
 -  `.deb` and its `.sha256` to the release.
-+  cargo: it checks the artifact against the build's hash, creates the GitHub
-+  release for the tag if there isn't one (generated notes, title = tag) and
-+  attaches the `.deb` and its `.sha256`. A release made by hand first still
-+  works.
++  cargo: it checks the artifact against the build's hash, creates the tag at
++  the built commit's SHA and the GitHub release (generated notes, title =
++  tag) with `gh release create --target <sha>`, and attaches the `.deb` and
++  its `.sha256`. A release that already exists is left as it is. The tag is
++  made with the workflow token, which does not start another workflow run.
  - `apt` holds the signing key. It takes the `.deb` from the build job's
    artifact (not from the release, which could have been changed), checks it
    against the build's hash, adds it to the apt repository on the `gh-pages` branch with
-@@ -124,10 +126,10 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
-    is: its build stopped at the version check).
+@@ -42,8 +49,9 @@ or a write token:
+   GitHub Pages serves the branch at
+   `https://deepthinker2001.github.io/cosmic-ext-nightlight`.
+ 
+-The workflow can also be run by hand from the Actions tab with a tag, to
+-redo the packaging of an existing release.
++The workflow can also be run by hand from the Actions tab (from `main`) with
++an existing tag, to redo the packaging of that release: it builds the tag's
++source and skips creating the release if it exists.
+ 
+ The `gh-pages` branch holds only generated files: `pool/` (every published
+ `.deb`), `dists/stable/` (`Packages`, `Release`, `InRelease`, `Release.gpg`),
+@@ -70,11 +78,14 @@ rerun the workflow for the latest tag), or apt will refuse the repository.
+ ### Secret and variable
+ 
+ Create a GitHub environment named `release` (Settings → Environments), add a
+-required reviewer, and limit its deployment branches and tags to `v*` tags
+-and `main` (`main` so a manual rerun from the Actions tab can run). Add `v*`
+-as a rule of type **Tag**, not Branch: with only a branch rule, GitHub
+-rejects the `apt` job of a release ("Tag ... is not allowed to deploy to
+-release due to environment protection rules"), as it did for v0.1.0. Put the
++required reviewer, and limit its deployment branches and tags to the
++branch `main` (a rule of type **Branch**). Releases now run from a push to
++`main`, so the `apt` job's ref is `main`: without that rule GitHub rejects
++the job ("Branch "main" is not allowed to deploy to release due to
++environment protection rules") and nothing is signed. Check this under
++Settings → Environments → release → Deployment branches and tags. Keep a
++**Tag** rule `v*` as well; it is harmless, and was what v0.1.0 needed when
++releases ran from a tag. Put the
+ key in that environment, not in repository secrets, which every workflow run
+ can read:
+ 
+@@ -88,8 +99,9 @@ gh variable set APT_SIGNING_KEY_ID --env release --body FINGERPRINT
+ - Environment variable `APT_SIGNING_KEY_ID`: the key's fingerprint (not
+   secret).
+ 
+-Also add a tag ruleset protecting `v*` (restrict who can create, update and
+-delete those tags). Only the `apt` job uses the environment, so every release
++Also add a tag ruleset protecting `v*` (restrict who can update and delete
++those tags; the workflow creates them, so don't block creation by
++`github-actions`). Only the `apt` job uses the environment, so every release
+ (and every manual rerun) waits for the reviewer's approval before anything is
+ signed.
+ 
+@@ -116,28 +128,32 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
+ 
+ ## Cut a release
+ 
++A release is a commit on `main` that raises the version. There is no tag to
++push and no release to create by hand.
++
+ 1. Make sure CI is green on `main`.
+-2. Set `version` in `Cargo.toml` (for example `0.2.0`) and commit the
+-   updated `Cargo.lock` (CI builds with `--locked`). A version is never
+-   reused: apt caches packages by version, so a fix is a new version. Tags
+-   that already exist are spent too, even if their release failed (`v0.1.1`
+-   is: its build stopped at the version check).
++2. In a change to `main`, set `version` in `Cargo.toml` (for example `0.2.0`)
++   and commit the updated `Cargo.lock` (CI builds with `--locked`). A version
++   is never reused: apt caches packages by version, so a fix is a new
++   version. Tags that already exist are spent too: a push whose version's tag
++   exists releases nothing.
     In the same commit, rename the `Unreleased` heading in `CHANGELOG.md` to
     the version and date, and add an empty `Unreleased` above it.
 -3. Publish a GitHub release whose tag is `v` plus that version:
 -   `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
 -   (or Releases → Draft a new release on GitHub). Don't attach a `.deb`
 -   yourself.
-+3. Push a tag that is `v` plus that version:
-+   `git tag v0.2.0 && git push origin v0.2.0`. That is the whole release
-+   step: the workflow creates the GitHub release and attaches the `.deb`.
-+   Don't create a release or attach a `.deb` yourself.
++3. Merge it and `git push` `main`. The workflow sees a version without a tag
++   and makes the release.
  4. Approve the `release` environment when GitHub asks (the `apt` job waits
-    for it). Watch Actions → Release: `build` and `apt` should both pass. Check the
-    release lists the `.deb` and `.sha256`, and on a machine with the
+-   for it). Watch Actions → Release: `build` and `apt` should both pass. Check the
+-   release lists the `.deb` and `.sha256`, and on a machine with the
++   for it). Watch Actions → Release: `plan`, `build`, `attach` and `apt`
++   should all pass. Check the release (tag `v0.2.0`, at the pushed commit)
++   lists the `.deb` and `.sha256`, and on a machine with the
+    repository added, `sudo apt update && apt policy cosmic-ext-nightlight`
+    shows the new version as the candidate.
+ 
+-If the workflow fails, fix the cause on `main` and rerun it for the tag:
+-`gh workflow run release.yml -f tag=v0.2.0`. The build uses the source at the
+-tag; the publishing script comes from `main`. If the fix has to be in the
+-source, make a new version instead.
++If the workflow fails after `attach` made the tag, the tag is spent and a
++new push won't release again. Fix the cause on `main` and rerun the packaging
++for that tag: `gh workflow run release.yml --ref main -f tag=v0.2.0`. The
++build uses the source at the tag; the publishing script comes from `main`. If
++the fix has to be in the source, make a new version instead. If `build` fails
++before `attach`, no tag exists: fix `main` and push again.
+ 
+ ## Not tested
+ 

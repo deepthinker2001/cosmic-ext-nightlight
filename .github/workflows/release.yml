@@ -1,63 +1,101 @@
 name: Release
 
-# Pushing a tag v* builds the .deb, creates the GitHub release if there isn't
-# one, attaches the .deb to it and adds it to the signed apt repository on the
-# gh-pages branch.
+# A push to main whose Cargo.toml version has no tag yet is a release: the
+# workflow builds the .deb, creates the tag v<version> at that commit and the
+# GitHub release, attaches the .deb and adds it to the signed apt repository
+# on the gh-pages branch. Any other push to main releases nothing.
 #
-# Three jobs so that no code from the build ever shares a runner with the
+# Four jobs so that no code from the build ever shares a runner with the
 # signing key or a write token:
+#   plan   - reads the version, decides whether this is a release; read-only
+#            token, no secrets, runs no build scripts
 #   build  - runs cargo and dependency build scripts; no secrets, read-only
 #            token, no cache; hands over the .deb as an artifact and its hash
-#   attach - holds the release write token; no checkout, no cargo
+#   attach - holds the release write token; no checkout, no cargo; creates the
+#            tag and the release
 #   apt    - holds the signing key (environment `release`) and the write token
 #            for gh-pages; no cargo; signs the artifact from `build`, not
 #            whatever is on the release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
   # To redo a release's packaging by hand, from the Actions tab.
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to package, such as v0.1.0
+        description: Existing release tag to package again, such as v0.1.0
         required: true
 
 permissions:
   contents: read
 
-# One release at a time: both jobs write to shared places.
+# One release at a time: the jobs write to shared places. A push that arrives
+# meanwhile waits, then sees the tag the first run made.
 concurrency:
   group: release
   cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  # inputs.tag is empty on a tag push; on a manual run ref_name is a branch.
-  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      tag: ${{ steps.plan.outputs.tag }}
+      sha: ${{ steps.plan.outputs.sha }}
+    steps:
+      # Third-party actions are pinned by commit, not by movable tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The pushed commit, or the tag when run by hand.
+          ref: ${{ inputs.tag || github.sha }}
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Decide whether this is a release
+        id: plan
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          if [ -n "$INPUT_TAG" ]; then
+            # Packaging an existing tag again.
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version=$(cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
+          [ -n "$version" ] || { echo "No package version found." >&2; exit 1; }
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::notice::Tag $tag already exists: nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
       sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
-      # Third-party actions are pinned by commit, not by movable tag.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ env.TAG }} # the release's own source, also when run by hand
+          ref: ${{ needs.plan.outputs.sha }} # the exact commit the release is made at
           persist-credentials: false
-
-      - name: Check the tag matches the version
-        run: |
-          version=$(cargo metadata --locked --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
-          if [ "$TAG" != "v$version" ]; then
-            echo "Tag $TAG does not match the package version $version." >&2
-            exit 1
-          fi
 
       - name: Install system dependencies
         run: |
@@ -97,24 +135,27 @@ jobs:
 
   attach:
     # Runs no cargo and no checkout: only the release's write token.
-    needs: build
+    needs: [plan, build]
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to attach the .deb to the release
+      contents: write # to create the tag and release and attach the .deb
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: deb
           path: debs
 
-      - name: Create the release if needed, attach the .deb
+      - name: Create the tag and release if needed, attach the .deb
         env:
           GH_TOKEN: ${{ github.token }}
           SHA256: ${{ needs.build.outputs.sha256 }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          SHA: ${{ needs.plan.outputs.sha }}
         run: |
-          # A release made by hand first is kept as it is.
+          # An existing release (a redo) is kept as it is. Otherwise --target
+          # makes the tag at the commit that was built.
           if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG" \
+            gh release create "$TAG" --target "$SHA" --generate-notes --title "$TAG" \
               -R "$GITHUB_REPOSITORY"
           fi
           cd debs
@@ -127,7 +168,7 @@ jobs:
   apt:
     # Signs only: takes the finished .deb from the build job's artifact and
     # runs gpg and apt-ftparchive.
-    needs: [build, attach]
+    needs: [plan, build, attach]
     runs-on: ubuntu-latest
     # The signing key and its id live in this environment (required reviewer,
     # limited to v* tags and main), not in repository secrets.
@@ -179,6 +220,7 @@ jobs:
       - name: Publish the repository
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: |
           cd site
           git config user.name "github-actions[bot]"

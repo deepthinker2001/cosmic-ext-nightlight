@@ -176,4 +176,4 @@ GPL-3.0-only (see [LICENSE](LICENSE)). It is GPL-3.0-only because libcosmic's ap
 
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
-Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for packaging and releases.
+Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for packaging and releases (a release is a commit on `main` that bumps the version, then `git push`).
