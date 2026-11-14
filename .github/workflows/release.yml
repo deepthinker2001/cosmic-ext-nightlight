@@ -63,17 +63,21 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
           sha=$(git rev-parse HEAD)
-          if [ -n "$INPUT_TAG" ]; then
-            # Packaging an existing tag again.
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
-            echo "sha=$sha" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           version=$(cargo metadata --locked --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
           [ -n "$version" ] || { echo "No package version found." >&2; exit 1; }
           tag="v$version"
+          if [ -n "$INPUT_TAG" ]; then
+            # Packaging an existing tag again: it must be that version's tag.
+            if [ "$INPUT_TAG" != "$tag" ]; then
+              echo "Tag $INPUT_TAG does not match the package version $version." >&2
+              exit 1
+            fi
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             echo "::notice::Tag $tag already exists: nothing to release."
             echo "release=false" >> "$GITHUB_OUTPUT"

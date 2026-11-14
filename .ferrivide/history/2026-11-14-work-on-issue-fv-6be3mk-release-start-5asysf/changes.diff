@@ -1,8 +1,8 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
-index ed4b539..ea43bc9 100644
+index ed4b539..499d94e 100644
 --- a/.github/workflows/release.yml
 +++ b/.github/workflows/release.yml
-@@ -1,61 +1,101 @@
+@@ -1,61 +1,105 @@
  name: Release
  
 -# Publishing a GitHub release builds the .deb, attaches it to the release and
@@ -81,13 +81,6 @@ index ed4b539..ea43bc9 100644
 +          INPUT_TAG: ${{ inputs.tag }}
          run: |
 +          sha=$(git rev-parse HEAD)
-+          if [ -n "$INPUT_TAG" ]; then
-+            # Packaging an existing tag again.
-+            echo "release=true" >> "$GITHUB_OUTPUT"
-+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
-+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
-+            exit 0
-+          fi
            version=$(cargo metadata --locked --no-deps --format-version 1 \
              | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
 -          if [ "$TAG" != "v$version" ]; then
@@ -95,11 +88,22 @@ index ed4b539..ea43bc9 100644
 -            exit 1
 +          [ -n "$version" ] || { echo "No package version found." >&2; exit 1; }
 +          tag="v$version"
++          if [ -n "$INPUT_TAG" ]; then
++            # Packaging an existing tag again: it must be that version's tag.
++            if [ "$INPUT_TAG" != "$tag" ]; then
++              echo "Tag $INPUT_TAG does not match the package version $version." >&2
++              exit 1
++            fi
++            echo "release=true" >> "$GITHUB_OUTPUT"
++            echo "tag=$tag" >> "$GITHUB_OUTPUT"
++            echo "sha=$sha" >> "$GITHUB_OUTPUT"
++            exit 0
+           fi
 +          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
 +            echo "::notice::Tag $tag already exists: nothing to release."
 +            echo "release=false" >> "$GITHUB_OUTPUT"
 +            exit 0
-           fi
++          fi
 +          echo "release=true" >> "$GITHUB_OUTPUT"
 +          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 +          echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -120,7 +124,7 @@ index ed4b539..ea43bc9 100644
  
        - name: Install system dependencies
          run: |
-@@ -95,21 +135,29 @@ jobs:
+@@ -95,21 +139,29 @@ jobs:
  
    attach:
      # Runs no cargo and no checkout: only the release's write token.
@@ -153,7 +157,7 @@ index ed4b539..ea43bc9 100644
            cd debs
            for deb in cosmic-ext-nightlight_*.deb; do
              echo "$SHA256  $deb" | sha256sum -c -
-@@ -120,7 +168,7 @@ jobs:
+@@ -120,7 +172,7 @@ jobs:
    apt:
      # Signs only: takes the finished .deb from the build job's artifact and
      # runs gpg and apt-ftparchive.
@@ -162,7 +166,7 @@ index ed4b539..ea43bc9 100644
      runs-on: ubuntu-latest
      # The signing key and its id live in this environment (required reviewer,
      # limited to v* tags and main), not in repository secrets.
-@@ -172,6 +220,7 @@ jobs:
+@@ -172,6 +224,7 @@ jobs:
        - name: Publish the repository
          env:
            GH_TOKEN: ${{ github.token }}
