@@ -1,0 +1,367 @@
+diff --git a/src/location.rs b/src/location.rs
+index c6dd26a..ec9c3a4 100644
+--- a/src/location.rs
++++ b/src/location.rs
+@@ -113,9 +113,18 @@ mod tests {
+ 
+     #[test]
+     fn parses_degrees_and_minutes() {
+-        assert!(close(parse_iso6709("+3114+12128").unwrap(), (31.2333, 121.4667)));
+-        assert!(close(parse_iso6709("-3352+15113").unwrap(), (-33.8667, 151.2167)));
+-        assert!(close(parse_iso6709("+4903-12307").unwrap(), (49.05, -123.1167)));
++        assert!(close(
++            parse_iso6709("+3114+12128").unwrap(),
++            (31.2333, 121.4667)
++        ));
++        assert!(close(
++            parse_iso6709("-3352+15113").unwrap(),
++            (-33.8667, 151.2167)
++        ));
++        assert!(close(
++            parse_iso6709("+4903-12307").unwrap(),
++            (49.05, -123.1167)
++        ));
+     }
+ 
+     #[test]
+@@ -128,7 +137,17 @@ mod tests {
+ 
+     #[test]
+     fn rejects_garbage() {
+-        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128", "é+3114+12128"] {
++        for bad in [
++            "",
++            "+",
++            "+31",
++            "3114+12128",
++            "+3114",
++            "+31x4+12128",
++            "+9914+12128",
++            "+3114+18128",
++            "é+3114+12128",
++        ] {
+             assert_eq!(parse_iso6709(bad), None, "{bad}");
+         }
+     }
+@@ -136,8 +155,14 @@ mod tests {
+     #[test]
+     fn finds_a_zone_in_a_table() {
+         let table = "# comment\nFR\t+4852+00220\tEurope/Paris\nDE,DK\t+5230+01322\tEurope/Berlin\tmost of Germany\n";
+-        assert!(close(find_zone(table, "Europe/Paris").unwrap(), (48.8667, 2.3333)));
+-        assert!(close(find_zone(table, "Europe/Berlin").unwrap(), (52.5, 13.3667)));
++        assert!(close(
++            find_zone(table, "Europe/Paris").unwrap(),
++            (48.8667, 2.3333)
++        ));
++        assert!(close(
++            find_zone(table, "Europe/Berlin").unwrap(),
++            (52.5, 13.3667)
++        ));
+         assert_eq!(find_zone(table, "Europe/Nowhere"), None);
+     }
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 4c3d9d7..140738b 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -8,15 +8,15 @@ use std::sync::mpsc;
+ use std::thread;
+ use std::time::Duration;
+ 
++use chrono::{Datelike, Timelike};
+ use cosmic::app::{Core, Task};
+ use cosmic::cosmic_config::{Config, ConfigGet, ConfigSet};
+ use cosmic::iced::core::window;
+ use cosmic::iced::futures::channel::oneshot;
+ use cosmic::iced::window::Id;
+-use cosmic::surface::action::{app_popup, destroy_popup};
+ use cosmic::iced::Subscription;
++use cosmic::surface::action::{app_popup, destroy_popup};
+ use cosmic::widget::{list_column, mouse_area, settings, slider, spin_button, text, toggler};
+-use chrono::{Datelike, Timelike};
+ use cosmic::Element;
+ 
+ const APP_ID: &str = "io.github.cosmic_ext.Nightlight";
+@@ -332,7 +332,10 @@ mod tests {
+ 
+     #[test]
+     fn same_day_window() {
+-        let s = Schedule::Custom { start: t(9, 0), end: t(17, 0) };
++        let s = Schedule::Custom {
++            start: t(9, 0),
++            end: t(17, 0),
++        };
+         assert_eq!(s.wants_on(t(8, 59)), Some(false));
+         assert_eq!(s.wants_on(t(9, 0)), Some(true));
+         assert_eq!(s.wants_on(t(16, 59)), Some(true));
+@@ -341,7 +344,10 @@ mod tests {
+ 
+     #[test]
+     fn window_across_midnight() {
+-        let s = Schedule::Custom { start: t(22, 0), end: t(6, 30) };
++        let s = Schedule::Custom {
++            start: t(22, 0),
++            end: t(6, 30),
++        };
+         assert_eq!(s.wants_on(t(21, 59)), Some(false));
+         assert_eq!(s.wants_on(t(22, 0)), Some(true));
+         assert_eq!(s.wants_on(t(23, 59)), Some(true));
+@@ -353,27 +359,42 @@ mod tests {
+ 
+     #[test]
+     fn equal_times_are_an_empty_window() {
+-        let s = Schedule::Custom { start: t(8, 0), end: t(8, 0) };
++        let s = Schedule::Custom {
++            start: t(8, 0),
++            end: t(8, 0),
++        };
+         assert_eq!(s.wants_on(t(8, 0)), Some(false));
+         assert_eq!(s.wants_on(t(20, 0)), Some(false));
+     }
+ 
+     #[test]
+     fn step_applies_first_check_then_only_changes() {
+-        let s = Schedule::Custom { start: t(22, 0), end: t(6, 0) };
++        let s = Schedule::Custom {
++            start: t(22, 0),
++            end: t(6, 0),
++        };
+         // First check (start-up or schedule switched on) applies the state.
+         assert_eq!(schedule_step(s, t(23, 0), None), (Some(true), Some(true)));
+         assert_eq!(schedule_step(s, t(12, 0), None), (Some(false), Some(false)));
+         // Unchanged window: nothing to do, so a manual toggle holds.
+         assert_eq!(schedule_step(s, t(23, 30), Some(true)), (Some(true), None));
+         // Window edge, e.g. seen late after a resume from sleep.
+-        assert_eq!(schedule_step(s, t(6, 5), Some(true)), (Some(false), Some(false)));
+-        assert_eq!(schedule_step(s, t(22, 5), Some(false)), (Some(true), Some(true)));
++        assert_eq!(
++            schedule_step(s, t(6, 5), Some(true)),
++            (Some(false), Some(false))
++        );
++        assert_eq!(
++            schedule_step(s, t(22, 5), Some(false)),
++            (Some(true), Some(true))
++        );
+     }
+ 
+     #[test]
+     fn failed_scheduled_switch_is_retried() {
+-        let s = Schedule::Custom { start: t(21, 0), end: t(7, 0) };
++        let s = Schedule::Custom {
++            start: t(21, 0),
++            end: t(7, 0),
++        };
+         let (last, apply) = schedule_step(s, t(21, 0), Some(false));
+         assert_eq!(apply, Some(true));
+         // The request fails: the window state is forgotten ...
+@@ -382,13 +403,22 @@ mod tests {
+         // ... so the next check asks again.
+         assert_eq!(schedule_step(s, t(21, 0), last), (Some(true), Some(true)));
+         // Success, or a failed request for another state, changes nothing.
+-        assert_eq!(schedule_last_after_reply(Some(true), true, true), Some(true));
+-        assert_eq!(schedule_last_after_reply(Some(true), false, false), Some(true));
++        assert_eq!(
++            schedule_last_after_reply(Some(true), true, true),
++            Some(true)
++        );
++        assert_eq!(
++            schedule_last_after_reply(Some(true), false, false),
++            Some(true)
++        );
+     }
+ 
+     #[test]
+     fn step_forgets_when_schedule_is_off() {
+-        assert_eq!(schedule_step(Schedule::Off, t(1, 0), Some(true)), (None, None));
++        assert_eq!(
++            schedule_step(Schedule::Off, t(1, 0), Some(true)),
++            (None, None)
++        );
+     }
+ 
+     #[test]
+@@ -477,33 +507,26 @@ mod tests {
+ }
+ 
+ /// Hour and minute spin buttons for one time of day.
+-fn time_picker(
+-    time: TimeOfDay,
+-    on_change: fn(TimeOfDay) -> Message,
+-) -> Element<'static, Message> {
++fn time_picker(time: TimeOfDay, on_change: fn(TimeOfDay) -> Message) -> Element<'static, Message> {
+     cosmic::widget::row::with_capacity(3)
+         .spacing(8)
+-        .push(
+-            spin_button(
+-                format!("{:02}", time.hour()),
+-                time.hour(),
+-                1,
+-                0,
+-                23,
+-                move |h| on_change(time.with_hour(h)),
+-            ),
+-        )
++        .push(spin_button(
++            format!("{:02}", time.hour()),
++            time.hour(),
++            1,
++            0,
++            23,
++            move |h| on_change(time.with_hour(h)),
++        ))
+         .push(text(":"))
+-        .push(
+-            spin_button(
+-                format!("{:02}", time.minute()),
+-                time.minute(),
+-                5,
+-                0,
+-                59,
+-                move |m| on_change(time.with_minute(m)),
+-            ),
+-        )
++        .push(spin_button(
++            format!("{:02}", time.minute()),
++            time.minute(),
++            5,
++            0,
++            59,
++            move |m| on_change(time.with_minute(m)),
++        ))
+         .align_y(cosmic::iced::Alignment::Center)
+         .into()
+ }
+@@ -560,7 +583,9 @@ impl Settings {
+             schedule_on: config.get::<bool>(CONFIG_KEY_SCHEDULE_ON).unwrap_or(false),
+             schedule_start: config
+                 .get::<u16>(CONFIG_KEY_SCHEDULE_START)
+-                .map_or(DEFAULT_SCHEDULE_START, |m| TimeOfDay::from_minutes(m.into())),
++                .map_or(DEFAULT_SCHEDULE_START, |m| {
++                    TimeOfDay::from_minutes(m.into())
++                }),
+             schedule_end: config
+                 .get::<u16>(CONFIG_KEY_SCHEDULE_END)
+                 .map_or(DEFAULT_SCHEDULE_END, |m| TimeOfDay::from_minutes(m.into())),
+@@ -852,7 +877,11 @@ fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
+              to the temperature above. Location: {lat:.2}, {lon:.2} \
+              ({}).",
+             solar::RAMP_WINDOW_MINUTES,
+-            if custom.is_some() { "custom" } else { "timezone" },
++            if custom.is_some() {
++                "custom"
++            } else {
++                "timezone"
++            },
+         )),
+         _ => None,
+     };
+@@ -876,8 +905,7 @@ fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
+                 .on_press(Message::UseTimezoneLocation),
+         );
+     }
+-    Element::from(state.core.applet.popup_container(content))
+-        .map(cosmic::Action::App)
++    Element::from(state.core.applet.popup_container(content)).map(cosmic::Action::App)
+ }
+ 
+ impl cosmic::Application for Nightlight {
+@@ -936,8 +964,14 @@ impl cosmic::Application for Nightlight {
+                     on: auto_coords.is_some(),
+                     custom_location: settings.custom_location,
+                     tz_location,
+-                    lat_input: settings.custom_location.map(|c| fmt(c.0)).unwrap_or_default(),
+-                    lon_input: settings.custom_location.map(|c| fmt(c.1)).unwrap_or_default(),
++                    lat_input: settings
++                        .custom_location
++                        .map(|c| fmt(c.0))
++                        .unwrap_or_default(),
++                    lon_input: settings
++                        .custom_location
++                        .map(|c| fmt(c.1))
++                        .unwrap_or_default(),
+                     last: auto_last,
+                 },
+                 worker,
+@@ -1124,11 +1158,7 @@ impl cosmic::Application for Nightlight {
+         let icon = if self.enabled { ICON_ON } else { ICON_OFF };
+         // Left click toggles; right click opens the settings popup. The popup
+         // button has no right-click hook, so a mouse area wraps it.
+-        let button = self
+-            .core
+-            .applet
+-            .icon_button(icon)
+-            .on_press(Message::Toggle);
++        let button = self.core.applet.icon_button(icon).on_press(Message::Toggle);
+         mouse_area(button)
+             .on_right_press(Message::ToggleSettings)
+             .into()
+diff --git a/src/solar.rs b/src/solar.rs
+index 5ac673b..e11f5b7 100644
+--- a/src/solar.rs
++++ b/src/solar.rs
+@@ -10,7 +10,10 @@ pub const RAMP_WINDOW_MINUTES: f64 = 60.0;
+ /// The sun on one day, with times in minutes since local midnight.
+ #[derive(Clone, Copy, Debug, PartialEq)]
+ pub enum Sun {
+-    Rises { sunrise: f64, sunset: f64 },
++    Rises {
++        sunrise: f64,
++        sunset: f64,
++    },
+     /// The sun stays up all day.
+     PolarDay,
+     /// The sun stays down all day.
+@@ -28,15 +31,14 @@ pub fn sun_times(lat: f64, lon: f64, ordinal: u32, utc_offset_minutes: i32) -> S
+             - 0.032077 * g.sin()
+             - 0.014615 * (2.0 * g).cos()
+             - 0.040849 * (2.0 * g).sin());
+-    let decl = 0.006918 - 0.399912 * g.cos() + 0.070257 * g.sin()
+-        - 0.006758 * (2.0 * g).cos()
++    let decl = 0.006918 - 0.399912 * g.cos() + 0.070257 * g.sin() - 0.006758 * (2.0 * g).cos()
+         + 0.000907 * (2.0 * g).sin()
+         - 0.002697 * (3.0 * g).cos()
+         + 0.00148 * (3.0 * g).sin();
+     let lat_r = lat.to_radians();
+     // 90.833 degrees: the sun's centre at the horizon, with refraction.
+-    let cos_ha = 90.833_f64.to_radians().cos() / (lat_r.cos() * decl.cos())
+-        - lat_r.tan() * decl.tan();
++    let cos_ha =
++        90.833_f64.to_radians().cos() / (lat_r.cos() * decl.cos()) - lat_r.tan() * decl.tan();
+     if cos_ha.is_nan() {
+         return Sun::PolarNight;
+     }
+@@ -185,13 +187,20 @@ mod tests {
+     fn events_outside_the_day_wrap() {
+         let w = RAMP_WINDOW_MINUTES;
+         // Sunrise at -20 (23:40 the evening before), sunset at 1000.
+-        let sun = Sun::Rises { sunrise: -20.0, sunset: 1000.0 };
++        let sun = Sun::Rises {
++            sunrise: -20.0,
++            sunset: 1000.0,
++        };
+         assert_eq!(ramp_percent(sun, 1420.0, w), 50); // sunrise
+         assert_eq!(ramp_percent(sun, 500.0, w), 0); // day
+         assert_eq!(ramp_percent(sun, 1000.0, w), 50); // sunset
+         assert_eq!(ramp_percent(sun, 1300.0, w), 100); // night
++
+         // Sunset at 1500 (01:00 the next morning), sunrise at 400.
+-        let sun = Sun::Rises { sunrise: 400.0, sunset: 1500.0 };
++        let sun = Sun::Rises {
++            sunrise: 400.0,
++            sunset: 1500.0,
++        };
+         assert_eq!(ramp_percent(sun, 1500.0 - 1440.0, w), 50);
+         assert_eq!(ramp_percent(sun, 10.0, w), 0); // still day
+         assert_eq!(ramp_percent(sun, 1440.0 - 10.0, w), 0);
+@@ -218,7 +227,10 @@ mod tests {
+     #[test]
+     fn polar_ramp_is_constant() {
+         assert_eq!(ramp_percent(Sun::PolarDay, 700.0, RAMP_WINDOW_MINUTES), 0);
+-        assert_eq!(ramp_percent(Sun::PolarNight, 700.0, RAMP_WINDOW_MINUTES), 100);
++        assert_eq!(
++            ramp_percent(Sun::PolarNight, 700.0, RAMP_WINDOW_MINUTES),
++            100
++        );
+     }
+ 
+     #[test]

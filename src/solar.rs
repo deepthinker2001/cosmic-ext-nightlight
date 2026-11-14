@@ -10,7 +10,10 @@ pub const RAMP_WINDOW_MINUTES: f64 = 60.0;
 /// The sun on one day, with times in minutes since local midnight.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Sun {
-    Rises { sunrise: f64, sunset: f64 },
+    Rises {
+        sunrise: f64,
+        sunset: f64,
+    },
     /// The sun stays up all day.
     PolarDay,
     /// The sun stays down all day.
@@ -28,15 +31,14 @@ pub fn sun_times(lat: f64, lon: f64, ordinal: u32, utc_offset_minutes: i32) -> S
             - 0.032077 * g.sin()
             - 0.014615 * (2.0 * g).cos()
             - 0.040849 * (2.0 * g).sin());
-    let decl = 0.006918 - 0.399912 * g.cos() + 0.070257 * g.sin()
-        - 0.006758 * (2.0 * g).cos()
+    let decl = 0.006918 - 0.399912 * g.cos() + 0.070257 * g.sin() - 0.006758 * (2.0 * g).cos()
         + 0.000907 * (2.0 * g).sin()
         - 0.002697 * (3.0 * g).cos()
         + 0.00148 * (3.0 * g).sin();
     let lat_r = lat.to_radians();
     // 90.833 degrees: the sun's centre at the horizon, with refraction.
-    let cos_ha = 90.833_f64.to_radians().cos() / (lat_r.cos() * decl.cos())
-        - lat_r.tan() * decl.tan();
+    let cos_ha =
+        90.833_f64.to_radians().cos() / (lat_r.cos() * decl.cos()) - lat_r.tan() * decl.tan();
     if cos_ha.is_nan() {
         return Sun::PolarNight;
     }
@@ -185,13 +187,20 @@ mod tests {
     fn events_outside_the_day_wrap() {
         let w = RAMP_WINDOW_MINUTES;
         // Sunrise at -20 (23:40 the evening before), sunset at 1000.
-        let sun = Sun::Rises { sunrise: -20.0, sunset: 1000.0 };
+        let sun = Sun::Rises {
+            sunrise: -20.0,
+            sunset: 1000.0,
+        };
         assert_eq!(ramp_percent(sun, 1420.0, w), 50); // sunrise
         assert_eq!(ramp_percent(sun, 500.0, w), 0); // day
         assert_eq!(ramp_percent(sun, 1000.0, w), 50); // sunset
         assert_eq!(ramp_percent(sun, 1300.0, w), 100); // night
+
         // Sunset at 1500 (01:00 the next morning), sunrise at 400.
-        let sun = Sun::Rises { sunrise: 400.0, sunset: 1500.0 };
+        let sun = Sun::Rises {
+            sunrise: 400.0,
+            sunset: 1500.0,
+        };
         assert_eq!(ramp_percent(sun, 1500.0 - 1440.0, w), 50);
         assert_eq!(ramp_percent(sun, 10.0, w), 0); // still day
         assert_eq!(ramp_percent(sun, 1440.0 - 10.0, w), 0);
@@ -218,7 +227,10 @@ mod tests {
     #[test]
     fn polar_ramp_is_constant() {
         assert_eq!(ramp_percent(Sun::PolarDay, 700.0, RAMP_WINDOW_MINUTES), 0);
-        assert_eq!(ramp_percent(Sun::PolarNight, 700.0, RAMP_WINDOW_MINUTES), 100);
+        assert_eq!(
+            ramp_percent(Sun::PolarNight, 700.0, RAMP_WINDOW_MINUTES),
+            100
+        );
     }
 
     #[test]

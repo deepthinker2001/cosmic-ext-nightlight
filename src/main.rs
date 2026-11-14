@@ -8,15 +8,15 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use chrono::{Datelike, Timelike};
 use cosmic::app::{Core, Task};
 use cosmic::cosmic_config::{Config, ConfigGet, ConfigSet};
 use cosmic::iced::core::window;
 use cosmic::iced::futures::channel::oneshot;
 use cosmic::iced::window::Id;
-use cosmic::surface::action::{app_popup, destroy_popup};
 use cosmic::iced::Subscription;
+use cosmic::surface::action::{app_popup, destroy_popup};
 use cosmic::widget::{list_column, mouse_area, settings, slider, spin_button, text, toggler};
-use chrono::{Datelike, Timelike};
 use cosmic::Element;
 
 const APP_ID: &str = "io.github.cosmic_ext.Nightlight";
@@ -332,7 +332,10 @@ mod tests {
 
     #[test]
     fn same_day_window() {
-        let s = Schedule::Custom { start: t(9, 0), end: t(17, 0) };
+        let s = Schedule::Custom {
+            start: t(9, 0),
+            end: t(17, 0),
+        };
         assert_eq!(s.wants_on(t(8, 59)), Some(false));
         assert_eq!(s.wants_on(t(9, 0)), Some(true));
         assert_eq!(s.wants_on(t(16, 59)), Some(true));
@@ -341,7 +344,10 @@ mod tests {
 
     #[test]
     fn window_across_midnight() {
-        let s = Schedule::Custom { start: t(22, 0), end: t(6, 30) };
+        let s = Schedule::Custom {
+            start: t(22, 0),
+            end: t(6, 30),
+        };
         assert_eq!(s.wants_on(t(21, 59)), Some(false));
         assert_eq!(s.wants_on(t(22, 0)), Some(true));
         assert_eq!(s.wants_on(t(23, 59)), Some(true));
@@ -353,27 +359,42 @@ mod tests {
 
     #[test]
     fn equal_times_are_an_empty_window() {
-        let s = Schedule::Custom { start: t(8, 0), end: t(8, 0) };
+        let s = Schedule::Custom {
+            start: t(8, 0),
+            end: t(8, 0),
+        };
         assert_eq!(s.wants_on(t(8, 0)), Some(false));
         assert_eq!(s.wants_on(t(20, 0)), Some(false));
     }
 
     #[test]
     fn step_applies_first_check_then_only_changes() {
-        let s = Schedule::Custom { start: t(22, 0), end: t(6, 0) };
+        let s = Schedule::Custom {
+            start: t(22, 0),
+            end: t(6, 0),
+        };
         // First check (start-up or schedule switched on) applies the state.
         assert_eq!(schedule_step(s, t(23, 0), None), (Some(true), Some(true)));
         assert_eq!(schedule_step(s, t(12, 0), None), (Some(false), Some(false)));
         // Unchanged window: nothing to do, so a manual toggle holds.
         assert_eq!(schedule_step(s, t(23, 30), Some(true)), (Some(true), None));
         // Window edge, e.g. seen late after a resume from sleep.
-        assert_eq!(schedule_step(s, t(6, 5), Some(true)), (Some(false), Some(false)));
-        assert_eq!(schedule_step(s, t(22, 5), Some(false)), (Some(true), Some(true)));
+        assert_eq!(
+            schedule_step(s, t(6, 5), Some(true)),
+            (Some(false), Some(false))
+        );
+        assert_eq!(
+            schedule_step(s, t(22, 5), Some(false)),
+            (Some(true), Some(true))
+        );
     }
 
     #[test]
     fn failed_scheduled_switch_is_retried() {
-        let s = Schedule::Custom { start: t(21, 0), end: t(7, 0) };
+        let s = Schedule::Custom {
+            start: t(21, 0),
+            end: t(7, 0),
+        };
         let (last, apply) = schedule_step(s, t(21, 0), Some(false));
         assert_eq!(apply, Some(true));
         // The request fails: the window state is forgotten ...
@@ -382,13 +403,22 @@ mod tests {
         // ... so the next check asks again.
         assert_eq!(schedule_step(s, t(21, 0), last), (Some(true), Some(true)));
         // Success, or a failed request for another state, changes nothing.
-        assert_eq!(schedule_last_after_reply(Some(true), true, true), Some(true));
-        assert_eq!(schedule_last_after_reply(Some(true), false, false), Some(true));
+        assert_eq!(
+            schedule_last_after_reply(Some(true), true, true),
+            Some(true)
+        );
+        assert_eq!(
+            schedule_last_after_reply(Some(true), false, false),
+            Some(true)
+        );
     }
 
     #[test]
     fn step_forgets_when_schedule_is_off() {
-        assert_eq!(schedule_step(Schedule::Off, t(1, 0), Some(true)), (None, None));
+        assert_eq!(
+            schedule_step(Schedule::Off, t(1, 0), Some(true)),
+            (None, None)
+        );
     }
 
     #[test]
@@ -477,33 +507,26 @@ mod tests {
 }
 
 /// Hour and minute spin buttons for one time of day.
-fn time_picker(
-    time: TimeOfDay,
-    on_change: fn(TimeOfDay) -> Message,
-) -> Element<'static, Message> {
+fn time_picker(time: TimeOfDay, on_change: fn(TimeOfDay) -> Message) -> Element<'static, Message> {
     cosmic::widget::row::with_capacity(3)
         .spacing(8)
-        .push(
-            spin_button(
-                format!("{:02}", time.hour()),
-                time.hour(),
-                1,
-                0,
-                23,
-                move |h| on_change(time.with_hour(h)),
-            ),
-        )
+        .push(spin_button(
+            format!("{:02}", time.hour()),
+            time.hour(),
+            1,
+            0,
+            23,
+            move |h| on_change(time.with_hour(h)),
+        ))
         .push(text(":"))
-        .push(
-            spin_button(
-                format!("{:02}", time.minute()),
-                time.minute(),
-                5,
-                0,
-                59,
-                move |m| on_change(time.with_minute(m)),
-            ),
-        )
+        .push(spin_button(
+            format!("{:02}", time.minute()),
+            time.minute(),
+            5,
+            0,
+            59,
+            move |m| on_change(time.with_minute(m)),
+        ))
         .align_y(cosmic::iced::Alignment::Center)
         .into()
 }
@@ -560,7 +583,9 @@ impl Settings {
             schedule_on: config.get::<bool>(CONFIG_KEY_SCHEDULE_ON).unwrap_or(false),
             schedule_start: config
                 .get::<u16>(CONFIG_KEY_SCHEDULE_START)
-                .map_or(DEFAULT_SCHEDULE_START, |m| TimeOfDay::from_minutes(m.into())),
+                .map_or(DEFAULT_SCHEDULE_START, |m| {
+                    TimeOfDay::from_minutes(m.into())
+                }),
             schedule_end: config
                 .get::<u16>(CONFIG_KEY_SCHEDULE_END)
                 .map_or(DEFAULT_SCHEDULE_END, |m| TimeOfDay::from_minutes(m.into())),
@@ -852,7 +877,11 @@ fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
              to the temperature above. Location: {lat:.2}, {lon:.2} \
              ({}).",
             solar::RAMP_WINDOW_MINUTES,
-            if custom.is_some() { "custom" } else { "timezone" },
+            if custom.is_some() {
+                "custom"
+            } else {
+                "timezone"
+            },
         )),
         _ => None,
     };
@@ -876,8 +905,7 @@ fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
                 .on_press(Message::UseTimezoneLocation),
         );
     }
-    Element::from(state.core.applet.popup_container(content))
-        .map(cosmic::Action::App)
+    Element::from(state.core.applet.popup_container(content)).map(cosmic::Action::App)
 }
 
 impl cosmic::Application for Nightlight {
@@ -936,8 +964,14 @@ impl cosmic::Application for Nightlight {
                     on: auto_coords.is_some(),
                     custom_location: settings.custom_location,
                     tz_location,
-                    lat_input: settings.custom_location.map(|c| fmt(c.0)).unwrap_or_default(),
-                    lon_input: settings.custom_location.map(|c| fmt(c.1)).unwrap_or_default(),
+                    lat_input: settings
+                        .custom_location
+                        .map(|c| fmt(c.0))
+                        .unwrap_or_default(),
+                    lon_input: settings
+                        .custom_location
+                        .map(|c| fmt(c.1))
+                        .unwrap_or_default(),
                     last: auto_last,
                 },
                 worker,
@@ -1124,11 +1158,7 @@ impl cosmic::Application for Nightlight {
         let icon = if self.enabled { ICON_ON } else { ICON_OFF };
         // Left click toggles; right click opens the settings popup. The popup
         // button has no right-click hook, so a mouse area wraps it.
-        let button = self
-            .core
-            .applet
-            .icon_button(icon)
-            .on_press(Message::Toggle);
+        let button = self.core.applet.icon_button(icon).on_press(Message::Toggle);
         mouse_area(button)
             .on_right_press(Message::ToggleSettings)
             .into()
