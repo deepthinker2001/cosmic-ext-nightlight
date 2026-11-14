@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "id": "agent-n0fymz",
+  "title": "Work on issue FV-V9V00C: Release: the GitHub `release` environment rejects v*…",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-v9v00c-release-the-github-release-environment-r",
+  "base_commit": "41ea815b930355c807136e3e74298532fd46f47c",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-V9V00C",
+    "title": "Release: the GitHub `release` environment rejects v* tags, so nothing has ever been signed"
+  },
+  "started": 1794638523,
+  "finished": 1794638576,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-V9V00C: Release: the GitHub `release` environment rejects v* tags, so nothing has ever been signed\n\nFound by the release pass, from the public GitHub Actions API.\n\n- **v0.1.0** (run 43556248562): `build` and `attach` passed, so the unsigned .deb and .sha256 are on the release. `apt` failed at once: \"Tag \"v0.1.0\" is not allowed to deploy to release due to environment protection rules.\" So `gh-pages` still holds only its empty first commit, `key.gpg` isn't served, and the README's apt install instructions fail (the key download 404s).\n- **v0.1.1** (run 43560385933): `build` failed at \"Check the tag matches the version\". The tag points at ea00505, where `Cargo.toml` still says 0.1.0. No package was produced, and the tag is now spent.\n\nWhat the user has to do (GitHub settings; it can't be done from a branch):\n1. Settings → Environments → `release` → Deployment branches and tags: add `v*` as a rule of type **Tag** (and keep `main`). docs/RELEASING.md now says this explicitly.\n2. For the next release, set `version` in `Cargo.toml` to a new version (not 0.1.0 or 0.1.1), move CHANGELOG.md's Unreleased section under it, and publish the release.\n3. Optionally rerun the packaging for v0.1.0 (`gh workflow run release.yml -f tag=v0.1.0`) so apt users get 0.1.0, or skip straight to the new version.\n4. After the first `apt` run, check from a clean machine that `key.gpg`'s fingerprint matches the README's (`0472 CEF0 1CE0 E79E C118 662D 34A0 6EB9 79E5 8584`). publish-apt.sh now also checks `key.gpg` against `APT_SIGNING_KEY_ID` and verifies the signatures with gpgv.\n\nLabels: Docs\n\nPrepare release 0.2.0 (0.1.0 and 0.1.1 tags are spent). Set version = \"0.2.0\" in Cargo.toml and update Cargo.lock to match; move CHANGELOG.md's Unreleased section under a 0.2.0 heading with today's date (2026-11-13); check docs/RELEASING.md matches. Run cargo check --locked and the tests. Do not tag or publish; the user does that."
+  ],
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "status": "modified",
+      "added": 4,
+      "removed": 2
+    },
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    }
+  ],
+  "contract": [
+    "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests."
+  ],
+  "summary": "Those are other crates, so I'm leaving them as they are."
+}

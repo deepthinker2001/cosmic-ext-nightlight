@@ -1,0 +1,43 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 37563fd..ab5b7f0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,9 +5,11 @@ What changed in each release, for users. Maintainers: see
+ 
+ ## Unreleased
+ 
++## 0.2.0 - 2026-11-13
++
+ Everything since 0.1.0. The `v0.1.1` tag points into this work, but its
+-release build failed and published no package, so these changes ship in the
+-next version.
++release build failed and published no package, so these changes ship in this
++version.
+ 
+ ### Added
+ 
+diff --git a/Cargo.lock b/Cargo.lock
+index f1eef6e..8c19cf4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -982,7 +982,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "cosmic-ext-nightlight"
+-version = "0.1.0"
++version = "0.2.0"
+ dependencies = [
+  "chrono",
+  "libcosmic",
+diff --git a/Cargo.toml b/Cargo.toml
+index a6a2f04..a60871e 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "cosmic-ext-nightlight"
+-version = "0.1.0"
++version = "0.2.0"
+ edition = "2021"
+ description = "Panel applet for COSMIC to toggle night light"
+ license = "GPL-3.0-only"
