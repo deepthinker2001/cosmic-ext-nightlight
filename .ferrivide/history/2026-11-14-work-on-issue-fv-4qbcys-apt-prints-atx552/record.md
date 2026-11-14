@@ -1,6 +1,6 @@
 # Work on issue FV-4QBCYS: apt prints a notice about i386 for our repository; add…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-4qbcys-apt-prints-a-notice-about-i386-for-our-r` · FV-4QBCYS: apt prints a notice about i386 for our repository; add arch=amd64 to the sources line
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-4qbcys-apt-prints-a-notice-about-i386-for-our-r` · FV-4QBCYS: apt prints a notice about i386 for our repository; add arch=amd64 to the sources line
 
 0 tokens in, 0 out
 
@@ -43,21 +43,43 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `CHANGELOG.md` | modified | +4 −0 |  |
-| `README.md` | modified | +6 −1 |  |
-| `scripts/publish-apt.sh` | modified | +1 −1 |  |
+| `CHANGELOG.md` | modified | +4 −0 | Record the notice fix under Unreleased without a version bump. |
+| `README.md` | modified | +6 −1 | Add architecture filter and precise optional migration guidance for existing users. |
+| `scripts/publish-apt.sh` | modified | +1 −1 | Match README architecture filter in generated index.html. |
+
+### Decisions
+
+- **Add only arch=amd64 to both install commands while leaving fingerprint-first steps intact.**: Avoids irrelevant i386 acquisition without weakening trust or changing repository behavior. Turned down: Changing repository metadata or trust setup.
+- **Document an optional existing-user edit rather than telling readers to repeat setup.**: Documentation specialty: changing new-install snippets alone would not remove the notice for current users, and re-importing the key is unnecessary. Turned down: Only update new-install instructions; Repeat the entire setup procedure.
 
 ## Tested
 
+- `cargo fmt --all -- --check && cargo clippy --all-targets && cargo test --locked`: 47 passed, 0 failed, 1 skipped
 - `cargo fmt --all -- --check && cargo clippy --all-targets && cargo test --locked`: 47 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - Local publisher generated and signed the test repo; all three HTML install blocks match README. C2 checks passed: fmt/clippy clean, 47 Rust tests passed, 1 ignored.
+- Committed face134876 for FV-4QBCYS: matching amd64-only sources, existing-user guidance and Unreleased note; publisher integration and C2 checks passed. No release or version bump.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The change matches the task. README and the publish-apt.sh heredoc both get `arch=amd64` on the sources line, and the two lines are identical. The README has a note for existing users and CHANGELOG has an Unreleased entry. There is no version bump, and the fingerprint steps are unchanged. I read the diff but did not run the publisher's local test.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The README line and the publisher heredoc line are identical and both now carry arch=amd64. No other signed-by line lacks it. The README note for existing users and the Unreleased changelog line are in place, and the fingerprint steps are untouched. I did not run the publisher's local test or the Rust checks, because only docs and a shell heredoc changed.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): This is a docs-only change. It adds arch=amd64 to the documented apt sources line in README.md and the site page made by publish-apt.sh, plus a README note and a CHANGELOG entry. signed-by= is still on the line, so the keyring pin isn't weakened. The fingerprint-first steps are unchanged, and the README and site snippets match line for line (only the HTML wrapper differs). The publisher already builds only binary-amd64 with Architectures=amd64, so the docs now match what the repository serves. The script parses with bash -n, cargo fmt --check is clean, and cargo test passes 47, fails none, with 1 ignored. I found no security issues.
 
 ## Summary
 
-I’ll check the install snippets and publisher tests, add the amd64 filter without changing the fingerprint steps, then verify and commit the docs update.
+Committed as **`face134876`** — fixes FV-4QBCYS.
+
+- Added `arch=amd64` to the identical sources lines in README and the publisher’s generated HTML.
+- Added instructions for existing users to edit their sources file to remove the harmless i386 notice.
+- Added an Unreleased changelog entry.
+- Kept fingerprint-first verification unchanged. No version bump or release.
+
+**Verified:** local publishing with a throwaway key and dummy `.deb`; all generated install blocks match README. Formatting and clippy passed; Rust tests: **47 passed, 1 ignored**.
 
 ## Contract
 
@@ -68,4 +90,4 @@ The clauses this work was bound by:
 
 ---
 
-From `b64f63baf0` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `b64f63baf0` to `face134876`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
