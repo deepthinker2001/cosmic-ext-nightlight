@@ -801,6 +801,77 @@ impl Nightlight {
             _ => Task::none(),
         }
     }
+
+    /// The slider moved: save the new target and apply it now, or after the
+    /// request in flight replies.
+    fn temperature_changed(&mut self, kelvin: u32) -> Task<Message> {
+        let kelvin = gamma::clamp_temperature(kelvin);
+        if kelvin == self.temperature {
+            return Task::none();
+        }
+        self.temperature = kelvin;
+        if let Some(c) = config() {
+            if let Err(e) = Settings::save_temperature(&c, kelvin) {
+                eprintln!("nightlight: cannot save temperature: {e}");
+            }
+        }
+        if self.auto.on {
+            // The ramp uses the new target at once: forget the last
+            // step so the current one is applied again. While a
+            // request is in flight, its reply does this.
+            self.auto.last = None;
+            if self.busy {
+                self.retune_pending = true;
+                return Task::none();
+            }
+            return self.check_auto();
+        }
+        match retune_on_slider(self.enabled, self.busy) {
+            Retune::Now => {
+                self.busy = true;
+                self.worker.request(true, kelvin)
+            }
+            Retune::Later => {
+                self.retune_pending = true;
+                Task::none()
+            }
+            Retune::Never => Task::none(),
+        }
+    }
+
+    /// The gamma worker answered a request for `want`: record the real
+    /// state, save it on success, and send a retune the slider asked for
+    /// meanwhile.
+    fn reply_received(&mut self, want: bool, result: &Result<(), String>) -> Task<Message> {
+        self.busy = false;
+        if let Err(e) = result {
+            eprintln!("nightlight: {e}");
+        }
+        self.schedule_last = schedule_last_after_reply(self.schedule_last, want, result.is_ok());
+        if result.is_err() {
+            // Forget the step so the next tick applies it again.
+            self.auto.last = None;
+        }
+        let (enabled, save) = applied(self.enabled, want, result.is_ok());
+        self.enabled = enabled;
+        if let (Some(v), Some(c)) = (save, config()) {
+            if let Err(e) = Settings::save_enabled(&c, v) {
+                eprintln!("nightlight: cannot save state: {e}");
+            }
+        }
+        // Taking the flag consumes it; nothing between here and its use
+        // reads it.
+        let pending = std::mem::take(&mut self.retune_pending);
+        if self.auto.on {
+            if pending {
+                return self.check_auto();
+            }
+        } else if retune_needed(self.enabled, pending) {
+            self.busy = true;
+            return self.worker.request(true, self.temperature);
+        }
+        Task::none()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1008,37 +1079,7 @@ impl cosmic::Application for Nightlight {
                 self.busy = true;
                 return self.worker.request(want, self.manual_kelvin());
             }
-            Message::Temperature(kelvin) => {
-                let kelvin = gamma::clamp_temperature(kelvin);
-                if kelvin == self.temperature {
-                    return Task::none();
-                }
-                self.temperature = kelvin;
-                if let Some(c) = config() {
-                    if let Err(e) = Settings::save_temperature(&c, kelvin) {
-                        eprintln!("nightlight: cannot save temperature: {e}");
-                    }
-                }
-                if self.auto.on {
-                    // The ramp uses the new target at once: forget the last
-                    // step so the current one is applied again. While a
-                    // request is in flight, its reply does this.
-                    self.auto.last = None;
-                    if self.busy {
-                        self.retune_pending = true;
-                        return Task::none();
-                    }
-                    return self.check_auto();
-                }
-                match retune_on_slider(self.enabled, self.busy) {
-                    Retune::Now => {
-                        self.busy = true;
-                        return self.worker.request(true, kelvin);
-                    }
-                    Retune::Later => self.retune_pending = true,
-                    Retune::Never => {}
-                }
-            }
+            Message::Temperature(kelvin) => return self.temperature_changed(kelvin),
             Message::ScheduleOn(on) => {
                 self.schedule_on = on;
                 self.schedule_last = None;
@@ -1122,34 +1163,7 @@ impl cosmic::Application for Nightlight {
             Message::PopupClosed(id) => {
                 self.popup = popup_after_close(self.popup, id);
             }
-            Message::Applied(want, result) => {
-                self.busy = false;
-                if let Err(e) = &result {
-                    eprintln!("nightlight: {e}");
-                }
-                self.schedule_last =
-                    schedule_last_after_reply(self.schedule_last, want, result.is_ok());
-                if result.is_err() {
-                    // Forget the step so the next tick applies it again.
-                    self.auto.last = None;
-                }
-                let (enabled, save) = applied(self.enabled, want, result.is_ok());
-                self.enabled = enabled;
-                if let (Some(v), Some(c)) = (save, config()) {
-                    if let Err(e) = Settings::save_enabled(&c, v) {
-                        eprintln!("nightlight: cannot save state: {e}");
-                    }
-                }
-                let pending = std::mem::take(&mut self.retune_pending);
-                if self.auto.on {
-                    if pending {
-                        return self.check_auto();
-                    }
-                } else if retune_needed(self.enabled, pending) {
-                    self.busy = true;
-                    return self.worker.request(true, self.temperature);
-                }
-            }
+            Message::Applied(want, result) => return self.reply_received(want, &result),
         }
         Task::none()
     }

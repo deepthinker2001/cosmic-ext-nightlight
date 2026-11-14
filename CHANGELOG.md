@@ -40,6 +40,11 @@ next version.
 - `scripts/publish-apt.sh` now checks that the published `key.gpg` has the
   expected fingerprint and verifies the repository's signatures with it
   before the repository is pushed.
+- The package installs third-party notices under
+  `/usr/share/doc/cosmic-ext-nightlight/`: `THIRD-PARTY-NOTICES` for the
+  Rust crates, `BUNDLED-ASSETS.md`, and the font licenses in `fonts/`
+  (Open Sans, Noto Sans Mono, and Font Awesome, whose glyphs make up most of
+  iced's built-in icon font).
 
 ## 0.1.0 - 2026-11-13
 
