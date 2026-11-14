@@ -5,9 +5,11 @@ What changed in each release, for users. Maintainers: see
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-13
+
 Everything since 0.1.0. The `v0.1.1` tag points into this work, but its
-release build failed and published no package, so these changes ship in the
-next version.
+release build failed and published no package, so these changes ship in this
+version.
 
 ### Added
 
