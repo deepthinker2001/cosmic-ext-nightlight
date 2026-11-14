@@ -15,6 +15,7 @@ rustix = { version = "1", features = ["fs"] }
 [package.metadata.deb]
 name = "cosmic-ext-nightlight"
 maintainer = "cosmic-ext-nightlight contributors"
+license-file = ["LICENSE", "0"]
 section = "utils"
 priority = "optional"
 extended-description = "A panel applet for COSMIC that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
