@@ -21,23 +21,23 @@ install on.
 
 ## How a release is built
 
-A push to `main` runs `.github/workflows/release.yml`. It has four
+A push to `main` runs `.github/workflows/release.yml`. It has three
 jobs, so that code from the build never shares a runner with the signing key
 or a write token:
 
-- `plan` reads the `version` in `Cargo.toml` (`cargo metadata --locked`). If
-  the tag `v<version>` already exists, it prints a notice and the run ends
-  there: no release, no failure, so an ordinary push releases nothing. If the
-  tag doesn't exist, this push is a release of `v<version>` at that commit.
-  It has no secrets and a read-only token, and builds nothing.
-- `build` checks out that commit, builds the `.deb` with `just deb` (no
-  cache; `just` and `cargo-deb` at fixed versions) and hands the `.deb` and
-  its hash on. It has no secrets and a read-only token.
+- `build` has no secrets and a read-only token. It first reads the `version`
+  in `Cargo.toml` (`cargo metadata --locked`). If the tag `v<version>` already
+  exists, it prints a notice and the rest of the run is skipped: no release,
+  no failure, so an ordinary push releases nothing. If the tag doesn't exist,
+  this push is a release of `v<version>` at that commit: it builds the `.deb`
+  with `just deb` (no cache; `just` and `cargo-deb` at fixed versions) and
+  hands the `.deb` and its hash on. `attach` and `apt` run only for a release.
 - `attach` holds the write token for the release. It runs no checkout and no
   cargo: it checks the artifact against the build's hash, creates the tag at
   the built commit's SHA and the GitHub release (generated notes, title =
   tag) with `gh release create --target <sha>`, and attaches the `.deb` and
-  its `.sha256`. A release that already exists is left as it is. The tag is
+  its `.sha256`. A release that already exists is left as it is, but the job
+  first checks that the tag points at the built commit and stops if not. The tag is
   made with the workflow token, which does not start another workflow run.
 - `apt` holds the signing key. It takes the `.deb` from the build job's
   artifact (not from the release, which could have been changed), checks it
@@ -51,7 +51,8 @@ or a write token:
 
 The workflow can also be run by hand from the Actions tab (from `main`) with
 an existing tag, to redo the packaging of that release: it builds the tag's
-source and skips creating the release if it exists.
+source (the tag must be at a commit on `main`) and skips creating the release
+if it exists.
 
 The `gh-pages` branch holds only generated files: `pool/` (every published
 `.deb`), `dists/stable/` (`Packages`, `Release`, `InRelease`, `Release.gpg`),
@@ -79,13 +80,13 @@ rerun the workflow for the latest tag), or apt will refuse the repository.
 
 Create a GitHub environment named `release` (Settings → Environments), add a
 required reviewer, and limit its deployment branches and tags to the
-branch `main` (a rule of type **Branch**). Releases now run from a push to
-`main`, so the `apt` job's ref is `main`: without that rule GitHub rejects
-the job ("Branch "main" is not allowed to deploy to release due to
-environment protection rules") and nothing is signed. Check this under
-Settings → Environments → release → Deployment branches and tags. Keep a
-**Tag** rule `v*` as well; it is harmless, and was what v0.1.0 needed when
-releases ran from a tag. Put the
+branch `main` only (a rule of type **Branch**; no **Tag** rule). Releases and
+manual reruns both run from `main`, so the `apt` job's ref is `main`: without
+that rule GitHub rejects the job ("Branch "main" is not allowed to deploy to
+release due to environment protection rules") and nothing is signed. Check
+this under Settings → Environments → release → Deployment branches and
+tags. Leaving out a `v*` Tag rule means a run started from a tag (a forged
+one, say) can't reach the signing key at all. Put the
 key in that environment, not in repository secrets, which every workflow run
 can read:
 
@@ -99,9 +100,16 @@ gh variable set APT_SIGNING_KEY_ID --env release --body FINGERPRINT
 - Environment variable `APT_SIGNING_KEY_ID`: the key's fingerprint (not
   secret).
 
-Also add a tag ruleset protecting `v*` (restrict who can update and delete
-those tags; the workflow creates them, so don't block creation by
-`github-actions`). Only the `apt` job uses the environment, so every release
+Also add a tag ruleset protecting `v*`: restrict who can create, update and
+delete those tags to admins, with the GitHub Actions app as a bypass actor
+(the workflow's `attach` job creates the tag, with the workflow token). If
+the Actions app can't be given that bypass, create the tag some other way
+that is not open to every collaborator (a deploy key or a GitHub App token
+held by the `attach` job); don't open tag creation to everyone. This is the
+control that makes every `v*` tag a commit that was on `main` when it was
+released. The workflow also checks it: a manual rerun fails unless the tag's
+commit is on `main`, and `attach` fails unless the tag points at the commit
+that was built. Only the `apt` job uses the environment, so every release
 (and every manual rerun) waits for the reviewer's approval before anything is
 signed.
 
@@ -142,7 +150,7 @@ push and no release to create by hand.
 3. Merge it and `git push` `main`. The workflow sees a version without a tag
    and makes the release.
 4. Approve the `release` environment when GitHub asks (the `apt` job waits
-   for it). Watch Actions → Release: `plan`, `build`, `attach` and `apt`
+   for it). Watch Actions → Release: `build`, `attach` and `apt`
    should all pass. Check the release (tag `v0.2.0`, at the pushed commit)
    lists the `.deb` and `.sha256`, and on a machine with the
    repository added, `sudo apt update && apt policy cosmic-ext-nightlight`

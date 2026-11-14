@@ -5,12 +5,12 @@ name: Release
 # GitHub release, attaches the .deb and adds it to the signed apt repository
 # on the gh-pages branch. Any other push to main releases nothing.
 #
-# Four jobs so that no code from the build ever shares a runner with the
+# Three jobs so that no code from the build ever shares a runner with the
 # signing key or a write token:
-#   plan   - reads the version, decides whether this is a release; read-only
-#            token, no secrets, runs no build scripts
-#   build  - runs cargo and dependency build scripts; no secrets, read-only
-#            token, no cache; hands over the .deb as an artifact and its hash
+#   build  - first decides whether this push is a release (read-only token, no
+#            secrets); if so runs cargo and dependency build scripts, with no
+#            cache, and hands over the .deb as an artifact and its hash. The
+#            other jobs run only when it says release
 #   attach - holds the release write token; no checkout, no cargo; creates the
 #            tag and the release
 #   apt    - holds the signing key (environment `release`) and the write token
@@ -40,7 +40,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  plan:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,12 +48,15 @@ jobs:
       release: ${{ steps.plan.outputs.release }}
       tag: ${{ steps.plan.outputs.tag }}
       sha: ${{ steps.plan.outputs.sha }}
+      sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
       # Third-party actions are pinned by commit, not by movable tag.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          # The pushed commit, or the tag when run by hand.
-          ref: ${{ inputs.tag || github.sha }}
+          # The pushed commit, or the tag when run by hand (fully qualified, so
+          # a branch of the same name can't stand in for it).
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.sha }}
+          fetch-depth: 0 # all history and branches, to check the tag is on main
           fetch-tags: true
           persist-credentials: false
 
@@ -73,6 +76,11 @@ jobs:
               echo "Tag $INPUT_TAG does not match the package version $version." >&2
               exit 1
             fi
+            # Every real tag was made at a commit on main.
+            if ! git merge-base --is-ancestor "$sha" origin/main; then
+              echo "Tag $INPUT_TAG is at $sha, which is not on main." >&2
+              exit 1
+            fi
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "tag=$tag" >> "$GITHUB_OUTPUT"
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -87,21 +95,8 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-  build:
-    needs: plan
-    if: needs.plan.outputs.release == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      sha256: ${{ steps.hash.outputs.sha256 }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          ref: ${{ needs.plan.outputs.sha }} # the exact commit the release is made at
-          persist-credentials: false
-
       - name: Install system dependencies
+        if: steps.plan.outputs.release == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -111,6 +106,7 @@ jobs:
             libfontconfig-dev libfreetype-dev libexpat1-dev
 
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.plan.outputs.release == 'true'
         with:
           toolchain: stable
 
@@ -118,12 +114,15 @@ jobs:
       # Exact versions, bumped by hand in a reviewed change (Dependabot does
       # not track crates installed this way).
       - name: Install just and cargo-deb
+        if: steps.plan.outputs.release == 'true'
         run: cargo install --locked just@1.59.0 cargo-deb@3.8.0
 
       - name: Build the .deb
+        if: steps.plan.outputs.release == 'true'
         run: just deb
 
       - name: Hash the .deb
+        if: steps.plan.outputs.release == 'true'
         id: hash
         run: |
           set -- target/debian/cosmic-ext-nightlight_*.deb
@@ -131,6 +130,7 @@ jobs:
           echo "sha256=$(sha256sum "$1" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.plan.outputs.release == 'true'
         with:
           name: deb
           path: target/debian/*.deb
@@ -139,7 +139,8 @@ jobs:
 
   attach:
     # Runs no cargo and no checkout: only the release's write token.
-    needs: [plan, build]
+    needs: build
+    if: needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write # to create the tag and release and attach the .deb
@@ -153,8 +154,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SHA256: ${{ needs.build.outputs.sha256 }}
-          TAG: ${{ needs.plan.outputs.tag }}
-          SHA: ${{ needs.plan.outputs.sha }}
+          TAG: ${{ needs.build.outputs.tag }}
+          SHA: ${{ needs.build.outputs.sha }}
         run: |
           # An existing release (a redo) is kept as it is. Otherwise --target
           # makes the tag at the commit that was built.
@@ -162,6 +163,10 @@ jobs:
             gh release create "$TAG" --target "$SHA" --generate-notes --title "$TAG" \
               -R "$GITHUB_REPOSITORY"
           fi
+          # A tag made meanwhile (or an old one on a redo) is not trusted:
+          # --target is ignored for an existing tag, so compare.
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$TAG" --jq .sha)
+          [ "$tag_sha" = "$SHA" ] || { echo "Tag $TAG is at $tag_sha, not the built $SHA." >&2; exit 1; }
           cd debs
           for deb in cosmic-ext-nightlight_*.deb; do
             echo "$SHA256  $deb" | sha256sum -c -
@@ -172,7 +177,7 @@ jobs:
   apt:
     # Signs only: takes the finished .deb from the build job's artifact and
     # runs gpg and apt-ftparchive.
-    needs: [plan, build, attach]
+    needs: [build, attach]
     runs-on: ubuntu-latest
     # The signing key and its id live in this environment (required reviewer,
     # limited to v* tags and main), not in repository secrets.
@@ -224,7 +229,7 @@ jobs:
       - name: Publish the repository
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.plan.outputs.tag }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           cd site
           git config user.name "github-actions[bot]"
