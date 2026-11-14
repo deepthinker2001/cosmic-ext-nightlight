@@ -1,6 +1,6 @@
 # Work on issue FV-568VXF: Colour temperature slider
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-568vxf-colour-temperature-slider` · FV-568VXF: Colour temperature slider
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-568vxf-colour-temperature-slider` · FV-568VXF: Colour temperature slider
 
 About $0.00, 0 tokens in, 0 out
 
@@ -50,18 +50,22 @@ Progress reports:
 
 - Added colour temperature slider (1900–6500 K); builds, 18 tests pass; not tried on a live panel.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): All three findings from the last round are fixed. #1: the range assertion is now a const block, and clippy reports no warnings for it. #2 (suggestion, not required): the new `retune_on_slider` helper has a unit test covering the busy, enabled and idle cases. #3: a slider move while a request is in flight is now deferred whatever `enabled` is, so the startup restore and toggle-on windows retune after the reply. `Applied` then checks `enabled` before it sends the retune. `cargo test` passes (19 passed, 0 failed, 1 ignored).
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The two should_fix findings are fixed, and the tests pass (19 passed, 1 ignored). Deferring while busy now happens whether or not night light is enabled yet, with a test. The constant assertion is in a const block.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): #1 is fixed: the assertion now runs at compile time in a const block. #3 is fixed: a slider move during any request in flight now sets retune_pending, even before enabled is true. `retune_needed` checks enabled again when the reply comes, and the flag is taken on every reply, so a pending flag left over from a toggle-off can't turn gamma back on. #2 was a suggestion and stays optional. The new `retune_on_slider` helper is tested. The changed lines raise no security issues. cargo test: 19 passed, 1 ignored. cargo build is clean.
+
 ## Summary
 
-The popup now has a colour temperature slider from 1900 K to 6500 K, defaulting to 3500 K. `cargo test --locked` passes (18 passed, 1 ignored). I haven't run the applet on a live COSMIC panel, so the slider's look and live effect are untested.
+I fixed all three findings and committed. `cargo test --locked` passes (19 passed, 1 ignored).
 
-- **Slider and label:** it steps in 100 K. Above it is the label "Colour temperature: N K", with a hint beside it: Very warm, Warm, Neutral warm or Cool.
-- **Live updates:** while night light is on, moving the slider retunes the screen. A move that arrives while another request is still in flight is held and applied once, using the latest value. While night light is off, the slider only stores the value.
-- **Saved and restored:** the value is saved under the config key `temperature` (in Kelvin) on every change, and read back and clamped to the range at startup. If night light was on when the applet last ran, it comes back at the saved temperature.
-- **Gamma backend:** the Kelvin-to-ramp conversion already existed, so I added the 1900 K and 6500 K limits and a clamp function in `src/gamma.rs`. I added unit tests for the clamp, the range ends, and the ramp getting warmer as Kelvin drops. Gamma is still set only through the Wayland gamma protocol (R2).
-- **Other changes:** the worker thread now takes a Kelvin value with each request, and the new slider logic is in `src/main.rs`. I also added small tested helpers for the hint text and for deciding when to retune.
-
-The work is committed with "Fixes FV-568VXF".
+- **#1:** the range check in the `src/gamma.rs` test is now a `const { assert!(...) }` block, so clippy no longer flags the constant assertion. I didn't run clippy to confirm.
+- **#3:** a slider move while a request is in flight is now held whenever the applet is busy, even if night light isn't confirmed on yet. That covers the startup restore and a toggle-on in flight. The pending retune is applied when the reply arrives, but only if night light ended up on. The decision is a small pure helper, `retune_on_slider`, which the new test `slider_move_while_busy_is_deferred_even_when_not_yet_enabled` covers.
+- **#2:** I didn't add a test that drives `Nightlight::update` itself, which the finding marked as optional. That would mean constructing a `Core` and a worker. The busy and retune decision is tested through `retune_on_slider`, but the handler's saving of the value on each slider step is still untested.
 
 ---
 
-From `968ca811e2` to `0de2d46015`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `968ca811e2` to `953797a61f`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
