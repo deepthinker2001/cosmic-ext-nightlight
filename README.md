@@ -143,17 +143,22 @@ gpg --show-keys --with-fingerprint "$dir/key.asc"
 ```
 
 It must be exactly `0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584`; if
-not, stop. Then verify and install:
+not, run `rm -r "$dir"` and stop. Otherwise set `deb` to the file you
+downloaded (use its real version) and verify and install. The commands are
+chained, so nothing is installed unless the signature and the hash both check
+out:
 
 ```sh
-gpg --dearmor -o "$dir/key.gpg" "$dir/key.asc"
-gpgv --keyring "$dir/key.gpg" cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
-sha256sum -c cosmic-ext-nightlight_*.deb.sha256
-sudo apt install ./cosmic-ext-nightlight_*.deb
+deb=cosmic-ext-nightlight_X.Y.Z_amd64.deb
+gpg --dearmor -o "$dir/key.gpg" "$dir/key.asc" \
+  && gpgv --keyring "$dir/key.gpg" "$deb.asc" "$deb" \
+  && sha256sum -c "$deb.sha256" \
+  && sudo apt install "./$deb"
 rm -r "$dir"
 ```
 
-`gpgv` must say `Good signature`.
+`gpgv` must say `Good signature`; if it says anything else, do not install the
+file.
 
 This does not update itself; use the apt repository above for that.
 

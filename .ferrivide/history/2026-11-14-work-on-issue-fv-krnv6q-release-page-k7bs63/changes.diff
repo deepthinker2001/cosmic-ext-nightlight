@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
-index defe908..aa2b239 100644
+index defe908..23089e1 100644
 --- a/.github/workflows/release.yml
 +++ b/.github/workflows/release.yml
 @@ -225,6 +225,22 @@ jobs:
@@ -8,9 +8,9 @@ index defe908..aa2b239 100644
            scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
 +          # The release-page download gets a detached signature from the
 +          # same key, checked against the key.gpg publish-apt.sh just verified.
++          gpg --batch --yes --dearmor -o "$GNUPGHOME/check.gpg" site/key.gpg
 +          for deb in debs/cosmic-ext-nightlight_*.deb; do
 +            gpg --batch --yes --local-user "$KEY_ID" --armor --detach-sign -o "$deb.asc" "$deb"
-+            gpg --batch --dearmor -o "$GNUPGHOME/check.gpg" site/key.gpg
 +            gpgv --keyring "$GNUPGHOME/check.gpg" "$deb.asc" "$deb"
 +          done
 +
@@ -26,10 +26,10 @@ index defe908..aa2b239 100644
        - name: Publish the repository
          env:
 diff --git a/README.md b/README.md
-index 19ab556..24fd80f 100644
+index 19ab556..4e08531 100644
 --- a/README.md
 +++ b/README.md
-@@ -130,14 +130,31 @@ and `/usr/share/keyrings/cosmic-ext-nightlight.gpg`.
+@@ -130,14 +130,36 @@ and `/usr/share/keyrings/cosmic-ext-nightlight.gpg`.
  
  ### From a release
  
@@ -48,17 +48,24 @@ index 19ab556..24fd80f 100644
 +```
 +
 +It must be exactly `0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584`; if
-+not, stop. Then verify and install:
++not, run `rm -r "$dir"` and stop. Otherwise set `deb` to the file you
++downloaded (use its real version) and verify and install. The commands are
++chained, so nothing is installed unless the signature and the hash both check
++out:
  
  ```sh
-+gpg --dearmor -o "$dir/key.gpg" "$dir/key.asc"
-+gpgv --keyring "$dir/key.gpg" cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
- sha256sum -c cosmic-ext-nightlight_*.deb.sha256
- sudo apt install ./cosmic-ext-nightlight_*.deb
+-sha256sum -c cosmic-ext-nightlight_*.deb.sha256
+-sudo apt install ./cosmic-ext-nightlight_*.deb
++deb=cosmic-ext-nightlight_X.Y.Z_amd64.deb
++gpg --dearmor -o "$dir/key.gpg" "$dir/key.asc" \
++  && gpgv --keyring "$dir/key.gpg" "$deb.asc" "$deb" \
++  && sha256sum -c "$deb.sha256" \
++  && sudo apt install "./$deb"
 +rm -r "$dir"
  ```
  
-+`gpgv` must say `Good signature`.
++`gpgv` must say `Good signature`; if it says anything else, do not install the
++file.
 +
  This does not update itself; use the apt repository above for that.
  

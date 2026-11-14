@@ -227,9 +227,9 @@ jobs:
           scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
           # The release-page download gets a detached signature from the
           # same key, checked against the key.gpg publish-apt.sh just verified.
+          gpg --batch --yes --dearmor -o "$GNUPGHOME/check.gpg" site/key.gpg
           for deb in debs/cosmic-ext-nightlight_*.deb; do
             gpg --batch --yes --local-user "$KEY_ID" --armor --detach-sign -o "$deb.asc" "$deb"
-            gpg --batch --dearmor -o "$GNUPGHOME/check.gpg" site/key.gpg
             gpgv --keyring "$GNUPGHOME/check.gpg" "$deb.asc" "$deb"
           done
 
