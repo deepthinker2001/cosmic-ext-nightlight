@@ -122,9 +122,32 @@ fn applied(enabled: bool, want: bool, ok: bool) -> (bool, Option<bool>) {
     }
 }
 
+/// The open popup after the compositor closed popup `closed`: only the
+/// popup we track is forgotten.
+fn popup_after_close(popup: Option<Id>, closed: Id) -> Option<Id> {
+    popup.filter(|id| *id != closed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn closing_matching_popup_clears_it() {
+        let id = Id::unique();
+        assert_eq!(popup_after_close(Some(id), id), None);
+    }
+
+    #[test]
+    fn closing_other_popup_keeps_it() {
+        let (a, b) = (Id::unique(), Id::unique());
+        assert_eq!(popup_after_close(Some(a), b), Some(a));
+    }
+
+    #[test]
+    fn closing_with_none_open_is_noop() {
+        assert_eq!(popup_after_close(None, Id::unique()), None);
+    }
 
     #[test]
     fn toggle_flips_and_ignores_while_busy() {
@@ -268,9 +291,7 @@ impl cosmic::Application for Nightlight {
                 return cosmic::task::message(cosmic::Action::Surface(action));
             }
             Message::PopupClosed(id) => {
-                if self.popup == Some(id) {
-                    self.popup = None;
-                }
+                self.popup = popup_after_close(self.popup, id);
             }
             Message::Applied(want, result) => {
                 self.busy = false;

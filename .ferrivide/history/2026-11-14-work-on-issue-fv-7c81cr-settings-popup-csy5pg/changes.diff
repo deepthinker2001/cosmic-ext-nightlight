@@ -1,5 +1,5 @@
 diff --git a/src/main.rs b/src/main.rs
-index adc19cc..75cf2a3 100644
+index adc19cc..9020e5a 100644
 --- a/src/main.rs
 +++ b/src/main.rs
 @@ -8,7 +8,11 @@ use std::time::Duration;
@@ -14,7 +14,41 @@ index adc19cc..75cf2a3 100644
  use cosmic::Element;
  
  const APP_ID: &str = "io.github.cosmic_ext.Nightlight";
-@@ -147,6 +151,27 @@ fn config() -> Option<Config> {
+@@ -118,10 +122,33 @@ fn applied(enabled: bool, want: bool, ok: bool) -> (bool, Option<bool>) {
+     }
+ }
+ 
++/// The open popup after the compositor closed popup `closed`: only the
++/// popup we track is forgotten.
++fn popup_after_close(popup: Option<Id>, closed: Id) -> Option<Id> {
++    popup.filter(|id| *id != closed)
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn closing_matching_popup_clears_it() {
++        let id = Id::unique();
++        assert_eq!(popup_after_close(Some(id), id), None);
++    }
++
++    #[test]
++    fn closing_other_popup_keeps_it() {
++        let (a, b) = (Id::unique(), Id::unique());
++        assert_eq!(popup_after_close(Some(a), b), Some(a));
++    }
++
++    #[test]
++    fn closing_with_none_open_is_noop() {
++        assert_eq!(popup_after_close(None, Id::unique()), None);
++    }
++
+     #[test]
+     fn toggle_flips_and_ignores_while_busy() {
+         assert_eq!(toggle_request(false, false), Some(true));
+@@ -147,6 +174,27 @@ fn config() -> Option<Config> {
      Config::new(APP_ID, CONFIG_VERSION).ok()
  }
  
@@ -42,7 +76,7 @@ index adc19cc..75cf2a3 100644
  struct Nightlight {
      core: Core,
      /// Real state: true only once the backend confirmed night light is on.
-@@ -154,11 +179,16 @@ struct Nightlight {
+@@ -154,11 +202,16 @@ struct Nightlight {
      /// A backend request is in flight.
      busy: bool,
      worker: Worker,
@@ -59,7 +93,7 @@ index adc19cc..75cf2a3 100644
      Applied(bool, Result<(), String>),
  }
  
-@@ -177,9 +207,7 @@ impl cosmic::Application for Nightlight {
+@@ -177,9 +230,7 @@ impl cosmic::Application for Nightlight {
      }
  
      fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Message>) {
@@ -70,7 +104,7 @@ index adc19cc..75cf2a3 100644
          let worker = Worker::spawn();
          let task = if saved {
              worker.request(true)
-@@ -192,11 +220,16 @@ impl cosmic::Application for Nightlight {
+@@ -192,11 +243,16 @@ impl cosmic::Application for Nightlight {
                  enabled: false,
                  busy: saved,
                  worker,
@@ -87,7 +121,7 @@ index adc19cc..75cf2a3 100644
      fn update(&mut self, message: Message) -> Task<Message> {
          match message {
              Message::Toggle => {
-@@ -206,6 +239,39 @@ impl cosmic::Application for Nightlight {
+@@ -206,6 +262,37 @@ impl cosmic::Application for Nightlight {
                  self.busy = true;
                  return self.worker.request(want);
              }
@@ -120,14 +154,12 @@ index adc19cc..75cf2a3 100644
 +                return cosmic::task::message(cosmic::Action::Surface(action));
 +            }
 +            Message::PopupClosed(id) => {
-+                if self.popup == Some(id) {
-+                    self.popup = None;
-+                }
++                self.popup = popup_after_close(self.popup, id);
 +            }
              Message::Applied(want, result) => {
                  self.busy = false;
                  if let Err(e) = &result {
-@@ -214,7 +280,7 @@ impl cosmic::Application for Nightlight {
+@@ -214,7 +301,7 @@ impl cosmic::Application for Nightlight {
                  let (enabled, save) = applied(self.enabled, want, result.is_ok());
                  self.enabled = enabled;
                  if let (Some(v), Some(c)) = (save, config()) {
@@ -136,7 +168,7 @@ index adc19cc..75cf2a3 100644
                          eprintln!("nightlight: cannot save state: {e}");
                      }
                  }
-@@ -225,10 +291,15 @@ impl cosmic::Application for Nightlight {
+@@ -225,10 +312,15 @@ impl cosmic::Application for Nightlight {
  
      fn view(&self) -> Element<'_, Message> {
          let icon = if self.enabled { ICON_ON } else { ICON_OFF };
