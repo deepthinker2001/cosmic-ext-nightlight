@@ -1,6 +1,6 @@
 # Work on issue FV-9CWESN: License: the build contains GPL code, and the…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-9cwesn-license-the-build-contains-gpl-code-and` · FV-9CWESN: License: the build contains GPL code, and the project's own license is inconsistent (R33)
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-9cwesn-license-the-build-contains-gpl-code-and` · FV-9CWESN: License: the build contains GPL code, and the project's own license is inconsistent (R33)
 
 About $0.00, 0 tokens in, 0 out
 
@@ -33,9 +33,24 @@ About $0.00, 0 tokens in, 0 out
 
 No test runs were reported.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): The change does what the user decided: LICENSE is now the full GPL-3.0 text (674 lines, matching the canonical length, with no AGPL clauses left apart from section 13's mention of AGPL, which is part of the GPL text itself). Cargo.toml's license stays GPL-3.0-only, the deb metadata gains a license-file entry in cargo-deb's format, the README License section states GPL-3.0-only with the reason, and the CHANGELOG gets a line. `cargo build --locked` succeeds and `cargo fmt --all -- --check` passes. No code changed, so the test suite and clippy aren't affected by this diff.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): LICENSE is now the standard GPL-3.0 text (the Affero mentions left are GPLv3 section 13). Cargo.toml, the README and the CHANGELOG say GPL-3.0-only, and the deb metadata gets license-file. No Rust code changed. I didn't run the build or tests.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The change only touches license text and metadata: LICENSE, a `license-file` entry in Cargo.toml's deb metadata, the README and the CHANGELOG. It has no code, dependencies, permissions or secrets, so there's nothing to fix for security. LICENSE is byte-for-byte the same as the system's /usr/share/common-licenses/GPL-3. No AGPL text is left outside the GPL's own section 13. `cargo test --locked` passes: 46 passed, 1 ignored.
+
 ## Summary
 
-Deb metadata: check Cargo.toml for a deb section.
+I replaced `LICENSE` with the GPL-3.0 text, so the project is now GPL-3.0-only everywhere. I didn't build the .deb. The only check was that `cargo metadata --locked` still parses `Cargo.toml`.
+
+- **`LICENSE`:** it now holds the GPL-3.0 text, copied from `/usr/share/common-licenses/GPL-3`. It was the AGPL-3.0 text before.
+- **`Cargo.toml`:** `license` was already `GPL-3.0-only`. I added `license-file = ["LICENSE", "0"]` under `[package.metadata.deb]`, so the .deb ships the license text. I haven't checked how cargo-deb treats this next to the existing `license` field.
+- **`README.md`:** the License section now says GPL-3.0-only, links `LICENSE`, and says why: libcosmic's applet support links GPL-3.0-only cosmic-panel crates.
+- **`CHANGELOG.md`:** I added a line under Unreleased → Changed. The blank line I left around it splits the list slightly oddly, which I didn't tidy.
+
+I found no other license text in headers or packaging files.
 
 ## Contract
 
@@ -45,4 +60,4 @@ The clauses this work was bound by:
 
 ---
 
-From `a6feeb03eb` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `a6feeb03eb` to `21d9dcbd25`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
