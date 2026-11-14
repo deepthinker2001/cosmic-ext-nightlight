@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "agent-csy5pg",
+  "title": "Work on issue FV-7C81CR: Settings popup on right click",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 2",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-7c81cr-settings-popup-on-right-click",
+  "base_commit": "2cb5cb58cadbe3329a3afc90e66406414e81d0e2",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-7C81CR",
+    "title": "Settings popup on right click"
+  },
+  "started": 1794630350,
+  "finished": 1794630452,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-7C81CR: Settings popup on right click\n\nRight-clicking the panel icon opens a settings popup (left click still toggles). If libcosmic's applet popup can't take right click, find the closest working way and say so. Add a persisted settings struct in cosmic_config next to 'enabled', with a version bump if needed. Popup shows the on/off switch for now. Keep gamma at the current fixed ~3500 K until the next issue.\n\nLabels: Applet"
+  ],
+  "files": [
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 77,
+      "removed": 6
+    }
+  ],
+  "summary": "Output is truncated; read the example directly."
+}
