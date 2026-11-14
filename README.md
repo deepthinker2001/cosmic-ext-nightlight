@@ -80,19 +80,27 @@ The releases are signed with the key whose full fingerprint is:
 FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
 ```
 
-Import `signing-key.asc` (`gpg --import signing-key.asc`) and check that the
-fingerprint `gpg --fingerprint` shows matches the one above. Do not trust the
-key by itself: the copy in the release is only as good as the release. Then,
-in the folder with the downloaded files:
+Check the fingerprint of the downloaded `signing-key.asc` against the one
+above, and do not trust the key by itself: the copy in the release is only as
+good as the release.
 
 ```sh
-gpg --decrypt SHA256SUMS.asc | sha256sum -c --ignore-missing -
-gpg --verify cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
+gpg --show-keys --fingerprint signing-key.asc     # compare with the above
+gpg --dearmor < signing-key.asc > signing-key.gpg
 ```
 
-The first command checks the hashes from the signed text itself, not from the
-unsigned `SHA256SUMS` file. Check that `gpg` reports a good signature from the
-key with the fingerprint above.
+Then, in the folder with the downloaded files, verify against that key alone
+(`gpgv` fails on a bad signature or any other key; plain `gpg --decrypt` would
+still print forged text):
+
+```sh
+gpgv --keyring ./signing-key.gpg --output SHA256SUMS.verified SHA256SUMS.asc \
+  && sha256sum -c --ignore-missing SHA256SUMS.verified
+gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
+```
+
+The hashes are checked from the verified text, not from the unsigned
+`SHA256SUMS`. If `gpgv` fails, do not use `SHA256SUMS.verified` or the `.deb`.
 
 ### Secrets (maintainers)
 

@@ -1,9 +1,9 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
 new file mode 100644
-index 0000000..1de34c5
+index 0000000..3a2ddae
 --- /dev/null
 +++ b/.github/workflows/release.yml
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,148 @@
 +name: Release
 +
 +# Three jobs so that no code from the build ever shares a runner with the
@@ -40,6 +40,13 @@ index 0000000..1de34c5
 +          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
 +          if [ "v${version}" != "${TAG}" ]; then
 +            echo "Tag ${TAG} does not match Cargo.toml version ${version}" >&2
++            exit 1
++          fi
++
++      - name: Check the README names the signing key
++        run: |
++          if grep -q 'FINGERPRINT-TO-BE-FILLED-IN' README.md; then
++            echo "Put the signing key's fingerprint in README.md before releasing" >&2
 +            exit 1
 +          fi
 +
@@ -146,10 +153,10 @@ index 0000000..1de34c5
 +            --repo "${REPO}" \
 +            --title "${TAG}" --generate-notes --verify-tag
 diff --git a/README.md b/README.md
-index 5c8195f..697a477 100644
+index 5c8195f..37f7b78 100644
 --- a/README.md
 +++ b/README.md
-@@ -60,6 +60,58 @@ without it the toggle will not work. The libc6 minimum is taken from the
+@@ -60,6 +60,66 @@ without it the toggle will not work. The libc6 minimum is taken from the
  machine that builds the package, so build on the oldest release you want it to
  install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
  
@@ -173,19 +180,27 @@ index 5c8195f..697a477 100644
 +FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
 +```
 +
-+Import `signing-key.asc` (`gpg --import signing-key.asc`) and check that the
-+fingerprint `gpg --fingerprint` shows matches the one above. Do not trust the
-+key by itself: the copy in the release is only as good as the release. Then,
-+in the folder with the downloaded files:
++Check the fingerprint of the downloaded `signing-key.asc` against the one
++above, and do not trust the key by itself: the copy in the release is only as
++good as the release.
 +
 +```sh
-+gpg --decrypt SHA256SUMS.asc | sha256sum -c --ignore-missing -
-+gpg --verify cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
++gpg --show-keys --fingerprint signing-key.asc     # compare with the above
++gpg --dearmor < signing-key.asc > signing-key.gpg
 +```
 +
-+The first command checks the hashes from the signed text itself, not from the
-+unsigned `SHA256SUMS` file. Check that `gpg` reports a good signature from the
-+key with the fingerprint above.
++Then, in the folder with the downloaded files, verify against that key alone
++(`gpgv` fails on a bad signature or any other key; plain `gpg --decrypt` would
++still print forged text):
++
++```sh
++gpgv --keyring ./signing-key.gpg --output SHA256SUMS.verified SHA256SUMS.asc \
++  && sha256sum -c --ignore-missing SHA256SUMS.verified
++gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
++```
++
++The hashes are checked from the verified text, not from the unsigned
++`SHA256SUMS`. If `gpgv` fails, do not use `SHA256SUMS.verified` or the `.deb`.
 +
 +### Secrets (maintainers)
 +

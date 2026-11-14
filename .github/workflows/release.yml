@@ -37,6 +37,13 @@ jobs:
             exit 1
           fi
 
+      - name: Check the README names the signing key
+        run: |
+          if grep -q 'FINGERPRINT-TO-BE-FILLED-IN' README.md; then
+            echo "Put the signing key's fingerprint in README.md before releasing" >&2
+            exit 1
+          fi
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
