@@ -12,7 +12,7 @@ use cosmic::iced::core::window;
 use cosmic::iced::futures::channel::oneshot;
 use cosmic::iced::window::Id;
 use cosmic::surface::action::{app_popup, destroy_popup};
-use cosmic::widget::{list_column, mouse_area, settings, toggler};
+use cosmic::widget::{list_column, mouse_area, settings, slider, text, toggler};
 use cosmic::Element;
 
 const APP_ID: &str = "io.github.cosmic_ext.Nightlight";
@@ -20,6 +20,7 @@ const ICON_ON: &str = "io.github.cosmic_ext.Nightlight-on-symbolic";
 const ICON_OFF: &str = "io.github.cosmic_ext.Nightlight-off-symbolic";
 const CONFIG_VERSION: u64 = 1;
 const CONFIG_KEY_ENABLED: &str = "enabled";
+const CONFIG_KEY_TEMPERATURE: &str = "temperature";
 
 fn main() -> cosmic::iced::Result {
     cosmic::applet::run::<Nightlight>(())
@@ -32,7 +33,8 @@ type Reply = oneshot::Sender<Result<(), String>>;
 /// ends and the Wayland connection closes, which makes the compositor reset
 /// gamma to neutral even though the detached thread's backend isn't dropped.
 struct Worker {
-    tx: mpsc::Sender<(bool, Reply)>,
+    /// `Some(kelvin)` turns night light on (or retunes it); `None` turns it off.
+    tx: mpsc::Sender<(Option<u32>, Reply)>,
 }
 
 /// How often the idle worker drains compositor events.
@@ -40,11 +42,11 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 impl Worker {
     fn spawn() -> Self {
-        let (tx, rx) = mpsc::channel::<(bool, Reply)>();
+        let (tx, rx) = mpsc::channel::<(Option<u32>, Reply)>();
         thread::spawn(move || {
             let mut backend: Option<gamma::GammaBackend> = None;
             loop {
-                let (enable, reply) = match rx.recv_timeout(POLL_INTERVAL) {
+                let (target, reply) = match rx.recv_timeout(POLL_INTERVAL) {
                     Ok(req) => req,
                     Err(mpsc::RecvTimeoutError::Timeout) => {
                         // Keep reading events while idle so the socket never
@@ -64,8 +66,8 @@ impl Worker {
                         backend = Some(gamma::GammaBackend::new().map_err(|e| e.to_string())?);
                     }
                     let b = backend.as_mut().unwrap();
-                    if enable {
-                        if let Err(e) = b.enable(gamma::DEFAULT_TEMPERATURE) {
+                    if let Some(kelvin) = target {
+                        if let Err(e) = b.enable(kelvin) {
                             // Partway failure: don't leave some outputs warm.
                             let _ = b.disable();
                             return Err(e.to_string());
@@ -85,9 +87,9 @@ impl Worker {
         Self { tx }
     }
 
-    fn request(&self, enable: bool) -> Task<Message> {
+    fn request(&self, enable: bool, kelvin: u32) -> Task<Message> {
         let (reply, rx) = oneshot::channel();
-        let sent = self.tx.send((enable, reply)).is_ok();
+        let sent = self.tx.send((enable.then_some(kelvin), reply)).is_ok();
         Task::perform(
             async move {
                 if !sent {
@@ -128,9 +130,45 @@ fn popup_after_close(popup: Option<Id>, closed: Id) -> Option<Id> {
     popup.filter(|id| *id != closed)
 }
 
+/// Short hint for where a temperature sits between warm and cool.
+fn temperature_hint(kelvin: u32) -> &'static str {
+    match kelvin {
+        ..=2699 => "Very warm",
+        2700..=3999 => "Warm",
+        4000..=5199 => "Neutral warm",
+        _ => "Cool",
+    }
+}
+
+/// Whether a retune must be sent after a reply: the slider moved while a
+/// request was in flight and night light is on.
+fn retune_needed(enabled: bool, pending: bool) -> bool {
+    enabled && pending
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hints_cover_the_range() {
+        assert_eq!(temperature_hint(1900), "Very warm");
+        assert_eq!(temperature_hint(3500), "Warm");
+        assert_eq!(temperature_hint(4500), "Neutral warm");
+        assert_eq!(temperature_hint(6500), "Cool");
+    }
+
+    #[test]
+    fn retune_only_when_on_and_pending() {
+        assert!(retune_needed(true, true));
+        assert!(!retune_needed(true, false));
+        assert!(!retune_needed(false, true));
+    }
+
+    #[test]
+    fn settings_default_temperature() {
+        assert_eq!(Settings::default().temperature, gamma::DEFAULT_TEMPERATURE);
+    }
 
     #[test]
     fn closing_matching_popup_clears_it() {
@@ -177,17 +215,37 @@ fn config() -> Option<Config> {
 /// Persisted settings, stored as one cosmic_config key per field. Adding a
 /// field with a default needs no version bump: a missing key reads as its
 /// default. Bump `CONFIG_VERSION` only when an existing key changes meaning.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct Settings {
     /// The user's last choice: night light on.
     enabled: bool,
+    /// Colour temperature in Kelvin.
+    temperature: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            temperature: gamma::DEFAULT_TEMPERATURE,
+        }
+    }
 }
 
 impl Settings {
     fn load(config: &Config) -> Self {
         Self {
             enabled: config.get::<bool>(CONFIG_KEY_ENABLED).unwrap_or(false),
+            temperature: gamma::clamp_temperature(
+                config
+                    .get::<u32>(CONFIG_KEY_TEMPERATURE)
+                    .unwrap_or(gamma::DEFAULT_TEMPERATURE),
+            ),
         }
+    }
+
+    fn save_temperature(config: &Config, kelvin: u32) -> Result<(), cosmic::cosmic_config::Error> {
+        config.set(CONFIG_KEY_TEMPERATURE, kelvin)
     }
 
     fn save_enabled(config: &Config, enabled: bool) -> Result<(), cosmic::cosmic_config::Error> {
@@ -204,6 +262,10 @@ struct Nightlight {
     worker: Worker,
     /// The settings popup, while it is open.
     popup: Option<Id>,
+    /// Chosen colour temperature in Kelvin.
+    temperature: u32,
+    /// The slider moved while a request was in flight.
+    retune_pending: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -213,6 +275,8 @@ enum Message {
     ToggleSettings,
     PopupClosed(Id),
     Applied(bool, Result<(), String>),
+    /// The temperature slider moved.
+    Temperature(u32),
 }
 
 impl cosmic::Application for Nightlight {
@@ -230,10 +294,11 @@ impl cosmic::Application for Nightlight {
     }
 
     fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Message>) {
-        let saved = config().map(|c| Settings::load(&c)).unwrap_or_default().enabled;
+        let settings = config().map(|c| Settings::load(&c)).unwrap_or_default();
+        let saved = settings.enabled;
         let worker = Worker::spawn();
         let task = if saved {
-            worker.request(true)
+            worker.request(true, settings.temperature)
         } else {
             Task::none()
         };
@@ -244,6 +309,8 @@ impl cosmic::Application for Nightlight {
                 busy: saved,
                 worker,
                 popup: None,
+                temperature: settings.temperature,
+                retune_pending: false,
             },
             task,
         )
@@ -260,7 +327,27 @@ impl cosmic::Application for Nightlight {
                     return Task::none();
                 };
                 self.busy = true;
-                return self.worker.request(want);
+                return self.worker.request(want, self.temperature);
+            }
+            Message::Temperature(kelvin) => {
+                let kelvin = gamma::clamp_temperature(kelvin);
+                if kelvin == self.temperature {
+                    return Task::none();
+                }
+                self.temperature = kelvin;
+                if let Some(c) = config() {
+                    if let Err(e) = Settings::save_temperature(&c, kelvin) {
+                        eprintln!("nightlight: cannot save temperature: {e}");
+                    }
+                }
+                if self.enabled {
+                    if self.busy {
+                        self.retune_pending = true;
+                    } else {
+                        self.busy = true;
+                        return self.worker.request(true, kelvin);
+                    }
+                }
             }
             Message::ToggleSettings => {
                 let action = match self.popup {
@@ -279,10 +366,24 @@ impl cosmic::Application for Nightlight {
                             )
                         },
                         Some(Box::new(|state: &Nightlight| {
-                            let content = list_column().add(settings::item(
-                                "Night light",
-                                toggler(state.enabled).on_toggle(|_| Message::Toggle),
-                            ));
+                            let kelvin = state.temperature;
+                            let content = list_column()
+                                .add(settings::item(
+                                    "Night light",
+                                    toggler(state.enabled).on_toggle(|_| Message::Toggle),
+                                ))
+                                .add(settings::item(
+                                    format!("Colour temperature: {kelvin} K"),
+                                    text(temperature_hint(kelvin)),
+                                ))
+                                .add(
+                                    slider(
+                                        gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
+                                        kelvin,
+                                        Message::Temperature,
+                                    )
+                                    .step(100_u32),
+                                );
                             Element::from(state.core.applet.popup_container(content))
                                 .map(cosmic::Action::App)
                         })),
@@ -304,6 +405,11 @@ impl cosmic::Application for Nightlight {
                     if let Err(e) = Settings::save_enabled(&c, v) {
                         eprintln!("nightlight: cannot save state: {e}");
                     }
+                }
+                let pending = std::mem::take(&mut self.retune_pending);
+                if retune_needed(self.enabled, pending) {
+                    self.busy = true;
+                    return self.worker.request(true, self.temperature);
                 }
             }
         }

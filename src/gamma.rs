@@ -21,6 +21,16 @@ use wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_v1::{
 
 /// Default colour temperature in Kelvin.
 pub const DEFAULT_TEMPERATURE: u32 = 3500;
+/// Lowest (warmest) temperature offered to the user, in Kelvin.
+pub const MIN_TEMPERATURE: u32 = 1900;
+/// Highest (coolest) temperature offered to the user; the neutral point.
+pub const MAX_TEMPERATURE: u32 = 6500;
+
+/// Limit a Kelvin value to the range offered to the user.
+pub fn clamp_temperature(kelvin: u32) -> u32 {
+    kelvin.clamp(MIN_TEMPERATURE, MAX_TEMPERATURE)
+}
+
 /// Neutral temperature: produces an identity ramp.
 pub const NEUTRAL_TEMPERATURE: u32 = 6500;
 
@@ -475,6 +485,30 @@ mod tests {
         }
         assert_eq!(ramp[size - 1], u16::MAX); // red untouched
         assert!(ramp[3 * size - 1] < ramp[size - 1]); // blue reduced
+    }
+
+    #[test]
+    fn clamp_temperature_limits_to_slider_range() {
+        assert_eq!(clamp_temperature(0), MIN_TEMPERATURE);
+        assert_eq!(clamp_temperature(3500), 3500);
+        assert_eq!(clamp_temperature(20_000), MAX_TEMPERATURE);
+    }
+
+    #[test]
+    fn range_ends_are_ordered_and_default_inside() {
+        assert!(MIN_TEMPERATURE < DEFAULT_TEMPERATURE && DEFAULT_TEMPERATURE < MAX_TEMPERATURE);
+        let warm = temperature_to_rgb(MIN_TEMPERATURE);
+        let cool = temperature_to_rgb(MAX_TEMPERATURE);
+        assert!(warm[2] < cool[2] && warm[1] < cool[1]);
+    }
+
+    #[test]
+    fn ramp_gets_warmer_as_kelvin_drops() {
+        let size = 64;
+        let blue_top = |k| build_ramp(size, k)[3 * size - 1];
+        assert!(blue_top(1900) < blue_top(3500));
+        assert!(blue_top(3500) < blue_top(5000));
+        assert!(blue_top(5000) <= blue_top(6500));
     }
 
     #[test]
