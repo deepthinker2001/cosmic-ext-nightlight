@@ -1,38 +1,43 @@
 name: Release
 
-# Publishing a GitHub release builds the .deb, attaches it to the release and
-# adds it to the signed apt repository on the gh-pages branch.
+# A push to main whose Cargo.toml version has no tag yet is a release: the
+# workflow builds the .deb, creates the tag v<version> at that commit and the
+# GitHub release, attaches the .deb and adds it to the signed apt repository
+# on the gh-pages branch. Any other push to main releases nothing.
 #
 # Three jobs so that no code from the build ever shares a runner with the
 # signing key or a write token:
-#   build  - runs cargo and dependency build scripts; no secrets, read-only
-#            token, no cache; hands over the .deb as an artifact and its hash
-#   attach - holds the release write token; no checkout, no cargo
+#   build  - first decides whether this push is a release (read-only token, no
+#            secrets); if so runs cargo and dependency build scripts, with no
+#            cache, and hands over the .deb as an artifact and its hash. The
+#            other jobs run only when it says release
+#   attach - holds the release write token; no checkout, no cargo; creates the
+#            tag and the release
 #   apt    - holds the signing key (environment `release`) and the write token
 #            for gh-pages; no cargo; signs the artifact from `build`, not
 #            whatever is on the release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
   # To redo a release's packaging by hand, from the Actions tab.
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to package, such as v0.1.0
+        description: Existing release tag to package again, such as v0.1.0
         required: true
 
 permissions:
   contents: read
 
-# One release at a time: both jobs write to shared places.
+# One release at a time: the jobs write to shared places. A push that arrives
+# meanwhile waits, then sees the tag the first run made.
 concurrency:
   group: release
   cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   build:
@@ -40,24 +45,58 @@ jobs:
     permissions:
       contents: read
     outputs:
+      release: ${{ steps.plan.outputs.release }}
+      tag: ${{ steps.plan.outputs.tag }}
+      sha: ${{ steps.plan.outputs.sha }}
       sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
       # Third-party actions are pinned by commit, not by movable tag.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ env.TAG }} # the release's own source, also when run by hand
+          # The pushed commit, or the tag when run by hand (fully qualified, so
+          # a branch of the same name can't stand in for it).
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.sha }}
+          fetch-depth: 0 # all history and branches, to check the tag is on main
+          fetch-tags: true
           persist-credentials: false
 
-      - name: Check the tag matches the version
+      - name: Decide whether this is a release
+        id: plan
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
+          sha=$(git rev-parse HEAD)
           version=$(cargo metadata --locked --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
-          if [ "$TAG" != "v$version" ]; then
-            echo "Tag $TAG does not match the package version $version." >&2
-            exit 1
+          [ -n "$version" ] || { echo "No package version found." >&2; exit 1; }
+          tag="v$version"
+          if [ -n "$INPUT_TAG" ]; then
+            # Packaging an existing tag again: it must be that version's tag.
+            if [ "$INPUT_TAG" != "$tag" ]; then
+              echo "Tag $INPUT_TAG does not match the package version $version." >&2
+              exit 1
+            fi
+            # Every real tag was made at a commit on main.
+            if ! git merge-base --is-ancestor "$sha" origin/main; then
+              echo "Tag $INPUT_TAG is at $sha, which is not on main." >&2
+              exit 1
+            fi
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::notice::Tag $tag already exists: nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Install system dependencies
+        if: steps.plan.outputs.release == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -67,6 +106,7 @@ jobs:
             libfontconfig-dev libfreetype-dev libexpat1-dev
 
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.plan.outputs.release == 'true'
         with:
           toolchain: stable
 
@@ -74,12 +114,15 @@ jobs:
       # Exact versions, bumped by hand in a reviewed change (Dependabot does
       # not track crates installed this way).
       - name: Install just and cargo-deb
+        if: steps.plan.outputs.release == 'true'
         run: cargo install --locked just@1.59.0 cargo-deb@3.8.0
 
       - name: Build the .deb
+        if: steps.plan.outputs.release == 'true'
         run: just deb
 
       - name: Hash the .deb
+        if: steps.plan.outputs.release == 'true'
         id: hash
         run: |
           set -- target/debian/cosmic-ext-nightlight_*.deb
@@ -87,6 +130,7 @@ jobs:
           echo "sha256=$(sha256sum "$1" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.plan.outputs.release == 'true'
         with:
           name: deb
           path: target/debian/*.deb
@@ -96,20 +140,33 @@ jobs:
   attach:
     # Runs no cargo and no checkout: only the release's write token.
     needs: build
+    if: needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to attach the .deb to the release
+      contents: write # to create the tag and release and attach the .deb
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: deb
           path: debs
 
-      - name: Attach it to the release
+      - name: Create the tag and release if needed, attach the .deb
         env:
           GH_TOKEN: ${{ github.token }}
           SHA256: ${{ needs.build.outputs.sha256 }}
+          TAG: ${{ needs.build.outputs.tag }}
+          SHA: ${{ needs.build.outputs.sha }}
         run: |
+          # An existing release (a redo) is kept as it is. Otherwise --target
+          # makes the tag at the commit that was built.
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$SHA" --generate-notes --title "$TAG" \
+              -R "$GITHUB_REPOSITORY"
+          fi
+          # A tag made meanwhile (or an old one on a redo) is not trusted:
+          # --target is ignored for an existing tag, so compare.
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$TAG" --jq .sha)
+          [ "$tag_sha" = "$SHA" ] || { echo "Tag $TAG is at $tag_sha, not the built $SHA." >&2; exit 1; }
           cd debs
           for deb in cosmic-ext-nightlight_*.deb; do
             echo "$SHA256  $deb" | sha256sum -c -
@@ -172,6 +229,7 @@ jobs:
       - name: Publish the repository
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           cd site
           git config user.name "github-actions[bot]"
