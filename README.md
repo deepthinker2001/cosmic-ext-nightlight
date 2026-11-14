@@ -60,6 +60,66 @@ without it the toggle will not work. The libc6 minimum is taken from the
 machine that builds the package, so build on the oldest release you want it to
 install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
 
+## Signed releases
+
+Pushing a tag like `v0.1.0` (it must equal the `version` in `Cargo.toml`) runs
+`.github/workflows/release.yml`. It builds the `.deb` with `just deb` in a job
+that has no secrets, signs it in a separate job, and publishes a GitHub Release
+in a third. The release contains:
+
+- `cosmic-ext-nightlight_*.deb`
+- `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
+- `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
+- `signing-key.asc` (the public key, for convenience only)
+
+### Verify a download
+
+The releases are signed with the key whose full fingerprint is:
+
+```
+FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
+```
+
+Check the fingerprint of the downloaded `signing-key.asc` against the one
+above, and do not trust the key by itself: the copy in the release is only as
+good as the release.
+
+```sh
+gpg --show-keys --fingerprint signing-key.asc     # compare with the above
+gpg --dearmor < signing-key.asc > signing-key.gpg
+```
+
+Then, in the folder with the downloaded files, verify against that key alone
+(`gpgv` fails on a bad signature or any other key; plain `gpg --decrypt` would
+still print forged text):
+
+```sh
+gpgv --keyring ./signing-key.gpg --output SHA256SUMS.verified SHA256SUMS.asc \
+  && sha256sum -c --ignore-missing SHA256SUMS.verified
+gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
+```
+
+The hashes are checked from the verified text, not from the unsigned
+`SHA256SUMS`. If `gpgv` fails, do not use `SHA256SUMS.verified` or the `.deb`.
+
+### Secrets (maintainers)
+
+The signing key is never committed. Create a GitHub environment named
+`release` (Settings → Environments), limit its deployment branches and tags to
+`v*`, add a required reviewer, and add these as **environment secrets** of that
+environment (not repository secrets, which every workflow run can read):
+
+| Secret | Contents |
+| --- | --- |
+| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (`gpg --armor --export-secret-keys KEYID`) |
+| `GPG_KEY_ID` | Key ID or fingerprint to sign with |
+| `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
+
+Also add a tag ruleset protecting `v*` (restrict who can create, update and
+delete those tags), and put the key's fingerprint in this README. The build
+tools are installed at fixed versions (`just` 1.59.0, `cargo-deb` 3.8.0) in the
+workflow; bump them by hand in a reviewed change.
+
 ## Add it to the panel
 
 Open COSMIC Settings, go to the panel (or dock) settings, and use its applet
