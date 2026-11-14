@@ -1,6 +1,6 @@
 # Work on issue FV-7C81CR: Settings popup on right click
 
-**In progress** 2026-11-14 · Engineer 2 (project agent) · `claude-sonnet-5-5` · branch `fv-7c81cr-settings-popup-on-right-click` · FV-7C81CR: Settings popup on right click
+**Merged** 2026-11-14 · Engineer 2 (project agent) · `claude-sonnet-5-5` · branch `fv-7c81cr-settings-popup-on-right-click` · FV-7C81CR: Settings popup on right click
 
 About $0.00, 0 tokens in, 0 out
 
@@ -31,22 +31,32 @@ Then:
 ## Tested
 
 - 9 passed, 0 failed, 1 skipped
+- 12 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - Right-click settings popup with on/off switch added; builds and unit tests pass, not run on a live panel.
+- Fixed finding #1: popup_after_close helper with 3 unit tests; 12 pass.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Finding #1 is fixed: the popup id transition is now the pure helper `popup_after_close`, and three unit tests cover the matching id, a different id, and no popup open. `PopupClosed` uses the helper, so the tested logic is the logic that runs. The build is clean and `cargo test` passes (12 passed, 1 ignored live probe). No open findings remain.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The popup id transition is now a pure helper, `popup_after_close`, with three unit tests that cover the cases I asked for. Tests pass.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The quick reviewer's finding #1 is fixed: the id handling for a closed popup is now a pure helper, popup_after_close, with three unit tests that match the finding (the matching id clears it, a different id keeps it, none open stays none). The PopupClosed handler behaves as before. The new lines raise no security concerns, and cargo test gives 12 passed and 1 ignored.
 
 ## Summary
 
-Right-clicking the panel icon now opens a settings popup with a "Night light" on/off switch, and left click still toggles. I haven't run it on a live COSMIC panel. It builds with `--locked` and the 9 unit tests pass, but none of them covers the popup.
+I fixed finding #1 and committed it. The popup close handling now lives in a pure helper, `popup_after_close`, in `src/main.rs`, and `PopupClosed` calls it.
 
-- **How right click works:** libcosmic's applet button only has left-press hooks, so I wrapped it in `mouse_area` with `on_right_press`. The popup itself is libcosmic's normal `app_popup`. Right-clicking again, or clicking away, closes it. The popup toggler sends the same toggle message as a left click.
-- **Settings struct:** `Settings { enabled }` in `src/main.rs` loads and saves through cosmic_config, with the `enabled` key and config version 1 unchanged. I didn't bump the version, because a field added later reads as its default when the key is missing. I didn't use the `CosmicConfigEntry` derive, since it needs serde and macro paths this crate doesn't have. A comment on the struct says when a bump is needed.
-- **Gamma:** unchanged at the fixed ~3500 K.
-- **Not checked:** the popup anchors to the default rectangle from `get_popup_settings`, not the button's measured bounds. libcosmic's own example overrides that rectangle, but only with the bounds its left-press hook supplies, which the right-click path doesn't give. I'd check the popup's position on a real panel.
+Three new unit tests cover it:
+- Closing the matching id clears the popup.
+- Closing a different id leaves the popup open.
+- Closing with no popup open changes nothing.
 
-The change is committed with "Fixes FV-7C81CR".
+`cargo test --locked` passes (12 passed, 1 ignored). I haven't run the popup on a live panel.
 
 ---
 
-From `2cb5cb58ca` to `36a06a9e74`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `2cb5cb58ca` to `7bac6b5767`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
