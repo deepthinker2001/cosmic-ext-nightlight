@@ -45,7 +45,8 @@ Other recipes: `just check` runs clippy, `just clean` removes build output.
 
 ## Build a .deb package
 
-Install `cargo-deb` once (`cargo install cargo-deb`), then:
+Install `cargo-deb` once (`cargo install --locked cargo-deb`; checked with
+version 3.8.0), then:
 
 ```sh
 just deb                # cargo deb --locked; builds the release binary too
@@ -53,8 +54,11 @@ sudo apt install ./target/debian/cosmic-ext-nightlight_*.deb
 ```
 
 The package installs the same files as `just install` and depends on the
-shared libraries the binary links (detected automatically), plus `cosmic-panel`
-and `cosmic-comp`. Remove it with `sudo apt remove cosmic-ext-nightlight`.
+shared libraries the binary links (detected automatically), plus `cosmic-panel`.
+It recommends `cosmic-comp`, which provides the gamma protocol the applet needs;
+without it the toggle will not work. The libc6 minimum is taken from the
+machine that builds the package, so build on the oldest release you want it to
+install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
 
 ## Add it to the panel
 

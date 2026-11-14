@@ -14,12 +14,15 @@ rustix = { version = "1", features = ["fs"] }
 [package.metadata.deb]
 name = "cosmic-ext-nightlight"
 maintainer = "cosmic-ext-nightlight contributors"
-section = "x11"
+section = "utils"
 priority = "optional"
 extended-description = "A COSMIC panel applet that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
-# $auto adds the shared libraries the binary links (libc, libwayland-client, ...).
-# cosmic-panel is what hosts the applet; cosmic-comp provides the gamma protocol.
-depends = "$auto, cosmic-panel, cosmic-comp"
+# $auto adds the shared libraries the binary actually links (libc6 and
+# libxkbcommon0 today; wayland-client uses the pure-Rust backend).
+# cosmic-panel hosts the applet, so it is required. cosmic-comp provides the
+# gamma protocol but is only recommended, so it is not forced onto other setups.
+depends = "$auto, cosmic-panel"
+recommends = "cosmic-comp"
 assets = [
     ["target/release/cosmic-ext-nightlight", "usr/bin/", "755"],
     ["data/io.github.cosmic_ext.Nightlight.desktop", "usr/share/applications/", "644"],
