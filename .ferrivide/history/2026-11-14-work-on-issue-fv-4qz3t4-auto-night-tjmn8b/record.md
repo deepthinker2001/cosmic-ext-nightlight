@@ -1,6 +1,6 @@
 # Work on issue FV-4QZ3T4: Auto night light: smooth sunset/sunrise ramp
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-4qz3t4-auto-night-light-smooth-sunset-sunrise-r` · FV-4QZ3T4: Auto night light: smooth sunset/sunrise ramp
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-4qz3t4-auto-night-light-smooth-sunset-sunrise-r` · FV-4QZ3T4: Auto night light: smooth sunset/sunrise ramp
 
 About $0.00, 0 tokens in, 0 out
 
@@ -83,10 +83,25 @@ Progress reports:
 
 - Auto sunrise/sunset ramp added and committed; cargo test --locked passes (45 passed, 1 ignored). Not run on a live panel.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): All six findings from the last round are addressed in 98dc6f5. The RS4 justification is now in a comment at handle_request, with the report corrected. The manual 0% behaviour is documented in code and README. The latitude and longitude boxes always show. The popup moved into popup_content. Ramp events wrap into the day. ISO 6709 parsing slices after the ASCII sign, with the non-ASCII case added to the test. `cargo test --locked` passes (46 passed, 1 ignored), and the build has no warnings.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): All six earlier findings are addressed in the lines changed since my last review. `cargo test --locked` passes (46 passed, 1 ignored). The RS4 allocation now has an R24 justification comment. The popup is its own function. The latitude and longitude boxes always show. The README explains the manual toggle at 0%. Wrapped sunrise and sunset times are handled and tested. The location parser can no longer panic on non-ASCII text.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): My finding #6 is fixed. `parse_iso6709` now removes a leading ASCII `+` or `-` before it looks for the split, so a non-ASCII first character returns None instead of panicking. A test with `é+3114+12128` covers it. The lines changed since my last review add nothing that concerns security: the popup code moved into its own function, the location boxes now always show and still pass through the same checks, and the ramp wrap is plain arithmetic on finite values. `cargo test --locked`: 46 passed, 1 ignored. The build is clean.
+
 ## Summary
 
-Use `Element<'_, ...>`.
+I fixed all six findings and committed the fixes. `cargo test --locked` passes (46 passed, 1 ignored). I haven't run it on a live panel.
+
+1. **RS4 on `handle_request`:** I fixed the wording and kept the code. My earlier report was wrong to say `new` is no longer called in the worker's loop. It is called through `handle_request`, but only while the backend is `None`, so once per connection or reconnect. The `Vec::new` inside it doesn't allocate until an output is pushed. A comment on `handle_request` now says this, so the smell scanner will probably still flag that line.
+2. **Manual switch-on in auto mode:** a comment in `manual_kelvin` and a README sentence now say what happens. A manual switch-on uses the current ramp temperature, or your full target when the ramp is at 0% (daytime). The next 1% step then takes over.
+3. **Location boxes:** the latitude and longitude boxes now always show in the popup, so the override works with Auto off. The "Use timezone location" button still appears only once a custom location is set.
+4. **`update()` size:** the popup body is now its own function, `popup_content`, outside `update`.
+5. **Sun events outside 0–1440 minutes:** a sunrise before midnight or a sunset after it is now handled. `ramp_percent` shifts the sunrise into the day and looks at the one daily cycle that starts half a window before it. A new test, `events_outside_the_day_wrap`, covers both cases.
+6. **Zone-table parsing panic:** `parse_iso6709` now checks the leading sign before splitting, so non-ASCII text can't make it panic. `"é+3114+12128"` is in the rejected-input test.
 
 ---
 
-From `ce6cac9711` to `6da244624a`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `ce6cac9711` to `98dc6f5444`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
