@@ -1,6 +1,6 @@
 # You are cosmic-ext-nightlight's Release pass, for this one job: nobody else is…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-opus-5-5` · branch `ferrivide/release-pass-fv-6f5h0e`
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-opus-5-5` · branch `ferrivide/release-pass-fv-6f5h0e`
 
 About $0.00, 0 tokens in, 0 out
 
@@ -91,7 +91,7 @@ Out of scope:
 | `CHANGELOG.md` | added | +53 −0 | New change log: Unreleased (everything since v0.1.0) and 0.1.0 |
 | `README.md` | modified | +2 −0 | Link to CHANGELOG.md |
 | `docs/RELEASING.md` | modified | +13 −3 | The v* environment rule must be a Tag rule; spent tags; update CHANGELOG when setting the version; describe the signature check |
-| `scripts/publish-apt.sh` | modified | +30 −3 | Check that the exported key.gpg has the expected fingerprint, and verify InRelease and Release.gpg with it via gpgv |
+| `scripts/publish-apt.sh` | modified | +30 −3 | Check the full fingerprint against the keyring before signing; usage line says <key-id> must be the full fingerprint |
 
 ### Decisions
 
@@ -104,6 +104,7 @@ Out of scope:
 ## Tested
 
 - `scripts/publish-apt.sh run against a throwaway key and a dummy .deb: matching fingerprint, short key id, signed with another key`: 3 passed, 0 failed
+- `scripts/publish-apt.sh with a throwaway key: good fpr, short id, unknown fpr, other signer`: 4 passed, 0 failed
 
 Progress reports:
 
@@ -122,11 +123,33 @@ The CVE tab: scanned_at null, no findings, no scanners, exploitation status unkn
 There was no change log. GitHub's v0.1.1 notes are only a compare link, for a build that shipped nothing. Added CHANGELOG.md: an Unreleased section with the settings popup, temperature slider, custom schedule, sunrise/sunset auto ramp, the trademark rewording and the apt signature check, plus 0.1.0. Also added a RELEASING.md step to roll the Unreleased section into each new version, and a README link.
 
 Also: a `private-key.asc` sits untracked in the user's main checkout (never committed; I didn't open it). .gitignore now excludes key files. It would be safer moved out of the project folder. FV-CK2Y04 and FV-B4S568 (fingerprint and badge placeholders) are already resolved on main and can be closed. R14, R33 and R34 aren't in the project's recorded requirements (only R0–R2).
+- Fixed review finding #1 (publish-apt.sh checks the key's full fingerprint before signing; usage says so) and committed. Tested with a throwaway key: correct key passes; short id and unknown fingerprint stop with the message before signing; signing with another key fails at gpgv. The release blockers from my report stand: FV-9CWESN (GPL / R33), FV-X6J1CF (no CVE scan / R34), FV-V9V00C (environment rejects tags, so nothing has been signed / R14), FV-W86KWZ (no third-party notices).
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Finding #1 is fixed. The fingerprint check now runs before anything is signed, against the secret keys in the keyring, so a wrong or short key id fails with the friendly message. I ran the lookup against the scratch test key: the full fingerprint in either letter case matches, while an email address and a made-up id are rejected. The later check on key.gpg still runs. The only change since the last review is in scripts/publish-apt.sh.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The finding is fixed. The fingerprint check now runs before any signing, and the usage line and header say the key id must be a full fingerprint. The script passes a `sh -n` syntax check. I didn't run it.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The quick reviewer's suggestion #1 is fixed. The key's fingerprint is now checked against the secret keyring before anything is written or signed, and the usage line says a full fingerprint is needed. The check fails closed: `--` comes before the key id, and a subkey or partial match gives a mismatch. I ran it against an empty keyring: it exited 1 with the message and created nothing. The check after signing, on the exported key.gpg and with gpgv, is unchanged.
 
 ## Summary
 
-All four cases behave as intended. A short or unknown key ID now gets the clear message before anything is signed.
+I fixed the reviewer's finding and committed it. The project is still **not ready to release**: the four blockers from my first report haven't changed.
+
+**The fix:** `scripts/publish-apt.sh` now checks the key's full fingerprint at the very start, before anything is signed. Before, a short or unknown key ID could stop the script inside a gpg command without the clear message. The usage line now says the key ID must be the full fingerprint. The checks after signing are unchanged: the published `key.gpg` must have that fingerprint and verify both signatures with gpgv.
+
+**Tests**, run with a throwaway key:
+- The correct fingerprint passes, with spaces and lower case accepted.
+- A short key ID and an unknown fingerprint both stop with the clear message before anything is signed.
+- Signing with a different key still fails when the signatures are verified.
+
+**Blockers still open:**
+- **FV-9CWESN (licenses, R33):** every build contains GPL code, and the LICENSE file and Cargo.toml disagree on the project's own license. Both need your decision.
+- **FV-X6J1CF (vulnerabilities, R34):** the CVE tab has never been scanned; Compliance needs to run the scanners.
+- **FV-V9V00C (signing, R14):** your GitHub `release` environment rejects `v*` tags, so no release has ever been signed.
+- **FV-W86KWZ:** the package has no third-party notices for the bundled fonts and dependencies.
 
 ---
 
-From `35b77c73ef` to `2fb5c6f044`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `35b77c73ef` to `b6975d2dfb`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.

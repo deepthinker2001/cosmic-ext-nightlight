@@ -2,7 +2,7 @@
   "format": 1,
   "id": "agent-9xsv5t",
   "title": "You are cosmic-ext-nightlight's Release pass, for this one job: nobody else is…",
-  "outcome": "in_progress",
+  "outcome": "merged",
   "project": "cosmic-ext-nightlight",
   "agent": {
     "name": "Engineer 1",
@@ -13,12 +13,13 @@
   },
   "branch": "ferrivide/release-pass-fv-6f5h0e",
   "base_commit": "35b77c73eff650e35cd99047278cff4abc8281ae",
-  "head_commit": "2fb5c6f044aa3a00b3794e6f0917c919d31af334",
+  "head_commit": "b6975d2dfbca6875133e4d003dab39156da4fa30",
   "commits": [
+    "b6975d2dfbca6875133e4d003dab39156da4fa30",
     "2fb5c6f044aa3a00b3794e6f0917c919d31af334"
   ],
   "started": 1794634757,
-  "finished": 1794635047,
+  "finished": 1794635341,
   "usage": {
     "input_tokens": 0,
     "output_tokens": 0,
@@ -88,7 +89,7 @@
       "status": "modified",
       "added": 30,
       "removed": 3,
-      "why": "Check that the exported key.gpg has the expected fingerprint, and verify InRelease and Release.gpg with it via gpgv"
+      "why": "Check the full fingerprint against the keyring before signing; usage line says <key-id> must be the full fingerprint"
     }
   ],
   "decisions": [
@@ -127,15 +128,45 @@
       "command": "scripts/publish-apt.sh run against a throwaway key and a dummy .deb: matching fingerprint, short key id, signed with another key",
       "passed": 3,
       "failed": 0
+    },
+    {
+      "command": "scripts/publish-apt.sh with a throwaway key: good fpr, short id, unknown fpr, other signer",
+      "passed": 4,
+      "failed": 0
     }
   ],
   "progress": [
-    "NOT ready to release. Blockers: (1) R33 — every build contains GPL code: libcosmic's applet feature links GPL-3.0-only cosmic-panel-config / xdg-shell-wrapper-config, and the project itself is GPL-family (Cargo.toml says GPL-3.0-only, LICENSE is AGPL-3.0) — FV-9CWESN, user decision; (2) R34 — the CVE tab has never been scanned, so nothing shows the absence of critical or exploited findings — FV-X6J1CF, Compliance; (3) R14 — no build has ever been signed: the GitHub `release` environment rejected v0.1.0's signing job, and v0.1.1's build failed its version check — FV-V9V00C, GitHub setting; (4) third-party notices for the embedded OFL fonts and dependencies are missing — FV-W86KWZ.\n\n## Signing (R14)\nChecked: release.yml and publish-apt.sh sign the apt repository (InRelease, Release.gpg) after checking the build's hash; the public Actions API for both releases; gh-pages; the README's fingerprint steps. Nothing signed exists to verify: gh-pages holds only its empty first commit. v0.1.0's `apt` job was refused (\"Tag v0.1.0 is not allowed to deploy to release due to environment protection rules\"). v0.1.1 failed at \"Check the tag matches the version\" (Cargo.toml still says 0.1.0). The project has no release tool with a verify command. Fixed: publish-apt.sh now checks that the shipped key.gpg has the fingerprint in APT_SIGNING_KEY_ID and verifies both signatures with gpgv before anything is pushed. I tested it with a throwaway key: correct key passes, short key id fails, signing with a different key fails. RELEASING.md now says the v* environment rule must be of type Tag. Filed: FV-V9V00C (environment setting, next version number), FV-KRNV6Q (the release-page .deb has only a .sha256 from the same release, a trade-off the user chose in FV-QVWSWT).\n\n## Licenses (R33)\nChecked all 527 packages in the Linux build (cargo tree, license fields, and LICENSE files in the git checkouts), and the fonts and icons compiled in. GPL found: the project's own license, and cosmic-panel-config / xdg-shell-wrapper-config (GPL-3.0-only, required for R1). configparser and self_cell are dual-licensed and fine under their MIT/Apache options; the MPL-2.0 crates are not GPL. Bundled fonts: Open Sans and Noto Sans Mono (OFL-1.1, from libcosmic) and Iced-Icons.ttf (iced, MIT, origin to confirm). The two SVG icons are the project's own, hand-written in the scaffold session. There is no notices file or asset list. Filed FV-9CWESN and FV-W86KWZ; changing the license is the user's choice.\n\n## Vulnerabilities (R34)\nThe CVE tab: scanned_at null, no findings, no scanners, exploitation status unknown. No finding is open, but none has been looked for. Filed FV-X6J1CF for Compliance. I accepted nothing.\n\n## Release notes\nThere was no change log. GitHub's v0.1.1 notes are only a compare link, for a build that shipped nothing. Added CHANGELOG.md: an Unreleased section with the settings popup, temperature slider, custom schedule, sunrise/sunset auto ramp, the trademark rewording and the apt signature check, plus 0.1.0. Also added a RELEASING.md step to roll the Unreleased section into each new version, and a README link.\n\nAlso: a `private-key.asc` sits untracked in the user's main checkout (never committed; I didn't open it). .gitignore now excludes key files. It would be safer moved out of the project folder. FV-CK2Y04 and FV-B4S568 (fingerprint and badge placeholders) are already resolved on main and can be closed. R14, R33 and R34 aren't in the project's recorded requirements (only R0–R2)."
+    "NOT ready to release. Blockers: (1) R33 — every build contains GPL code: libcosmic's applet feature links GPL-3.0-only cosmic-panel-config / xdg-shell-wrapper-config, and the project itself is GPL-family (Cargo.toml says GPL-3.0-only, LICENSE is AGPL-3.0) — FV-9CWESN, user decision; (2) R34 — the CVE tab has never been scanned, so nothing shows the absence of critical or exploited findings — FV-X6J1CF, Compliance; (3) R14 — no build has ever been signed: the GitHub `release` environment rejected v0.1.0's signing job, and v0.1.1's build failed its version check — FV-V9V00C, GitHub setting; (4) third-party notices for the embedded OFL fonts and dependencies are missing — FV-W86KWZ.\n\n## Signing (R14)\nChecked: release.yml and publish-apt.sh sign the apt repository (InRelease, Release.gpg) after checking the build's hash; the public Actions API for both releases; gh-pages; the README's fingerprint steps. Nothing signed exists to verify: gh-pages holds only its empty first commit. v0.1.0's `apt` job was refused (\"Tag v0.1.0 is not allowed to deploy to release due to environment protection rules\"). v0.1.1 failed at \"Check the tag matches the version\" (Cargo.toml still says 0.1.0). The project has no release tool with a verify command. Fixed: publish-apt.sh now checks that the shipped key.gpg has the fingerprint in APT_SIGNING_KEY_ID and verifies both signatures with gpgv before anything is pushed. I tested it with a throwaway key: correct key passes, short key id fails, signing with a different key fails. RELEASING.md now says the v* environment rule must be of type Tag. Filed: FV-V9V00C (environment setting, next version number), FV-KRNV6Q (the release-page .deb has only a .sha256 from the same release, a trade-off the user chose in FV-QVWSWT).\n\n## Licenses (R33)\nChecked all 527 packages in the Linux build (cargo tree, license fields, and LICENSE files in the git checkouts), and the fonts and icons compiled in. GPL found: the project's own license, and cosmic-panel-config / xdg-shell-wrapper-config (GPL-3.0-only, required for R1). configparser and self_cell are dual-licensed and fine under their MIT/Apache options; the MPL-2.0 crates are not GPL. Bundled fonts: Open Sans and Noto Sans Mono (OFL-1.1, from libcosmic) and Iced-Icons.ttf (iced, MIT, origin to confirm). The two SVG icons are the project's own, hand-written in the scaffold session. There is no notices file or asset list. Filed FV-9CWESN and FV-W86KWZ; changing the license is the user's choice.\n\n## Vulnerabilities (R34)\nThe CVE tab: scanned_at null, no findings, no scanners, exploitation status unknown. No finding is open, but none has been looked for. Filed FV-X6J1CF for Compliance. I accepted nothing.\n\n## Release notes\nThere was no change log. GitHub's v0.1.1 notes are only a compare link, for a build that shipped nothing. Added CHANGELOG.md: an Unreleased section with the settings popup, temperature slider, custom schedule, sunrise/sunset auto ramp, the trademark rewording and the apt signature check, plus 0.1.0. Also added a RELEASING.md step to roll the Unreleased section into each new version, and a README link.\n\nAlso: a `private-key.asc` sits untracked in the user's main checkout (never committed; I didn't open it). .gitignore now excludes key files. It would be safer moved out of the project folder. FV-CK2Y04 and FV-B4S568 (fingerprint and badge placeholders) are already resolved on main and can be closed. R14, R33 and R34 aren't in the project's recorded requirements (only R0–R2).",
+    "Fixed review finding #1 (publish-apt.sh checks the key's full fingerprint before signing; usage says so) and committed. Tested with a throwaway key: correct key passes; short id and unknown fingerprint stop with the message before signing; signing with another key fails at gpgv. The release blockers from my report stand: FV-9CWESN (GPL / R33), FV-X6J1CF (no CVE scan / R34), FV-V9V00C (environment rejects tags, so nothing has been signed / R14), FV-W86KWZ (no third-party notices)."
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "Finding #1 is fixed. The fingerprint check now runs before anything is signed, against the secret keys in the keyring, so a wrong or short key id fails with the friendly message. I ran the lookup against the scratch test key: the full fingerprint in either letter case matches, while an email address and a made-up id are rejected. The later check on key.gpg still runs. The only change since the last review is in scripts/publish-apt.sh.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The finding is fixed. The fingerprint check now runs before any signing, and the usage line and header say the key id must be a full fingerprint. The script passes a `sh -n` syntax check. I didn't run it.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The quick reviewer's suggestion #1 is fixed. The key's fingerprint is now checked against the secret keyring before anything is written or signed, and the usage line says a full fingerprint is needed. The check fails closed: `--` comes before the key id, and a subkey or partial match gives a mismatch. I ran it against an empty keyring: it exited 1 with the message and created nothing. The check after signing, on the exported key.gpg and with gpgv, is unchanged.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
   ],
   "learned": [
     "Packaging: libcosmic's `applet` feature links GPL-3.0-only crates from pop-os/cosmic-panel (cosmic-panel-config, xdg-shell-wrapper-config); their Cargo.toml has no license field, so license tools show them blank. Check with `cargo tree -i cosmic-panel-config`.",
     "Packaging: The release state on GitHub can be read without credentials: `curl https://api.github.com/repos/deepthinker2001/cosmic-ext-nightlight/actions/runs` and each run's jobs_url and check-run annotations give each job's failure reason. As of 2026-11-13, no release has published the apt repository (gh-pages is empty).",
     "Packaging: scripts/publish-apt.sh can be tested locally without a real key: make a throwaway ed25519 key in a temporary GNUPGHOME and a dummy .deb with dpkg-deb --build, then run the script on an empty site folder."
   ],
-  "summary": "All four cases behave as intended. A short or unknown key ID now gets the clear message before anything is signed."
+  "summary": "I fixed the reviewer's finding and committed it. The project is still **not ready to release**: the four blockers from my first report haven't changed.\n\n**The fix:** `scripts/publish-apt.sh` now checks the key's full fingerprint at the very start, before anything is signed. Before, a short or unknown key ID could stop the script inside a gpg command without the clear message. The usage line now says the key ID must be the full fingerprint. The checks after signing are unchanged: the published `key.gpg` must have that fingerprint and verify both signatures with gpgv.\n\n**Tests**, run with a throwaway key:\n- The correct fingerprint passes, with spaces and lower case accepted.\n- A short key ID and an unknown fingerprint both stop with the clear message before anything is signed.\n- Signing with a different key still fails when the signatures are verified.\n\n**Blockers still open:**\n- **FV-9CWESN (licenses, R33):** every build contains GPL code, and the LICENSE file and Cargo.toml disagree on the project's own license. Both need your decision.\n- **FV-X6J1CF (vulnerabilities, R34):** the CVE tab has never been scanned; Compliance needs to run the scanners.\n- **FV-V9V00C (signing, R14):** your GitHub `release` environment rejects `v*` tags, so no release has ever been signed.\n- **FV-W86KWZ:** the package has no third-party notices for the bundled fonts and dependencies."
 }
