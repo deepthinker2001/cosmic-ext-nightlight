@@ -2,7 +2,7 @@
   "format": 1,
   "id": "agent-gxh4v6",
   "title": "Work on issue FV-FK5E4X: Automatic schedule",
-  "outcome": "in_progress",
+  "outcome": "merged",
   "project": "cosmic-ext-nightlight",
   "agent": {
     "name": "Engineer 1",
@@ -13,8 +13,9 @@
   },
   "branch": "fv-fk5e4x-automatic-schedule",
   "base_commit": "1f1dd02e27e1cd647c107938d91c54f72e0f419d",
-  "head_commit": "c1fc62528afc4d262a7305d5ca492eb07a614b23",
+  "head_commit": "036e1ca3983fb8b4148f4c1833206d56222f67ff",
   "commits": [
+    "036e1ca3983fb8b4148f4c1833206d56222f67ff",
     "c1fc62528afc4d262a7305d5ca492eb07a614b23"
   ],
   "issue": {
@@ -22,7 +23,7 @@
     "title": "Automatic schedule"
   },
   "started": 1794631293,
-  "finished": 1794631471,
+  "finished": 1794631764,
   "usage": {
     "input_tokens": 0,
     "output_tokens": 0,
@@ -58,13 +59,44 @@
       "passed": 26,
       "failed": 0,
       "skipped": 1
+    },
+    {
+      "command": "cargo test --locked",
+      "passed": 27,
+      "failed": 0,
+      "skipped": 1
     }
   ],
   "progress": [
-    "Added automatic schedule (Off/Custom times) with spin-button pickers; tests pass, committed."
+    "Added automatic schedule (Off/Custom times) with spin-button pickers; tests pass, committed.",
+    "Fixed #1 (retry after failed scheduled switch, with test); kept toggler for #2."
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "Finding #1 is fixed: `Applied` now calls `schedule_last_after_reply`, which forgets a failed request for the window state, so the next tick retries the switch. The new unit test covers the failure, the retry and the success and other-state cases. `cargo test --locked` passes with 27 passed and 1 ignored. Finding #2 was a suggestion, so it doesn't hold the merge.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "Finding #1 is fixed. A failed request for the state the schedule asked for now clears `schedule_last`, so the next tick retries, and a new unit test covers the retry. Tests pass (27 passed). Finding #2 was a suggestion, and keeping the toggler is fine.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "Finding #1 is fixed. `schedule_last_after_reply` clears the remembered window state when a scheduled request fails, so the next check tries again, and a new unit test covers this. If the backend keeps failing, the retry runs once per 20-second tick, not in a tight loop. The new lines raise no security concerns. Finding #2 was a suggestion, so it doesn't block the merge. `cargo test --locked` passes: 27 passed, 1 ignored.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
   ],
   "learned": [
     "Applet: Schedule: config keys schedule_on, schedule_start, schedule_end (minutes since midnight). Pure logic is Schedule::wants_on and schedule_step in src/main.rs; a 20 s subscription ticks only while schedule_on. It acts only when the window state changes (and at startup/enable/edit), so manual toggles hold. Local time comes from chrono (clock feature, already in the lock). Time pickers are libcosmic spin_buttons (hour step 1, minute step 5). Not tested on a live panel."
   ],
-  "summary": "The popup now has an automatic schedule: Off, the default, or Custom times with start and end pickers. It builds and `cargo test --locked` passes (26 passed, 1 ignored). I haven't run it on a live panel or in a real session.\n\n- **Popup:** a \"Schedule: custom times\" toggle. When it's on, Start and End rows appear. Each time is an hour spin button, a colon and a minute spin button. Minutes step by 5; hours step by 1. Defaults are 21:00 to 07:00.\n- **Saved settings:** `schedule_on`, `schedule_start` and `schedule_end` are saved with the other settings. The times are minutes since midnight.\n- **Turning on and off:** night light is on from the start time up to, but not including, the end time. The window can cross midnight. Equal start and end times mean no window.\n- **Checks:** the schedule is checked every 20 seconds. It's also checked at start-up, when you switch the schedule on, and when you change either time.\n- **Resume from sleep:** the next check applies the current window state. If the machine slept through a whole window, that window is missed.\n- **Manual toggling:** the schedule only acts when the window changes, so a manual toggle holds until the next start or end. If the window changes while a backend request is in flight, the check waits and retries 20 seconds later.\n- **Start-up:** with a schedule on, the clock decides the state at launch instead of the saved on/off choice.\n- **Tests:** the time logic is pure, in `src/main.rs`. Tests cover same-day windows, across-midnight windows, equal times, first-check versus change-only behaviour, and the schedule being off.\n\nI added `chrono` (with only the `clock` feature) to read local time. It was already in `Cargo.lock`, so `--locked` still builds. As asked, there's no location or sunset lookup.\n\nI chose spin buttons because libcosmic has no ready-made time picker, and a dropdown would open a nested popup inside the applet popup, which I didn't want to risk.\n\nThe code is committed with \"Fixes FV-FK5E4X\"."
+  "summary": "I fixed finding #1 and committed it. `cargo test --locked` passes (27 passed, 1 ignored). I haven't run it on a live panel.\n\n- **#1 (fixed):** a failed request for the state the schedule asked for now clears the remembered window state. The next 20-second check then applies it again, instead of waiting for the window's next edge. A failed manual toggle for the opposite state leaves the memory alone, so it doesn't trigger a schedule override.\n- **How it works:** the rule is a small pure function, `schedule_last_after_reply`, which `Message::Applied` calls. A new test, `failed_scheduled_switch_is_retried`, covers the retry.\n- **Retry rate:** if the backend keeps failing, the retry repeats every 20 seconds until it works.\n- **#2 (kept as is):** I left the \"Schedule: custom times\" toggler. It gives the same two choices, Off or Custom times, with the times shown only when it's on. I didn't decline it, since it doesn't fit any of the decline reasons. Say if you want a radio or dropdown instead."
 }

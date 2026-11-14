@@ -1,6 +1,6 @@
 # Work on issue FV-FK5E4X: Automatic schedule
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-fk5e4x-automatic-schedule` · FV-FK5E4X: Automatic schedule
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-fk5e4x-automatic-schedule` · FV-FK5E4X: Automatic schedule
 
 About $0.00, 0 tokens in, 0 out
 
@@ -31,30 +31,30 @@ Then:
 ## Tested
 
 - `cargo test --locked`: 26 passed, 0 failed, 1 skipped
+- `cargo test --locked`: 27 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - Added automatic schedule (Off/Custom times) with spin-button pickers; tests pass, committed.
+- Fixed #1 (retry after failed scheduled switch, with test); kept toggler for #2.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Finding #1 is fixed: `Applied` now calls `schedule_last_after_reply`, which forgets a failed request for the window state, so the next tick retries the switch. The new unit test covers the failure, the retry and the success and other-state cases. `cargo test --locked` passes with 27 passed and 1 ignored. Finding #2 was a suggestion, so it doesn't hold the merge.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Finding #1 is fixed. A failed request for the state the schedule asked for now clears `schedule_last`, so the next tick retries, and a new unit test covers the retry. Tests pass (27 passed). Finding #2 was a suggestion, and keeping the toggler is fine.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): Finding #1 is fixed. `schedule_last_after_reply` clears the remembered window state when a scheduled request fails, so the next check tries again, and a new unit test covers this. If the backend keeps failing, the retry runs once per 20-second tick, not in a tight loop. The new lines raise no security concerns. Finding #2 was a suggestion, so it doesn't block the merge. `cargo test --locked` passes: 27 passed, 1 ignored.
 
 ## Summary
 
-The popup now has an automatic schedule: Off, the default, or Custom times with start and end pickers. It builds and `cargo test --locked` passes (26 passed, 1 ignored). I haven't run it on a live panel or in a real session.
+I fixed finding #1 and committed it. `cargo test --locked` passes (27 passed, 1 ignored). I haven't run it on a live panel.
 
-- **Popup:** a "Schedule: custom times" toggle. When it's on, Start and End rows appear. Each time is an hour spin button, a colon and a minute spin button. Minutes step by 5; hours step by 1. Defaults are 21:00 to 07:00.
-- **Saved settings:** `schedule_on`, `schedule_start` and `schedule_end` are saved with the other settings. The times are minutes since midnight.
-- **Turning on and off:** night light is on from the start time up to, but not including, the end time. The window can cross midnight. Equal start and end times mean no window.
-- **Checks:** the schedule is checked every 20 seconds. It's also checked at start-up, when you switch the schedule on, and when you change either time.
-- **Resume from sleep:** the next check applies the current window state. If the machine slept through a whole window, that window is missed.
-- **Manual toggling:** the schedule only acts when the window changes, so a manual toggle holds until the next start or end. If the window changes while a backend request is in flight, the check waits and retries 20 seconds later.
-- **Start-up:** with a schedule on, the clock decides the state at launch instead of the saved on/off choice.
-- **Tests:** the time logic is pure, in `src/main.rs`. Tests cover same-day windows, across-midnight windows, equal times, first-check versus change-only behaviour, and the schedule being off.
-
-I added `chrono` (with only the `clock` feature) to read local time. It was already in `Cargo.lock`, so `--locked` still builds. As asked, there's no location or sunset lookup.
-
-I chose spin buttons because libcosmic has no ready-made time picker, and a dropdown would open a nested popup inside the applet popup, which I didn't want to risk.
-
-The code is committed with "Fixes FV-FK5E4X".
+- **#1 (fixed):** a failed request for the state the schedule asked for now clears the remembered window state. The next 20-second check then applies it again, instead of waiting for the window's next edge. A failed manual toggle for the opposite state leaves the memory alone, so it doesn't trigger a schedule override.
+- **How it works:** the rule is a small pure function, `schedule_last_after_reply`, which `Message::Applied` calls. A new test, `failed_scheduled_switch_is_retried`, covers the retry.
+- **Retry rate:** if the backend keeps failing, the retry repeats every 20 seconds until it works.
+- **#2 (kept as is):** I left the "Schedule: custom times" toggler. It gives the same two choices, Off or Custom times, with the times shown only when it's on. I didn't decline it, since it doesn't fit any of the decline reasons. Say if you want a radio or dropdown instead.
 
 ---
 
-From `1f1dd02e27` to `c1fc62528a`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `1f1dd02e27` to `036e1ca398`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
