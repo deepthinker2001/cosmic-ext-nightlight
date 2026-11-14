@@ -198,5 +198,6 @@ before `attach`, no tag exists: fix `main` and push again.
 None of this has run on GitHub: the workflow, `scripts/publish-apt.sh` with
 real GitHub Pages, and the signed repository with a real apt client. The first
 release is the first test, so after it, install from the repository on a clean
-machine. `build` and `apt` use `ubuntu-latest`; the `.deb`'s libc6 minimum
-comes from that runner.
+machine. `build` runs on `ubuntu-24.04`, so the `.deb`'s libc6 minimum comes
+from 24.04 (see above); `attach` and `apt` build nothing and use
+`ubuntu-latest`.

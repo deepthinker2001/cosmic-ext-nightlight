@@ -1,0 +1,148 @@
+{
+  "format": 1,
+  "id": "agent-7r2q3n",
+  "title": "Work on issue FV-0A2C5R: Prepare release 0.3.0: version bump and changelog",
+  "outcome": "merged",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-0a2c5r-prepare-release-0-3-0-version-bump-and-c",
+  "base_commit": "d80c65f9be9e8ebd1f038017aebe60d26a227887",
+  "head_commit": "7e61f7f7aa8bccbcfa28aaf0d89066351a75116e",
+  "commits": [
+    "7e61f7f7aa8bccbcfa28aaf0d89066351a75116e"
+  ],
+  "issue": {
+    "id": "FV-0A2C5R",
+    "title": "Prepare release 0.3.0: version bump and changelog"
+  },
+  "started": 1794672928,
+  "finished": 1794673249,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-0A2C5R: Prepare release 0.3.0: version bump and changelog\n\nPrepare the next release; do not push, tag or release (the user pushes).\n- Bump to 0.3.0 (minor: the manual schedule was removed and the location toggle added) in Cargo.toml and Cargo.lock.\n- Turn CHANGELOG.md's Unreleased entries into a 0.3.0 section dated today (use the clock tool), covering: the performance and click fixes, X-HostWaylandDisplay in the desktop file, saves moved off the UI thread, manual schedule removed, \"From time zone\" toggle, apt arch=amd64 line, apt landing page, Ubuntu 24.04 build host. Keep it short and plain.\n- Check README and docs/RELEASING.md for anything stale about the schedule or version.\n- Run fmt, clippy and the tests; also run `cargo deb --locked` and scripts/check-deb-libc.py on the result if the tools exist. Say in your report what to do next for the user: merge, then `git push`.\n\nLabels: Docs"
+  ],
+  "understanding": [
+    {
+      "request": "Prepare release 0.3.0: bump version in Cargo.toml/Cargo.lock, turn CHANGELOG Unreleased into a dated 0.3.0 section covering the listed changes, fix stale README/RELEASING text, run fmt/clippy/tests and cargo deb + libc check if available. No push/tag.",
+      "assumptions": [
+        "0.2.1 (with the 24.04 build host and the landing-page script) is already on origin/main; the 24.04 host is mentioned in 0.3.0 only as still holding, and the landing page, never changelogged, goes in 0.3.0",
+        "Date is 2026-11-14 per the clock tool"
+      ],
+      "plan": [
+        "Bump version to 0.3.0 and update Cargo.lock via cargo",
+        "Rewrite CHANGELOG: empty Unreleased, 0.3.0 - 2026-11-14 section with Changed/Fixed/Packaging",
+        "Fix RELEASING.md's stale 'build uses ubuntu-latest' sentence",
+        "Run fmt, clippy, tests, cargo deb --locked, check-deb-libc.py",
+        "Commit"
+      ],
+      "out_of_scope": [
+        "Pushing, tagging, releasing",
+        "Rewriting RELEASING's broader 'Not tested' section beyond the stale runner claim"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "status": "modified",
+      "added": 21,
+      "removed": 7,
+      "why": "Unreleased -> 0.3.0 - 2026-11-14 in Changed/Fixed/Packaging, plus an empty Unreleased"
+    },
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 1,
+      "removed": 1,
+      "why": "package version 0.3.0 so --locked builds pass"
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 1,
+      "removed": 1,
+      "why": "version 0.2.1 -> 0.3.0"
+    },
+    {
+      "path": "docs/RELEASING.md",
+      "status": "modified",
+      "added": 3,
+      "removed": 2,
+      "why": "the stale claim that build runs on ubuntu-latest (it's ubuntu-24.04)"
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Version 0.3.0 (minor)",
+      "why": "A user-visible setting was removed and a new one added; for a 0.x crate that is a minor bump"
+    },
+    {
+      "decision": "The 24.04 build host appears in 0.3.0 only as 'still built on 24.04, as since 0.2.1'; the landing page is listed as new in 0.3.0",
+      "why": "Both were merged before 0.2.1 was pushed. The 24.04 change is already in the 0.2.1 notes, but the landing page was never in the changelog",
+      "alternatives": [
+        "List both as new in 0.3.0 (would repeat the 0.2.1 entry)",
+        "Edit the released 0.2.1 section"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "command": "cargo test --locked",
+      "passed": 56,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "command": "cargo test --locked",
+      "passed": 56,
+      "failed": 0,
+      "skipped": 1
+    }
+  ],
+  "progress": [
+    "0.3.0 bump and changelog done; fmt, clippy clean, 56 tests pass (1 ignored). Now trying cargo deb.",
+    "Release 0.3.0 prepared and committed (7e61f7f7aa): version bump, dated changelog, RELEASING fix; fmt/clippy clean, 56 tests pass, .deb builds with libc6 >= 2.39. Next: merge, then git push main."
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The version is 0.3.0 in Cargo.toml and Cargo.lock, and the lockfile is consistent (`cargo metadata --locked` passes). The changelog has a dated 0.3.0 section covering the requested items, and RELEASING.md's stale `ubuntu-latest` mention is fixed. The commit message follows C4. I didn't run fmt, clippy or the tests, since the change touches no code.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "Version bump in Cargo.toml and Cargo.lock, a dated 0.3.0 changelog section, and the RELEASING.md runner fix are all correct. fmt is clean and 56 tests pass. README and docs have nothing stale about the schedule. I did not run cargo deb or the libc check; the engineer reported that libc6 (>= 2.39) passes.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The change only touches the version (Cargo.toml and Cargo.lock, 0.2.1 → 0.3.0), the changelog and one paragraph of docs/RELEASING.md. It adds no code, dependencies, secrets, scripts or permission changes. The RELEASING.md note matches the workflows: build runs on ubuntu-24.04, while attach and apt run on ubuntu-latest. `cargo test --locked` passes (56 passed, 1 ignored). The commit message names no agents (C4).",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
+  ],
+  "contract": [
+    "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests.",
+    "C4: Commit messages describe the change itself (what and why) and never name Ferrivide agents such as \"Engineer 1\", \"Merge engineer 1\", or agent branches."
+  ],
+  "learned": [
+    "Packaging: The build machine has cargo-deb 3.8.0 and glibc 2.39, so `cargo deb --locked` followed by `python3 -I scripts/check-deb-libc.py target/debian/*.deb` checks the libc6 floor locally before a release."
+  ],
+  "summary": "Release 0.3.0 is ready and committed on this branch as `7e61f7f7aa` (Fixes FV-0A2C5R). Nothing has been pushed, tagged or released.\n\n**What changed:**\n- **Version:** `Cargo.toml` and `Cargo.lock` now say 0.3.0.\n- **CHANGELOG.md:** the Unreleased notes are now a `0.3.0 - 2026-11-14` section, with an empty Unreleased heading above it:\n  - **Changed:** the manual schedule is removed and the \"From time zone\" switch is added.\n  - **Fixed:** `X-HostWaylandDisplay` in the desktop file, and the speed and click fixes, including saves moved off the UI thread.\n  - **Packaging:** the apt `arch=amd64` line, the apt landing page, and the Ubuntu 24.04 build host.\n- **docs/RELEASING.md:** one sentence was out of date. It said the build job runs on `ubuntu-latest`; it runs on `ubuntu-24.04`.\n- **README:** nothing in it was out of date about the schedule or the version.\n\n**One thing to know:** the landing page and the 24.04 build host were both already included in 0.2.1, which is on `origin/main`. The 24.04 change is already in the 0.2.1 notes, so the 0.3.0 notes only say it is \"still built on Ubuntu 24.04, as since 0.2.1\". The landing page was never in the changelog, so it is listed in 0.3.0.\n\n**Checks:**\n- Formatting and clippy are clean, and all 56 tests pass (1 is skipped as before).\n- `cargo deb --locked` builds `cosmic-ext-nightlight_0.3.0-1_amd64.deb`, which needs `libc6 (>= 2.39)`.\n- `scripts/check-deb-libc.py` passes on that package.\n\n**What to do next:**\n1. Before merging, check that the signing key's fingerprint matches the README, as step 1 of docs/RELEASING.md describes.\n2. Merge this branch into `main`, then `git push`. The release workflow will see that `v0.3.0` doesn't exist yet, build the package, and create the tag and release.\n3. Approve the `release` environment when GitHub asks, and watch the `build`, `attach` and `apt` jobs pass."
+}

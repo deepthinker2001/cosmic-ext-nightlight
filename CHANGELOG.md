@@ -5,6 +5,10 @@ What changed in each release, for users. Maintainers: see
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-14
+
+### Changed
+
 - The custom-times schedule (and its Start and End pickers) is removed; use
   Auto (sunrise/sunset). Saved schedule settings are ignored.
 - New **From time zone** switch in the popup, on by default: Auto takes its
@@ -13,16 +17,26 @@ What changed in each release, for users. Maintainers: see
   If you had typed a location before, the switch starts off and your
   location is kept. If the time zone's location can't be found, the popup
   says so and shows the latitude and longitude boxes.
+
+### Fixed
+
+- Night light can turn on from the panel again: the desktop file now asks
+  cosmic-panel for the host Wayland display (`X-HostWaylandDisplay`), which
+  the gamma connection needs.
+- The applet no longer lags: settings are saved in the background, off the
+  UI thread, instead of on every slider step; a left click toggles on press;
+  and toggles and slider moves made while a change is being applied are kept
+  and shown at once instead of being ignored.
+
+### Packaging
+
 - Apt setup instructions now specify `arch=amd64` to avoid the harmless
   missing-i386 notice on multiarch systems; the README explains how existing
   users can update their sources line.
-- Night light can turn on from the panel again: the applet now asks
-  cosmic-panel for the host Wayland display (`X-HostWaylandDisplay`), which
-  its gamma connection needs.
-- The applet no longer lags: settings are saved in the background instead of
-  on every slider step, a left click toggles on press, and toggles and
-  slider moves made while a change is being applied are kept and shown at
-  once instead of being ignored.
+- The apt repository's web address now shows a landing page with setup
+  instructions instead of a 404.
+- Still built on Ubuntu 24.04, as since 0.2.1, so the `.deb` installs on
+  24.04 and newer.
 
 ## 0.2.1 - 2026-11-14
 

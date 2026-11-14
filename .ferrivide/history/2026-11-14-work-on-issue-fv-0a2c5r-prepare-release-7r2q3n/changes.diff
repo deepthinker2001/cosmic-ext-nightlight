@@ -1,0 +1,87 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6608ea0..7bcce04 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,10 @@ What changed in each release, for users. Maintainers: see
+ 
+ ## Unreleased
+ 
++## 0.3.0 - 2026-11-14
++
++### Changed
++
+ - The custom-times schedule (and its Start and End pickers) is removed; use
+   Auto (sunrise/sunset). Saved schedule settings are ignored.
+ - New **From time zone** switch in the popup, on by default: Auto takes its
+@@ -13,16 +17,26 @@ What changed in each release, for users. Maintainers: see
+   If you had typed a location before, the switch starts off and your
+   location is kept. If the time zone's location can't be found, the popup
+   says so and shows the latitude and longitude boxes.
++
++### Fixed
++
++- Night light can turn on from the panel again: the desktop file now asks
++  cosmic-panel for the host Wayland display (`X-HostWaylandDisplay`), which
++  the gamma connection needs.
++- The applet no longer lags: settings are saved in the background, off the
++  UI thread, instead of on every slider step; a left click toggles on press;
++  and toggles and slider moves made while a change is being applied are kept
++  and shown at once instead of being ignored.
++
++### Packaging
++
+ - Apt setup instructions now specify `arch=amd64` to avoid the harmless
+   missing-i386 notice on multiarch systems; the README explains how existing
+   users can update their sources line.
+-- Night light can turn on from the panel again: the applet now asks
+-  cosmic-panel for the host Wayland display (`X-HostWaylandDisplay`), which
+-  its gamma connection needs.
+-- The applet no longer lags: settings are saved in the background instead of
+-  on every slider step, a left click toggles on press, and toggles and
+-  slider moves made while a change is being applied are kept and shown at
+-  once instead of being ignored.
++- The apt repository's web address now shows a landing page with setup
++  instructions instead of a 404.
++- Still built on Ubuntu 24.04, as since 0.2.1, so the `.deb` installs on
++  24.04 and newer.
+ 
+ ## 0.2.1 - 2026-11-14
+ 
+diff --git a/Cargo.lock b/Cargo.lock
+index 8b47062..51817fc 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -982,7 +982,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "cosmic-ext-nightlight"
+-version = "0.2.1"
++version = "0.3.0"
+ dependencies = [
+  "chrono",
+  "libcosmic",
+diff --git a/Cargo.toml b/Cargo.toml
+index e94a0cd..f16e5e5 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "cosmic-ext-nightlight"
+-version = "0.2.1"
++version = "0.3.0"
+ edition = "2021"
+ description = "Panel applet for COSMIC to toggle night light"
+ license = "GPL-3.0-only"
+diff --git a/docs/RELEASING.md b/docs/RELEASING.md
+index 36f1b07..ea91e14 100644
+--- a/docs/RELEASING.md
++++ b/docs/RELEASING.md
+@@ -198,5 +198,6 @@ before `attach`, no tag exists: fix `main` and push again.
+ None of this has run on GitHub: the workflow, `scripts/publish-apt.sh` with
+ real GitHub Pages, and the signed repository with a real apt client. The first
+ release is the first test, so after it, install from the repository on a clean
+-machine. `build` and `apt` use `ubuntu-latest`; the `.deb`'s libc6 minimum
+-comes from that runner.
++machine. `build` runs on `ubuntu-24.04`, so the `.deb`'s libc6 minimum comes
++from 24.04 (see above); `attach` and `apt` build nothing and use
++`ubuntu-latest`.
