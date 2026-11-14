@@ -1,6 +1,6 @@
 # Work on issue FV-QVWSWT: Release via signed APT repo on gh-pages, matching…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-qvwswt-release-via-signed-apt-repo-on-gh-pages` · FV-QVWSWT: Release via signed APT repo on gh-pages, matching cosmic-ext-dimmer
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-qvwswt-release-via-signed-apt-repo-on-gh-pages` · FV-QVWSWT: Release via signed APT repo on gh-pages, matching cosmic-ext-dimmer
 
 About $0.00, 0 tokens in, 0 out
 
@@ -41,10 +41,29 @@ Then:
 
 No test runs were reported.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Both earlier findings are fixed. #1: `build` now has `contents: read`, hands the .deb over as an artifact, and exposes its hash as an output. A new `attach` job holds the release write token with no checkout and no cargo. `apt` takes the .deb from the artifact and checks it against the build's hash, and RELEASING.md gained a "Protect main" section. #2: the gh-pages checkout has `persist-credentials: false`, and the push passes the token only in the publish step through `http.extraheader`. The workflow parses, and the job permissions are as described. The two artifact action SHAs were not checked against their release tags, since there is no network here. That check, and the rest of the GitHub behaviour, can only be done on GitHub.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Both findings are fixed. `build` now has `contents: read` and hands over the .deb as an artifact plus a hash output. A separate `attach` job, with no checkout and no cargo, holds the write token. `apt` signs the artifact after checking it against the build's hash, not the release asset. The gh-pages checkout uses `persist-credentials: false`, and the token is passed only to the push. RELEASING.md now says `main` and `gh-pages` need branch protection. I only read the diff; nothing here can be tested without GitHub.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): Both findings from the last round are fixed. #1: `build` now has a read-only token and passes the .deb on as a pinned artifact, along with its hash. A separate `attach` job, which runs no checkout and no cargo, holds the release write token. `apt` signs the build's artifact after checking it against the build's hash, and RELEASING.md now requires branch protection on `main` and `gh-pages`. #2: gh-pages is checked out with `persist-credentials: false`, and the token is passed only to the final `git push`. Nothing new in the changed lines needs fixing. No Rust source changed in this round.
+
 ## Summary
 
-Whitespace mismatch on the replacement; fix the doc directly.
+I fixed both findings and committed, but I haven't run the workflow on GitHub. I did check that the YAML parses and that each job has the intended `needs` and `permissions`.
+
+**#1 (write token in the build job).** `.github/workflows/release.yml` now has three jobs:
+- **`build`** has a read-only token and no secrets. It runs cargo and `just deb`, then hands the `.deb` over as an artifact (pinned `upload-artifact`) along with its sha256 as a job output.
+- **`attach`** holds the release write token. It has no checkout and no cargo. It downloads the artifact, checks it against the build's hash, and uploads the `.deb` and its `.sha256` to the release.
+- **`apt`** runs after both, in the `release` environment. It signs the build job's artifact, not the asset on the release, and checks it against the build's hash first.
+
+**#2 (gh-pages credentials).** The `gh-pages` checkout now uses `persist-credentials: false`. Only the final publish step gets the token, and it passes it to `git push` through `http.extraheader`.
+
+**`docs/RELEASING.md`.** It now describes the three jobs. A new "Protect `main`" section says `main` needs branch protection (no direct pushes, reviews required), because `apt` runs `main`'s `publish-apt.sh` with the key loaded. It also says `gh-pages` should only accept pushes from the workflow.
+
+**Still true.** A compromised build could still hand over a bad `.deb` that `apt` then signs. That's inherent, but it can no longer touch `main`, the release, or the key.
 
 ---
 
-From `4b7f92a194` to `2215273516`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `4b7f92a194` to `5ee48e32bb`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
