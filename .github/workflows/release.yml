@@ -1,46 +1,54 @@
 name: Release
 
-# Three jobs so that no code from the build ever shares a runner with the
-# signing key, and the write token is held only by the job that publishes:
-#   build   - runs untrusted build code; no secrets, read-only token, no cache
-#   sign    - holds the key (environment `release`); runs no cargo, no checkout
-#   publish - holds the write token; runs nothing but `gh release create`
+# Publishing a GitHub release builds the .deb, attaches it to the release and
+# adds it to the signed apt repository on the gh-pages branch.
+#
+# Two jobs so that no code from the build ever shares a runner with the
+# signing key:
+#   build - compiles dependencies and runs cargo; no secrets; write token only
+#           to attach the .deb to the release; no cache
+#   apt   - holds the signing key; runs no cargo, only gpg and apt-ftparchive
 
 on:
-  push:
-    tags:
-      - 'v[0-9]*'
+  release:
+    types: [published]
+  # To redo a release's packaging by hand, from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to package, such as v0.1.0
+        required: true
 
 permissions:
   contents: read
 
+# One release at a time: both jobs write to shared places.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # to attach the .deb to the release
     steps:
+      # Third-party actions are pinned by commit, not by movable tag.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          ref: ${{ env.TAG }} # the release's own source, also when run by hand
           persist-credentials: false
 
-      - name: Check the tag matches the crate version
-        env:
-          TAG: ${{ github.ref_name }}
+      - name: Check the tag matches the version
         run: |
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          if [ "v${version}" != "${TAG}" ]; then
-            echo "Tag ${TAG} does not match Cargo.toml version ${version}" >&2
-            exit 1
-          fi
-
-      - name: Check the README names the signing key
-        run: |
-          if grep -q 'FINGERPRINT-TO-BE-FILLED-IN' README.md; then
-            echo "Put the signing key's fingerprint in README.md before releasing" >&2
+          version=$(cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "cosmic-ext-nightlight") | .version')
+          if [ "$TAG" != "v$version" ]; then
+            echo "Tag $TAG does not match the package version $version." >&2
             exit 1
           fi
 
@@ -66,83 +74,68 @@ jobs:
       - name: Build the .deb
         run: just deb
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: deb
-          path: target/debian/*.deb
-          if-no-files-found: error
-          retention-days: 7
-
-  sign:
-    needs: build
-    runs-on: ubuntu-latest
-    # The GPG secrets live in this environment (restricted to v* tags, with a
-    # required reviewer), not in repository secrets.
-    environment: release
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: deb
-          path: release
-
-      - name: Sign
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
-        run: |
-          set -euo pipefail
-          GPG=/usr/bin/gpg
-          if [ -z "${GPG_PRIVATE_KEY}" ] || [ -z "${GPG_KEY_ID}" ]; then
-            echo "GPG_PRIVATE_KEY and GPG_KEY_ID secrets must be set" >&2
-            exit 1
-          fi
-          export GNUPGHOME="$(mktemp -d)"
-          chmod 700 "${GNUPGHOME}"
-          trap '/usr/bin/gpgconf --kill gpg-agent || true; rm -rf "${GNUPGHOME}"' EXIT
-          printf '%s' "${GPG_PRIVATE_KEY}" | "${GPG}" --batch --import
-          cd release
-          sha256sum -- *.deb > SHA256SUMS
-          sign() {
-            "${GPG}" --batch --yes --pinentry-mode loopback \
-              --passphrase-fd 3 --local-user "${GPG_KEY_ID}" "$@" \
-              3<<<"${GPG_PASSPHRASE:-}"
-          }
-          for f in *.deb; do
-            sign --armor --detach-sign --output "${f}.asc" "${f}"
-          done
-          sign --clear-sign --output SHA256SUMS.asc SHA256SUMS
-          "${GPG}" --batch --verify SHA256SUMS.asc
-          # The public half, for convenience; users must check its fingerprint
-          # against the one in the README, not trust this copy by itself.
-          "${GPG}" --batch --armor --export "${GPG_KEY_ID}" > signing-key.asc
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: signed
-          path: release/*
-          if-no-files-found: error
-          retention-days: 7
-
-  publish:
-    needs: sign
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: signed
-          path: release
-
-      - name: Publish the GitHub Release
+      - name: Attach it to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
         run: |
-          gh release create "${TAG}" release/* \
-            --repo "${REPO}" \
-            --title "${TAG}" --generate-notes --verify-tag
+          cd target/debian
+          for deb in cosmic-ext-nightlight_*.deb; do
+            sha256sum "$deb" > "$deb.sha256"
+            gh release upload "$TAG" "$deb" "$deb.sha256" --clobber -R "$GITHUB_REPOSITORY"
+          done
+
+  apt:
+    # Signs only: downloads the finished .deb and runs gpg and apt-ftparchive.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to push the gh-pages branch
+    steps:
+      # The publishing script from the default branch, which may be newer
+      # than the release being packaged.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      # This one keeps its credentials: the last step pushes with them.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: gh-pages
+          path: site
+
+      - name: Install apt-ftparchive
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
+
+      - name: Download the .deb from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir debs
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D debs \
+            -p 'cosmic-ext-nightlight_*.deb' -p 'cosmic-ext-nightlight_*.deb.sha256'
+          cd debs && sha256sum -c ./*.sha256
+
+      - name: Add it to the repository and sign
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_ID: ${{ vars.APT_SIGNING_KEY_ID }}
+        run: |
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --quiet --import
+          scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
+
+      - name: Publish the repository
+        run: |
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Repository unchanged."
+            exit 0
+          fi
+          git commit -m "apt repository: cosmic-ext-nightlight ${TAG#v}"
+          git push

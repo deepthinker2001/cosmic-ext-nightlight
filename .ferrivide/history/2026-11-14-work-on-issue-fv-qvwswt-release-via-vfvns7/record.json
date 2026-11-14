@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "id": "agent-vfvns7",
+  "title": "Work on issue FV-QVWSWT: Release via signed APT repo on gh-pages, matching…",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-qvwswt-release-via-signed-apt-repo-on-gh-pages",
+  "base_commit": "4b7f92a194e90394d1fff7ff1e7ca92630f22da4",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-QVWSWT",
+    "title": "Release via signed APT repo on gh-pages, matching cosmic-ext-dimmer"
+  },
+  "started": 1794628016,
+  "finished": 1794628072,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-QVWSWT: Release via signed APT repo on gh-pages, matching cosmic-ext-dimmer\n\nReplace the current tag-triggered signed-.deb release with the same pattern as /home/mad/projects/cosmic-ext-dimmer (read it with request_access; read-only, copy and adapt, don't change it): .github/workflows/release.yml (on release published + workflow_dispatch; build job attaches .deb and .sha256 to the release; apt job signs into an APT repo on the gh-pages branch with scripts/publish-apt.sh), the scripts, and whatever its docs/README say about the gh-pages branch setup, repo layout, and how users add the repo. Use secret APT_SIGNING_KEY and variable APT_SIGNING_KEY_ID, same as dimmer. Adapt names to cosmic-ext-nightlight (package, .deb name, tag check). Keep this project's existing hardening (pinned action SHAs, split jobs, no cache in release, pinned tool versions, persist-credentials false). Update README (user-facing: add the apt repo with the signing key, apt install, how to update; drop the manual gpgv verify-from-Release flow and the fingerprint placeholder together with the workflow's placeholder check, consistently) and docs/RELEASING.md (maintainer: one-time gh-pages branch creation, secret and variable, cutting a release by publishing a GitHub release). Say plainly what can't be verified without GitHub.\n\nLabels: Release\n\nRequest read access to /home/mad/projects/cosmic-ext-dimmer with request_access (the user named it) to copy its release workflow, scripts/publish-apt.sh and APT docs."
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/release.yml",
+      "status": "modified",
+      "added": 82,
+      "removed": 89
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 27,
+      "removed": 32
+    },
+    {
+      "path": "docs/RELEASING.md",
+      "status": "modified",
+      "added": 74,
+      "removed": 55
+    },
+    {
+      "path": "scripts/publish-apt.sh",
+      "status": "added",
+      "added": 51,
+      "removed": 0
+    }
+  ],
+  "summary": "Smoke-test the script with a throwaway key and a dummy package."
+}

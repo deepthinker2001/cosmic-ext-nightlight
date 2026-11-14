@@ -21,78 +21,97 @@ install on.
 
 ## How a release is built
 
-Pushing a tag like `v0.1.0` (it must equal the `version` in `Cargo.toml`) runs
-`.github/workflows/release.yml`. It builds the `.deb` with `just deb` in a job
-that has no secrets, signs it in a separate job, and publishes a GitHub Release
-in a third. The release contains:
+Publishing a GitHub release runs `.github/workflows/release.yml`. It has two
+jobs, so that code from the build never shares a runner with the signing key:
 
-- `cosmic-ext-nightlight_*.deb`
-- `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
-- `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
-- `signing-key.asc` (the public key, for convenience only)
+- `build` checks out the release's tag, checks the tag equals `v` plus the
+  `version` in `Cargo.toml`, builds the `.deb` with `just deb` (no cache; `just`
+  and `cargo-deb` at fixed versions) and attaches it and its `.sha256` to the
+  release. It has no secrets.
+- `apt` holds the signing key. It downloads that `.deb`, checks its checksum,
+  adds it to the apt repository on the `gh-pages` branch with
+  `scripts/publish-apt.sh`, signs the repository and pushes the branch.
+  GitHub Pages serves the branch at
+  `https://deepthinker2001.github.io/cosmic-ext-nightlight`.
 
-## Create the signing key (once)
+The workflow can also be run by hand from the Actions tab with a tag, to
+redo the packaging of an existing release.
+
+The `gh-pages` branch holds only generated files: `pool/` (every published
+`.deb`), `dists/stable/` (`Packages`, `Release`, `InRelease`, `Release.gpg`),
+`key.gpg` (the public key) and `.nojekyll`. Never edit it by hand.
+
+## One-time setup
+
+### The signing key
 
 On a trusted machine:
 
 ```sh
-gpg --quick-generate-key "cosmic-ext-nightlight releases <you@example.com>" ed25519 sign 2y
-gpg --list-keys --with-colons --fingerprint you@example.com   # the "fpr" line is the full fingerprint
+gpg --quick-generate-key "cosmic-ext-nightlight apt repository <you@example.com>" ed25519 sign 5y
+gpg --list-keys --with-colons you@example.com   # the "fpr" line is the full fingerprint
 ```
 
-Set a passphrase when gpg asks for one. gpg also saves a revocation certificate
-at `~/.gnupg/openpgp-revocs.d/<FINGERPRINT>.rev`; copy it somewhere offline.
+The key must have no passphrase, because the workflow signs unattended (use
+a key made only for this repository). gpg saves a revocation certificate at
+`~/.gnupg/openpgp-revocs.d/<FINGERPRINT>.rev`; copy it and a backup of the
+private key somewhere offline. Note the expiry date: extend the key before
+then (`gpg --quick-set-expire FINGERPRINT 5y`, then update the secret and
+rerun the workflow for the latest tag), or apt will refuse the repository.
 
-Send the private key straight into the environment secret (after creating the
-`release` environment, see [Secrets](#secrets)), so it never appears on screen
-or in scrollback:
+### Secret and variable
+
+In the repository settings (or with `gh`):
 
 ```sh
-gpg --armor --export-secret-keys KEYID | gh secret set GPG_PRIVATE_KEY --env release
+gpg --armor --export-secret-keys FINGERPRINT | gh secret set APT_SIGNING_KEY
+gh variable set APT_SIGNING_KEY_ID --body FINGERPRINT
 ```
 
-Without `gh`, write it to a protected file, paste it into GitHub's secret form,
-and destroy the file:
-
-```sh
-(umask 077; gpg --armor --export-secret-keys KEYID > private.asc)
-shred -u private.asc
-```
-
-Never print the private key to the terminal. Paste the full 40-character
-fingerprint into the code block under
-[Verify a download](../README.md#verify-a-download) in the README, replacing the
-placeholder line. The release workflow refuses to run while that placeholder
-(`FINGERPRINT-TO-BE-FILLED-IN`) is still in `README.md`, so keep it in the
-README's fingerprint block until then. Keep a backup of the private key and its
-revocation certificate offline. The key expires after two years: extend it or
-make a new one before then, and update the fingerprint in the README if it
-changes.
-
-## Secrets
-
-The signing key is never committed. Create a GitHub environment named
-`release` (Settings → Environments), limit its deployment branches and tags to
-`v*`, add a required reviewer, and add these as **environment secrets** of that
-environment (not repository secrets, which every workflow run can read):
-
-| Secret | Contents |
-| --- | --- |
-| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (export it as in [Create the signing key](#create-the-signing-key-once); never print it) |
-| `GPG_KEY_ID` | Key ID or fingerprint to sign with |
-| `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
+- Secret `APT_SIGNING_KEY`: the ASCII-armoured private key. Never print it.
+- Variable `APT_SIGNING_KEY_ID`: the key's fingerprint (not secret).
 
 Also add a tag ruleset protecting `v*` (restrict who can create, update and
-delete those tags). The build tools are installed at fixed versions (`just`
-1.59.0, `cargo-deb` 3.8.0) in the workflow; bump them by hand in a reviewed
-change.
+delete those tags). Only the `apt` job reads the secret.
+
+### The gh-pages branch and GitHub Pages
+
+Create an empty branch with a first commit, once:
+
+```sh
+git switch --orphan gh-pages
+git commit --allow-empty -m "Start the apt repository"
+git push origin gh-pages
+git switch main
+```
+
+Then in Settings → Pages, set the source to **Deploy from a branch**, branch
+`gh-pages`, folder `/ (root)`. The first release fills the branch in.
 
 ## Cut a release
 
-1. Make sure the fingerprint is filled in and CI is green on `main`.
-2. Set `version` in `Cargo.toml` (and commit the updated `Cargo.lock`).
-3. Tag and push: `git tag v0.1.0 && git push origin v0.1.0` (the tag must be
-   `v` plus the `Cargo.toml` version).
-4. Approve the run of the `release` environment when GitHub asks.
-5. Check the new release has all five files and that you can verify a download
-   from it, following [the README](../README.md#verify-a-download).
+1. Make sure CI is green on `main`.
+2. Set `version` in `Cargo.toml` (for example `0.2.0`) and commit the
+   updated `Cargo.lock` (CI builds with `--locked`). A version is never
+   reused: apt caches packages by version, so a fix is a new version.
+3. Publish a GitHub release whose tag is `v` plus that version:
+   `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
+   (or Releases → Draft a new release on GitHub). Don't attach a `.deb`
+   yourself.
+4. Watch Actions → Release: `build` and `apt` should both pass. Check the
+   release lists the `.deb` and `.sha256`, and on a machine with the
+   repository added, `sudo apt update && apt policy cosmic-ext-nightlight`
+   shows the new version as the candidate.
+
+If the workflow fails, fix the cause on `main` and rerun it for the tag:
+`gh workflow run release.yml -f tag=v0.2.0`. The build uses the source at the
+tag; the publishing script comes from `main`. If the fix has to be in the
+source, make a new version instead.
+
+## Not tested
+
+None of this has run on GitHub: the workflow, `scripts/publish-apt.sh` with
+real GitHub Pages, and the signed repository with a real apt client. The first
+release is the first test, so after it, install from the repository on a clean
+machine. `build` and `apt` use `ubuntu-latest`; the `.deb`'s libc6 minimum
+comes from that runner.
