@@ -26,50 +26,45 @@ tint) with one click.
   the [libcosmic repository](https://github.com/pop-os/libcosmic) for its
   current build dependencies, and install whatever the build reports as missing.
 
-## Install from a release (Debian, Ubuntu, Pop!_OS)
+## Install (Debian, Ubuntu, Pop!_OS)
 
-1. Download the `.deb`, its `.deb.asc`, `SHA256SUMS`, `SHA256SUMS.asc` and
-   `signing-key.asc` from the latest
-   [GitHub Release](../../releases/latest) into an empty folder.
-2. [Verify the download](#verify-a-download) before installing.
-3. Install: `sudo apt install ./cosmic-ext-nightlight_*.deb`
-4. [Add it to the panel](#add-it-to-the-panel).
+### With apt (recommended)
 
-Remove it with `sudo apt remove cosmic-ext-nightlight`.
+Add the signed repository once; updates then arrive with your normal system
+updates:
+
+```sh
+curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg
+echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
+  | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
+sudo apt update
+sudo apt install cosmic-ext-nightlight
+```
+
+Then [add it to the panel](#add-it-to-the-panel).
+
+To update to a new version: `sudo apt update && sudo apt upgrade`, or just
+install your system updates as usual.
+
+Remove it with `sudo apt remove cosmic-ext-nightlight`. To also stop trusting
+the repository, delete `/etc/apt/sources.list.d/cosmic-ext-nightlight.list`
+and `/usr/share/keyrings/cosmic-ext-nightlight.gpg`.
+
+### From a release
+
+Download the `.deb` (and its `.sha256`, to check the download) from the
+[releases page](../../releases/latest), then:
+
+```sh
+sha256sum -c cosmic-ext-nightlight_*.deb.sha256
+sudo apt install ./cosmic-ext-nightlight_*.deb
+```
+
+This does not update itself; use the apt repository above for that.
 
 To build from source instead, see
 [Build and install from source](#build-and-install-from-source) below.
-
-## Verify a download
-
-The releases are signed with the key whose full fingerprint is:
-
-```
-FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
-```
-
-The public key is published as `signing-key.asc` in each release. Check its
-fingerprint against the one above, and do not trust the key by itself: the copy
-in the release is only as good as the release. Once the key is listed on a
-keyserver or on the maintainer's own pages, compare against that too.
-
-```sh
-gpg --show-keys --fingerprint signing-key.asc     # compare with the above
-gpg --dearmor < signing-key.asc > signing-key.gpg
-```
-
-Then, in the folder with the downloaded files, verify against that key alone
-(`gpgv` fails on a bad signature or any other key; plain `gpg --decrypt` would
-still print forged text):
-
-```sh
-gpgv --keyring ./signing-key.gpg --output SHA256SUMS.verified SHA256SUMS.asc \
-  && sha256sum -c --ignore-missing SHA256SUMS.verified
-gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
-```
-
-The hashes are checked from the verified text, not from the unsigned
-`SHA256SUMS`. If `gpgv` fails, do not use `SHA256SUMS.verified` or the `.deb`.
 
 ## Build and install from source
 
