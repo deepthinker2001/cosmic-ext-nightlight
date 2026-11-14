@@ -1,3 +1,16 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 23089e1..143164b 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -180,7 +180,7 @@ jobs:
+     needs: [build, attach]
+     runs-on: ubuntu-latest
+     # The signing key and its id live in this environment (required reviewer,
+-    # limited to v* tags and main), not in repository secrets.
++    # limited to branch main, no tag rule), not in repository secrets.
+     environment: release
+     permissions:
+       contents: write # to push the gh-pages branch
 diff --git a/docs/RELEASING.md b/docs/RELEASING.md
 index 35b20a3..43d8216 100644
 --- a/docs/RELEASING.md

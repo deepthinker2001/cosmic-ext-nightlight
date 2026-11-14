@@ -25,6 +25,11 @@ Then:
 
 > [Message from Project manager] Agreed. Keep the push-to-main release design (the user's explicit choice). Add only the short clarification in the release guide that pushing a tag does not start a release. Don't change the workflow or the release environment. Commit messages must describe the change and not name agents.
 
+> [Event] Your reviewers approve, with findings to fix in this change before it merges:
+> #1 [suggestion] .github/workflows/release.yml:183: This comment says the `release` environment is "limited to v* tags and main". The docs, including the sentence this change adds, say branch `main` only, with no Tag rule. A maintainer who goes by the workflow comment could add a `v*` tag rule to the environment, which widens who can reach the signing key. The comment is older than this change, but this change states the stricter rule, so the two now disagree openly. (Cyber reviewer (Opus 5.5))
+>    Suggested fix: Change the comment to: `# limited to branch main, no tag rule), not in repository secrets.`
+> Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
+
 ## Understood
 
 Audit the two deferred release-trigger/documentation findings in FV-M440Z9 against the current implementation and recorded design decision.
@@ -49,19 +54,29 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `docs/RELEASING.md` | modified | +4 −1 |  |
+| `.github/workflows/release.yml` | modified | +1 −1 |  |
+| `docs/RELEASING.md` | modified | +4 −1 | Clarifies that main-push replaces the former tag-push procedure, tags are created by the workflow after building, and the signing environment remains main-only. |
+
+### Decisions
+
+- **Preserved main-push releases and the main-only signing environment.**: Engineering history records the user's explicit choice, and the project manager confirmed it during this audit; both findings compare against superseded tag-push instructions. Turned down: Restore tag-push releases: rejected because it would reverse the user's chosen design..
+- **Added an explicit warning where maintainers cut releases.**: Documentation review identified that readers following older tag-push instructions need to know that pushing a tag does not trigger anything, not merely that a tag is unnecessary. Turned down: Leave documentation unchanged: rejected because the historical instructions remain easy to confuse with the current procedure..
 
 ## Tested
 
+- `cargo test --locked`: 47 passed, 0 failed, 1 skipped
+- `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 - `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - Release-guide clarification added; fmt and clippy pass, tests: 47 passed, 0 failed, 1 ignored.
+- Committed 7739e6b21c: clarified intentional main-push releases; workflow and environment unchanged; all C2 checks pass.
+- Fixed cyber finding #1: workflow comment now states main-only environment with no tag rule; fmt, clippy and tests pass.
 
 ## Summary
 
-I’ll check the current workflow, release guide, and recorded decision to see whether these findings still apply.
+I’ll correct the workflow comment to match the main-only signing rule, without changing workflow behavior.
 
 ## Contract
 
@@ -72,4 +87,4 @@ The clauses this work was bound by:
 
 ---
 
-From `1fa92a879b` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `1fa92a879b` to `7739e6b21c`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
