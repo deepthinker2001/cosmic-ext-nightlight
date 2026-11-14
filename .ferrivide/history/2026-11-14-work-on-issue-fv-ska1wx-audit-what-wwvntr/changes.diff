@@ -1,0 +1,48 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 8c19cf4..b13f38a 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -987,6 +987,7 @@ dependencies = [
+  "chrono",
+  "libcosmic",
+  "rustix 1.1.6",
++ "tempfile",
+  "wayland-client",
+  "wayland-protocols-wlr",
+ ]
+diff --git a/Cargo.toml b/Cargo.toml
+index a60871e..462d473 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -12,6 +12,9 @@ wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+ chrono = { version = "0.4", default-features = false, features = ["clock"] }
+ rustix = { version = "1", features = ["fs"] }
+ 
++[dev-dependencies]
++tempfile = "3"
++
+ [package.metadata.deb]
+ name = "cosmic-ext-nightlight"
+ maintainer = "cosmic-ext-nightlight contributors"
+diff --git a/src/main.rs b/src/main.rs
+index 99b5958..6998d7b 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -468,6 +468,17 @@ mod tests {
+         assert_eq!(Settings::default().temperature, gamma::DEFAULT_TEMPERATURE);
+     }
+ 
++    #[test]
++    fn settings_load_defaults_then_roundtrips_enabled() {
++        // A private temp folder, removed on drop: the user's settings are never touched.
++        let dir = tempfile::tempdir().expect("temp dir");
++        let config = Config::with_custom_path(APP_ID, CONFIG_VERSION, dir.path().to_path_buf())
++            .expect("config in temp dir");
++        assert_eq!(Settings::load(&config), Settings::default());
++        Settings::save_enabled(&config, true).expect("save enabled");
++        assert!(Settings::load(&config).enabled);
++    }
++
+     #[test]
+     fn closing_matching_popup_clears_it() {
+         let id = Id::unique();

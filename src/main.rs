@@ -469,6 +469,17 @@ mod tests {
     }
 
     #[test]
+    fn settings_load_defaults_then_roundtrips_enabled() {
+        // A private temp folder, removed on drop: the user's settings are never touched.
+        let dir = tempfile::tempdir().expect("temp dir");
+        let config = Config::with_custom_path(APP_ID, CONFIG_VERSION, dir.path().to_path_buf())
+            .expect("config in temp dir");
+        assert_eq!(Settings::load(&config), Settings::default());
+        Settings::save_enabled(&config, true).expect("save enabled");
+        assert!(Settings::load(&config).enabled);
+    }
+
+    #[test]
     fn closing_matching_popup_clears_it() {
         let id = Id::unique();
         assert_eq!(popup_after_close(Some(id), id), None);
