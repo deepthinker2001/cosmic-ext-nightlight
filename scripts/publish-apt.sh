@@ -73,6 +73,52 @@ gpg --batch --dearmor -o "$check/key.gpg" key.gpg
 gpgv --keyring "$check/key.gpg" "$dist/InRelease"
 gpgv --keyring "$check/key.gpg" "$dist/Release.gpg" "$dist/Release"
 
+# Keep these instructions and the pinned fingerprint in sync with README.md.
+# Quote the heredoc so the install commands are text, never run by publishing.
+cat > index.html <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Night Light for COSMIC — apt repository</title>
+</head>
+<body>
+  <main>
+    <h1>Night Light for COSMIC</h1>
+    <p>A COSMIC panel applet that toggles a warmer, lower-blue screen tint
+      with one click. This is its signed apt repository for Debian, Ubuntu
+      and Pop!_OS (amd64); COSMIC panel is required.</p>
+    <p><a href="https://github.com/deepthinker2001/cosmic-ext-nightlight">GitHub repository and documentation</a>
+      · <a href="key.gpg">Download the public signing key (key.gpg)</a></p>
+
+    <h2>Install with apt</h2>
+    <p>Add the signed repository once; updates then arrive with your normal
+      system updates. First download the key to a temporary file and check
+      its fingerprint before you trust it:</p>
+    <pre><code>key=$(mktemp)
+curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg -o "$key"
+gpg --show-keys --with-fingerprint "$key"
+</code></pre>
+    <p>The fingerprint printed must be exactly:</p>
+    <pre><code>0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584</code></pre>
+    <p><strong>If it differs, run <code>rm "$key"</code> and stop.</strong>
+      If it matches, trust the key and add the repository (in the same
+      terminal, so <code>$key</code> is still set):</p>
+    <pre><code>sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg "$key"
+rm "$key"
+echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
+  | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
+sudo apt update
+sudo apt install cosmic-ext-nightlight
+</code></pre>
+    <p>Then follow the
+      <a href="https://github.com/deepthinker2001/cosmic-ext-nightlight#add-it-to-the-panel">instructions to add it to the panel</a>.</p>
+  </main>
+</body>
+</html>
+HTML
+
 # Serve the files as they are, without GitHub Pages' Jekyll processing.
 touch .nojekyll
 echo "Repository in $site rebuilt and signed with $key."
