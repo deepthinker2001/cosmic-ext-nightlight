@@ -10,11 +10,11 @@ The project itself is GPL-3.0-only (`LICENSE`, installed there too).
 | Asset | Owner | License | Notice |
 | --- | --- | --- | --- |
 | Open Sans Light, Regular, Semibold, Bold, ExtraBold (compiled in by libcosmic, `EMBEDDED_FONTS`) | The Open Sans Project Authors, <https://github.com/googlefonts/opensans> | SIL OFL 1.1 | `fonts/OFL-OpenSans.txt` (from `res/open-sans/LICENSE` in libcosmic) |
-| Noto Sans Mono Regular, Bold (compiled in by libcosmic) | The Noto Project Authors | SIL OFL 1.1 | `fonts/OFL-NotoSansMono.txt` (from `res/noto/LICENSE` in libcosmic) |
-| `Iced-Icons.ttf` (compiled in by `iced_graphics` 0.14.0) | iced contributors; the font was generated with Fontello (its metadata says "Copyright (C) 2020 by original authors @ fontello.com") | Shipped inside the MIT-licensed `iced_graphics` crate; no separate license file | The `iced_graphics` MIT text in `THIRD-PARTY-NOTICES`. **Open point:** the upstream license of the individual glyphs was not confirmed (no network access when this was written). Confirm with iced-rs/iced before the first release. |
+| Noto Sans Mono Regular, Bold (compiled in by libcosmic) | Google LLC (Noto Project) | SIL OFL 1.1 | `fonts/OFL-NotoSansMono.txt` (libcosmic's `res/noto/LICENSE`, with the copyright line from the font's own name table, nameID 0, added on top: libcosmic's copy has none) |
+| `Iced-Icons.ttf` (compiled in by `iced_graphics` 0.14.0) | iced contributors; the font was generated with Fontello (its metadata says "Copyright (C) 2020 by original authors @ fontello.com") | Shipped inside the MIT-licensed `iced_graphics` crate; no separate license file | The `iced_graphics` MIT text in `THIRD-PARTY-NOTICES`. **Open point, tracked as FV-MGVC59:** the upstream license of the individual glyphs is not yet confirmed (no network access when this was written). Confirm before the first release. |
 | FiraSans (iced's `fira-sans` feature) | | | Not enabled in this build; not shipped. |
 | `data/icons/*-symbolic.svg` | This project | GPL-3.0-only | Drawn by hand for this project; no third-party source. |
-| About 510 Rust crates linked or built for the Linux target | Their authors | Mostly MIT and/or Apache-2.0, plus BSD, ISC, Zlib, Unicode-3.0, MPL-2.0, CC0, BSL-1.0 | `THIRD-PARTY-NOTICES` |
+| 510 Rust crates (the Linux target's dependency graph from `Cargo.lock`; the issue's 527 counted a wider set) linked or built for the Linux target | Their authors | Mostly MIT and/or Apache-2.0, plus BSD, ISC, Zlib, Unicode-3.0, MPL-2.0, CC0, BSL-1.0 | `THIRD-PARTY-NOTICES` |
 
 Note: libcosmic's `applet` feature also links GPL-3.0 crates from
 pop-os/cosmic-panel (`cosmic-panel-config`, `xdg-shell-wrapper-config`), and

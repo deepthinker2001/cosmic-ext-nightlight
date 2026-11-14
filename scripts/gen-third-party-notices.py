@@ -18,14 +18,45 @@ import sys
 LICENSE_FILE = re.compile(r"^(LICEN[CS]E|COPYING|NOTICE|UNLICENSE)", re.I)
 
 
-def license_files(folder):
+MAX_BYTES = 1 << 20
+
+
+def license_files(folder, root):
+    """License files in `folder` whose real path is a regular file inside `root`.
+
+    Symlinks are followed only when they stay inside `root` (the crate's
+    folder, or its git checkout), so a dependency cannot make this script
+    copy some other file of the user's into the notices.
+    """
+    real_root = os.path.realpath(root)
     found = []
     for name in sorted(os.listdir(folder)):
-        path = os.path.join(folder, name)
-        if LICENSE_FILE.match(name) and os.path.isfile(path):
-            with open(path, encoding="utf-8", errors="replace") as f:
-                found.append((name, f.read().strip()))
+        if not LICENSE_FILE.match(name):
+            continue
+        path = os.path.realpath(os.path.join(folder, name))
+        if not path.startswith(real_root + os.sep):
+            print("skipped {}: outside {}".format(os.path.join(folder, name), root),
+                  file=sys.stderr)
+            continue
+        if not os.path.isfile(path) or os.path.getsize(path) > MAX_BYTES:
+            print("skipped {}: not a regular file under 1 MiB".format(path),
+                  file=sys.stderr)
+            continue
+        with open(path, encoding="utf-8", errors="replace") as f:
+            found.append((name, f.read().strip()))
     return found
+
+
+def checkout_root(folder):
+    """The git checkout folder (.../git/checkouts/<repo>/<rev>) holding `folder`, or None."""
+    marker = os.sep + "git" + os.sep + "checkouts" + os.sep
+    if marker not in folder:
+        return None
+    head, tail = folder.split(marker, 1)
+    parts = tail.split(os.sep)
+    if len(parts) < 2:
+        return None
+    return os.path.join(head, "git", "checkouts", parts[0], parts[1])
 
 
 def main():
@@ -52,16 +83,15 @@ def main():
         if p["id"] == root:
             continue
         folder = os.path.dirname(p["manifest_path"])
-        found = license_files(folder)
-        if not found and "/git/checkouts/" in folder:
+        top = checkout_root(folder)
+        found = license_files(folder, top or folder)
+        if not found and top:
             # A crate in a git workspace keeps its license at the workspace
-            # root (at most three folders up, inside the checkout).
+            # root; look upward, never leaving the checkout.
             up = folder
-            for _ in range(3):
+            while not found and up != top:
                 up = os.path.dirname(up)
-                found = license_files(up)
-                if found:
-                    break
+                found = license_files(up, top)
         header = "{} {} ({})".format(
             p["name"], p["version"], p["license"] or "no license field in Cargo.toml")
         if p.get("repository"):

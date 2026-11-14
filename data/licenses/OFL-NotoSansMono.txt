@@ -1,3 +1,5 @@
+Copyright 2015 Google LLC. All Rights Reserved.
+
 This Font Software is licensed under the SIL Open Font License,
 Version 1.1.
 
