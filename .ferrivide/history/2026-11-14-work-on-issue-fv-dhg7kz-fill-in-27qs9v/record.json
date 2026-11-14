@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "agent-27qs9v",
+  "title": "Work on issue FV-DHG7KZ: Fill in GitHub repo path in README",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-dhg7kz-fill-in-github-repo-path-in-readme",
+  "base_commit": "96bdaa1fd5667068ab68b428386037f5554fdaf1",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-DHG7KZ",
+    "title": "Fill in GitHub repo path in README"
+  },
+  "started": 1794626740,
+  "finished": 1794626744,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-DHG7KZ: Fill in GitHub repo path in README\n\nReplace OWNER/REPO in README.md (CI badge and any links) with deepthinker2001/cosmic-ext-nightlight. Don't touch the fingerprint placeholder. Docs only.\n\nLabels: Release"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 1,
+      "removed": 3
+    }
+  ],
+  "summary": "Two blank lines remain; fix."
+}
