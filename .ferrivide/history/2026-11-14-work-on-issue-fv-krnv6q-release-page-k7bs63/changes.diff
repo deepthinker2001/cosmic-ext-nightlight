@@ -1,0 +1,72 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index defe908..23089e1 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -225,6 +225,22 @@ jobs:
+           trap 'rm -rf "$GNUPGHOME"' EXIT
+           printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --quiet --import
+           scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
++          # The release-page download gets a detached signature from the
++          # same key, checked against the key.gpg publish-apt.sh just verified.
++          gpg --batch --yes --dearmor -o "$GNUPGHOME/check.gpg" site/key.gpg
++          for deb in debs/cosmic-ext-nightlight_*.deb; do
++            gpg --batch --yes --local-user "$KEY_ID" --armor --detach-sign -o "$deb.asc" "$deb"
++            gpgv --keyring "$GNUPGHOME/check.gpg" "$deb.asc" "$deb"
++          done
++
++      - name: Attach the detached signature to the release
++        env:
++          GH_TOKEN: ${{ github.token }}
++          TAG: ${{ needs.build.outputs.tag }}
++        run: |
++          for asc in debs/cosmic-ext-nightlight_*.deb.asc; do
++            gh release upload "$TAG" "$asc" --clobber -R "$GITHUB_REPOSITORY"
++          done
+ 
+       - name: Publish the repository
+         env:
+diff --git a/README.md b/README.md
+index 19ab556..4e08531 100644
+--- a/README.md
++++ b/README.md
+@@ -130,14 +130,36 @@ and `/usr/share/keyrings/cosmic-ext-nightlight.gpg`.
+ 
+ ### From a release
+ 
+-Download the `.deb` (and its `.sha256`, to check the download) from the
+-[releases page](../../releases/latest), then:
++Download the `.deb`, its `.asc` signature and its `.sha256` from the
++[releases page](../../releases/latest). The `.sha256` only catches a broken
++download; the `.asc` is what proves the file is ours.
++
++Get the signing key and check its fingerprint, as in the apt steps above:
++
++```sh
++dir=$(mktemp -d)
++curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg -o "$dir/key.asc"
++gpg --show-keys --with-fingerprint "$dir/key.asc"
++```
++
++It must be exactly `0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584`; if
++not, run `rm -r "$dir"` and stop. Otherwise set `deb` to the file you
++downloaded (use its real version) and verify and install. The commands are
++chained, so nothing is installed unless the signature and the hash both check
++out:
+ 
+ ```sh
+-sha256sum -c cosmic-ext-nightlight_*.deb.sha256
+-sudo apt install ./cosmic-ext-nightlight_*.deb
++deb=cosmic-ext-nightlight_X.Y.Z_amd64.deb
++gpg --dearmor -o "$dir/key.gpg" "$dir/key.asc" \
++  && gpgv --keyring "$dir/key.gpg" "$deb.asc" "$deb" \
++  && sha256sum -c "$deb.sha256" \
++  && sudo apt install "./$deb"
++rm -r "$dir"
+ ```
+ 
++`gpgv` must say `Good signature`; if it says anything else, do not install the
++file.
++
+ This does not update itself; use the apt repository above for that.
+ 
+ To build from source instead, see
