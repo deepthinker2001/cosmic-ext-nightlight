@@ -1,0 +1,30 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: amd64
+Codename: stable
+Components: main
+Date: Sat, 14 Nov 2026 14:48:30 +0000
+Description: Night Light for COSMIC: a panel applet that toggles a night light
+Label: Night Light for COSMIC
+Origin: deepthinker2001
+Suite: stable
+MD5Sum:
+ 30bd2c9d1ace70cba4de65aa9fa3241e              842 main/binary-amd64/Packages
+ 3283bb4fa6eb9cef33227c31336b4fcb              540 main/binary-amd64/Packages.gz
+SHA1:
+ b3ecb5ca711363bd68c3e563fcd0db05ed48cd49              842 main/binary-amd64/Packages
+ fb79f543d6ed732c9e72201ba52797eda8175cdd              540 main/binary-amd64/Packages.gz
+SHA256:
+ d3dc8529bf31a95033fdb0f86407600d945e39d73ca140be4a1d0d52cd07ee81              842 main/binary-amd64/Packages
+ b3dc7e7d5175d0b2ef92ca205603419ea5374eb873fe2020eff71506bd567509              540 main/binary-amd64/Packages.gz
+SHA512:
+ bf023c59efc03214066f3a24d1de80ed38753df4454d25f48d1557f392867a47b50580dd20e0711802664a2a69469f9692bbc94aecfe72d4bd6f8b5b61289438              842 main/binary-amd64/Packages
+ ba893d7cd8af24f831ee55f31672f2e6230306591fa1930e343d05bf9e12f4d708803d55f80a54072a02b774db0873fdf50088cb9521d0c483fccc583e60ffa1              540 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQQEcs7wHODnnsEYZi00oG65eeWFhAUCavh0vgAKCRA0oG65eeWF
+hGvKAQCPPCgZq6NyI9/phnKkkDPnCiv8o4OowS1FBI8VyV8ckwD8CpsOXnq+L4Tb
+JXeStATc7EX2Xm3aEqEdbxJ9IKOCAwM=
+=6kaX
+-----END PGP SIGNATURE-----
