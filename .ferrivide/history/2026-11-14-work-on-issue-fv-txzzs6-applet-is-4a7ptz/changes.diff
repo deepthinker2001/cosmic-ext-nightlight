@@ -1,0 +1,920 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 88c96cb..930f52a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,13 @@ What changed in each release, for users. Maintainers: see
+ - Apt setup instructions now specify `arch=amd64` to avoid the harmless
+   missing-i386 notice on multiarch systems; the README explains how existing
+   users can update their sources line.
++- Night light can turn on from the panel again: the applet now asks
++  cosmic-panel for the host Wayland display (`X-HostWaylandDisplay`), which
++  its gamma connection needs.
++- The applet no longer lags: settings are saved in the background instead of
++  on every slider step, a left click toggles on press, and toggles and
++  slider moves made while a change is being applied are kept and shown at
++  once instead of being ignored.
+ 
+ ## 0.2.1 - 2026-11-14
+ 
+diff --git a/data/io.github.cosmic_ext.Nightlight.desktop b/data/io.github.cosmic_ext.Nightlight.desktop
+index 6d1370d..1208d67 100644
+--- a/data/io.github.cosmic_ext.Nightlight.desktop
++++ b/data/io.github.cosmic_ext.Nightlight.desktop
+@@ -10,5 +10,6 @@ Icon=io.github.cosmic_ext.Nightlight-on-symbolic
+ StartupNotify=true
+ NoDisplay=true
+ X-CosmicApplet=true
++X-HostWaylandDisplay=true
+ X-CosmicHoverPopup=Auto
+ X-OverflowPriority=10
+diff --git a/src/main.rs b/src/main.rs
+index 6998d7b..d4e7648 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -2,6 +2,8 @@
+ #[allow(dead_code)]
+ mod gamma;
+ mod location;
++mod requests;
++mod saver;
+ mod solar;
+ 
+ use std::sync::mpsc;
+@@ -18,6 +20,8 @@ use cosmic::iced::Subscription;
+ use cosmic::surface::action::{app_popup, destroy_popup};
+ use cosmic::widget::{list_column, mouse_area, settings, slider, spin_button, text, toggler};
+ use cosmic::Element;
++use requests::{Requests, Target};
++use saver::{Save, Saver};
+ 
+ const APP_ID: &str = "io.github.cosmic_ext.Nightlight";
+ const ICON_ON: &str = "io.github.cosmic_ext.Nightlight-on-symbolic";
+@@ -81,9 +85,10 @@ impl Worker {
+         Self { tx }
+     }
+ 
+-    fn request(&self, enable: bool, kelvin: u32) -> Task<Message> {
++    /// Send `target` to the worker; the reply comes back as `Applied`.
++    fn request(&self, target: Target) -> Task<Message> {
+         let (reply, rx) = oneshot::channel();
+-        let sent = self.tx.send((enable.then_some(kelvin), reply)).is_ok();
++        let sent = self.tx.send((target, reply)).is_ok();
+         Task::perform(
+             async move {
+                 if !sent {
+@@ -92,9 +97,14 @@ impl Worker {
+                 rx.await
+                     .unwrap_or_else(|_| Err("gamma worker stopped".to_string()))
+             },
+-            move |r| cosmic::Action::App(Message::Applied(enable, r)),
++            move |r| cosmic::Action::App(Message::Applied(r)),
+         )
+     }
++
++    /// Send `target` when there is one, else nothing.
++    fn send(&self, target: Option<Target>) -> Task<Message> {
++        target.map_or_else(Task::none, |t| self.request(t))
++    }
+ }
+ 
+ /// Serve one worker request, connecting the backend on first use (or after
+@@ -129,27 +139,6 @@ fn handle_request(
+     }
+ }
+ 
+-/// What a toggle press asks for: `None` while a request is in flight.
+-fn toggle_request(enabled: bool, busy: bool) -> Option<bool> {
+-    (!busy).then_some(!enabled)
+-}
+-
+-/// New real state and the value to save after a backend reply to a request
+-/// for `want`. Success follows the request and is saved. A failure leaves the
+-/// state off after a failed enable (the icon shows reality) and saves nothing:
+-/// a failed startup restore deliberately keeps the saved flag set, so the next
+-/// start retries (e.g. the compositor wasn't ready at login) instead of
+-/// silently forgetting the user's choice.
+-fn applied(enabled: bool, want: bool, ok: bool) -> (bool, Option<bool>) {
+-    if ok {
+-        (want, Some(want))
+-    } else if want {
+-        (false, None)
+-    } else {
+-        (enabled, None)
+-    }
+-}
+-
+ /// The open popup after the compositor closed popup `closed`: only the
+ /// popup we track is forgotten.
+ fn popup_after_close(popup: Option<Id>, closed: Id) -> Option<Id> {
+@@ -280,34 +269,6 @@ fn auto_action(percent: u8, target: u32, enabled: bool) -> Option<(bool, u32)> {
+     }
+ }
+ 
+-/// What a slider move asks of the backend.
+-#[derive(Debug, PartialEq)]
+-enum Retune {
+-    /// Send a request now.
+-    Now,
+-    /// A request is in flight (it may carry an old Kelvin, e.g. a startup
+-    /// restore or a toggle-on): remember, and decide when it replies.
+-    Later,
+-    /// Night light is off and idle: only the saved value changes.
+-    Never,
+-}
+-
+-fn retune_on_slider(enabled: bool, busy: bool) -> Retune {
+-    if busy {
+-        Retune::Later
+-    } else if enabled {
+-        Retune::Now
+-    } else {
+-        Retune::Never
+-    }
+-}
+-
+-/// Whether a retune must be sent after a reply: the slider moved while a
+-/// request was in flight and night light is on.
+-fn retune_needed(enabled: bool, pending: bool) -> bool {
+-    enabled && pending
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -448,21 +409,6 @@ mod tests {
+         assert_eq!(temperature_hint(6500), "Cool");
+     }
+ 
+-    #[test]
+-    fn retune_only_when_on_and_pending() {
+-        assert!(retune_needed(true, true));
+-        assert!(!retune_needed(true, false));
+-        assert!(!retune_needed(false, true));
+-    }
+-
+-    #[test]
+-    fn slider_move_while_busy_is_deferred_even_when_not_yet_enabled() {
+-        assert_eq!(retune_on_slider(false, true), Retune::Later);
+-        assert_eq!(retune_on_slider(true, true), Retune::Later);
+-        assert_eq!(retune_on_slider(true, false), Retune::Now);
+-        assert_eq!(retune_on_slider(false, false), Retune::Never);
+-    }
+-
+     #[test]
+     fn settings_default_temperature() {
+         assert_eq!(Settings::default().temperature, gamma::DEFAULT_TEMPERATURE);
+@@ -495,26 +441,6 @@ mod tests {
+     fn closing_with_none_open_is_noop() {
+         assert_eq!(popup_after_close(None, Id::unique()), None);
+     }
+-
+-    #[test]
+-    fn toggle_flips_and_ignores_while_busy() {
+-        assert_eq!(toggle_request(false, false), Some(true));
+-        assert_eq!(toggle_request(true, false), Some(false));
+-        assert_eq!(toggle_request(false, true), None);
+-        assert_eq!(toggle_request(true, true), None);
+-    }
+-
+-    #[test]
+-    fn success_follows_request_and_saves() {
+-        assert_eq!(applied(false, true, true), (true, Some(true)));
+-        assert_eq!(applied(true, false, true), (false, Some(false)));
+-    }
+-
+-    #[test]
+-    fn failure_keeps_real_state_and_saves_nothing() {
+-        assert_eq!(applied(false, true, false), (false, None));
+-        assert_eq!(applied(true, false, false), (true, None));
+-    }
+ }
+ 
+ /// Hour and minute spin buttons for one time of day.
+@@ -653,17 +579,15 @@ impl Settings {
+ 
+ struct Nightlight {
+     core: Core,
+-    /// Real state: true only once the backend confirmed night light is on.
+-    enabled: bool,
+-    /// A backend request is in flight.
+-    busy: bool,
++    /// Wanted, in-flight and applied gamma targets (see `requests`).
++    requests: Requests,
+     worker: Worker,
++    /// Writes settings off the UI thread.
++    saver: Saver,
+     /// The settings popup, while it is open.
+     popup: Option<Id>,
+     /// Chosen colour temperature in Kelvin.
+     temperature: u32,
+-    /// The slider moved while a request was in flight.
+-    retune_pending: bool,
+     schedule_on: bool,
+     schedule_start: TimeOfDay,
+     schedule_end: TimeOfDay,
+@@ -693,40 +617,32 @@ impl Nightlight {
+     }
+ 
+     fn save_auto(&self) {
+-        if let Some(c) = config() {
+-            if let Err(e) = Settings::save_auto(&c, self.auto.on) {
+-                eprintln!("nightlight: cannot save auto setting: {e}");
+-            }
+-        }
++        self.saver.save(Save::Auto(self.auto.on));
+     }
+ 
+-    /// Check the ramp against the clock and start a request if the whole
+-    /// percent changed. Waits while a request is in flight (the next tick
+-    /// retries).
++    /// Ask for `target`; sends it now unless a request is in flight (then
++    /// its reply sends the latest target).
++    fn want(&mut self, target: Target) -> Task<Message> {
++        let send = self.requests.want(target);
++        self.worker.send(send)
++    }
++
++    /// Check the ramp against the clock and ask for its step if the whole
++    /// percent changed.
+     fn check_auto(&mut self) -> Task<Message> {
+         let Some(coords) = self.location().filter(|_| self.auto.on) else {
+             return Task::none();
+         };
+-        if self.busy {
+-            return Task::none();
+-        }
+         let (last, apply) = solar::auto_step(auto_percent_now(coords), self.auto.last);
+         self.auto.last = last;
+-        match apply.and_then(|p| auto_action(p, self.temperature, self.enabled)) {
+-            Some((on, kelvin)) => {
+-                self.busy = true;
+-                self.worker.request(on, kelvin)
+-            }
++        match apply.and_then(|p| auto_action(p, self.temperature, self.requests.is_on())) {
++            Some((on, kelvin)) => self.want(on.then_some(kelvin)),
+             None => Task::none(),
+         }
+     }
+ 
+     fn save_location(&self) {
+-        if let Some(c) = config() {
+-            if let Err(e) = Settings::save_location(&c, self.auto.custom_location) {
+-                eprintln!("nightlight: cannot save location: {e}");
+-            }
+-        }
++        self.saver.save(Save::Location(self.auto.custom_location));
+     }
+ 
+     /// The text boxes changed: once both hold valid degrees they become the
+@@ -783,105 +699,67 @@ impl Nightlight {
+ 
+     /// Save the schedule settings.
+     fn save_schedule(&self) {
+-        if let Some(c) = config() {
+-            if let Err(e) = Settings::save_schedule(
+-                &c,
+-                self.schedule_on,
+-                self.schedule_start,
+-                self.schedule_end,
+-            ) {
+-                eprintln!("nightlight: cannot save schedule: {e}");
+-            }
+-        }
++        self.saver.save(Save::Schedule {
++            on: self.schedule_on,
++            start: self.schedule_start,
++            end: self.schedule_end,
++        });
+     }
+ 
+-    /// Check the schedule against the clock and start a request if the
+-    /// window changed. Waits (keeping `schedule_last`) while a request is in
+-    /// flight, so the next tick retries.
++    /// Check the schedule against the clock and ask for its state if the
++    /// window changed.
+     fn check_schedule(&mut self) -> Task<Message> {
+-        if self.busy {
+-            return Task::none();
+-        }
+         let (last, apply) = schedule_step(self.schedule(), local_time_of_day(), self.schedule_last);
+         self.schedule_last = last;
+         match apply {
+-            Some(want) if want != self.enabled => {
+-                self.busy = true;
+-                self.worker.request(want, self.temperature)
+-            }
++            Some(on) if on != self.requests.is_on() => self.want(on.then_some(self.temperature)),
+             _ => Task::none(),
+         }
+     }
+ 
+-    /// The slider moved: save the new target and apply it now, or after the
+-    /// request in flight replies.
++    /// The slider moved: remember and save the new target, and retune at
++    /// once if night light is on (coalesced while a request is in flight).
+     fn temperature_changed(&mut self, kelvin: u32) -> Task<Message> {
+         let kelvin = gamma::clamp_temperature(kelvin);
+         if kelvin == self.temperature {
+             return Task::none();
+         }
+         self.temperature = kelvin;
+-        if let Some(c) = config() {
+-            if let Err(e) = Settings::save_temperature(&c, kelvin) {
+-                eprintln!("nightlight: cannot save temperature: {e}");
+-            }
+-        }
++        self.saver.save(Save::Temperature(kelvin));
+         if self.auto.on {
+-            // The ramp uses the new target at once: forget the last
+-            // step so the current one is applied again. While a
+-            // request is in flight, its reply does this.
++            // The ramp uses the new target at once: forget the last step so
++            // the current one is applied again.
+             self.auto.last = None;
+-            if self.busy {
+-                self.retune_pending = true;
+-                return Task::none();
+-            }
+             return self.check_auto();
+         }
+-        match retune_on_slider(self.enabled, self.busy) {
+-            Retune::Now => {
+-                self.busy = true;
+-                self.worker.request(true, kelvin)
+-            }
+-            Retune::Later => {
+-                self.retune_pending = true;
+-                Task::none()
+-            }
+-            Retune::Never => Task::none(),
++        if self.requests.is_on() {
++            return self.want(Some(kelvin));
+         }
++        Task::none()
+     }
+ 
+-    /// The gamma worker answered a request for `want`: record the real
+-    /// state, save it on success, and send a retune the slider asked for
+-    /// meanwhile.
+-    fn reply_received(&mut self, want: bool, result: &Result<(), String>) -> Task<Message> {
+-        self.busy = false;
++    /// The gamma worker answered the request in flight: record it, save the
++    /// state on success, and send what was asked for meanwhile.
++    fn reply_received(&mut self, result: &Result<(), String>) -> Task<Message> {
++        let ok = result.is_ok();
+         if let Err(e) = result {
+             eprintln!("nightlight: {e}");
+         }
+-        self.schedule_last = schedule_last_after_reply(self.schedule_last, want, result.is_ok());
+-        if result.is_err() {
+-            // Forget the step so the next tick applies it again.
+-            self.auto.last = None;
+-        }
+-        let (enabled, save) = applied(self.enabled, want, result.is_ok());
+-        self.enabled = enabled;
+-        if let (Some(v), Some(c)) = (save, config()) {
+-            if let Err(e) = Settings::save_enabled(&c, v) {
+-                eprintln!("nightlight: cannot save state: {e}");
++        let replied = self.requests.replied(ok);
++        if let Some(sent) = replied.sent {
++            self.schedule_last = schedule_last_after_reply(self.schedule_last, sent.is_some(), ok);
++            // Only a success is saved: a failed startup restore deliberately
++            // keeps the saved flag set, so the next start retries (e.g. the
++            // compositor wasn't ready at login) instead of forgetting it.
++            if ok {
++                self.saver.save(Save::Enabled(sent.is_some()));
+             }
+         }
+-        // Taking the flag consumes it; nothing between here and its use
+-        // reads it.
+-        let pending = std::mem::take(&mut self.retune_pending);
+-        if self.auto.on {
+-            if pending {
+-                return self.check_auto();
+-            }
+-        } else if retune_needed(self.enabled, pending) {
+-            self.busy = true;
+-            return self.worker.request(true, self.temperature);
++        if !ok {
++            // Forget the step so the next tick applies it again.
++            self.auto.last = None;
+         }
+-        Task::none()
++        self.worker.send(replied.send)
+     }
+ }
+ 
+@@ -891,7 +769,8 @@ enum Message {
+     /// Right click on the icon: open or close the settings popup.
+     ToggleSettings,
+     PopupClosed(Id),
+-    Applied(bool, Result<(), String>),
++    /// The gamma worker answered the request in flight.
++    Applied(Result<(), String>),
+     /// The temperature slider moved.
+     Temperature(u32),
+     /// The schedule was switched on or off.
+@@ -914,7 +793,7 @@ fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
+     let mut content = list_column()
+         .add(settings::item(
+             "Night light",
+-            toggler(state.enabled).on_toggle(|_| Message::Toggle),
++            toggler(state.requests.is_on()).on_toggle(|_| Message::Toggle),
+         ))
+         .add(settings::item(
+             format!("Colour temperature: {kelvin} K"),
+@@ -1032,16 +911,14 @@ impl cosmic::Application for Nightlight {
+             saved.then_some((true, settings.temperature))
+         };
+         let worker = Worker::spawn();
+-        let task = match start {
+-            Some((on, kelvin)) => worker.request(on, kelvin),
+-            None => Task::none(),
+-        };
++        let mut requests = Requests::default();
++        let task = worker.send(start.and_then(|(on, kelvin)| requests.want(on.then_some(kelvin))));
+         let fmt = |v: f64| format!("{v}");
+         (
+             Self {
+                 core,
+-                enabled: false,
+-                busy: start.is_some(),
++                requests,
++                saver: Saver::spawn(),
+                 auto: AutoState {
+                     on: auto_coords.is_some(),
+                     custom_location: settings.custom_location,
+@@ -1059,7 +936,6 @@ impl cosmic::Application for Nightlight {
+                 worker,
+                 popup: None,
+                 temperature: settings.temperature,
+-                retune_pending: false,
+                 schedule_on: settings.schedule_on && auto_coords.is_none(),
+                 schedule_start: settings.schedule_start,
+                 schedule_end: settings.schedule_end,
+@@ -1084,11 +960,10 @@ impl cosmic::Application for Nightlight {
+     fn update(&mut self, message: Message) -> Task<Message> {
+         match message {
+             Message::Toggle => {
+-                let Some(want) = toggle_request(self.enabled, self.busy) else {
+-                    return Task::none();
+-                };
+-                self.busy = true;
+-                return self.worker.request(want, self.manual_kelvin());
++                // Never ignored: shown at once, sent now or after the reply
++                // to the request in flight.
++                let target = (!self.requests.is_on()).then(|| self.manual_kelvin());
++                return self.want(target);
+             }
+             Message::Temperature(kelvin) => return self.temperature_changed(kelvin),
+             Message::ScheduleOn(on) => {
+@@ -1174,16 +1049,26 @@ impl cosmic::Application for Nightlight {
+             Message::PopupClosed(id) => {
+                 self.popup = popup_after_close(self.popup, id);
+             }
+-            Message::Applied(want, result) => return self.reply_received(want, &result),
++            Message::Applied(result) => return self.reply_received(&result),
+         }
+         Task::none()
+     }
+ 
+     fn view(&self) -> Element<'_, Message> {
+-        let icon = if self.enabled { ICON_ON } else { ICON_OFF };
++        let icon = if self.requests.is_on() {
++            ICON_ON
++        } else {
++            ICON_OFF
++        };
+         // Left click toggles; right click opens the settings popup. The popup
+-        // button has no right-click hook, so a mouse area wraps it.
+-        let button = self.core.applet.icon_button(icon).on_press(Message::Toggle);
++        // button has no right-click hook, so a mouse area wraps it. The toggle
++        // fires on press, as libcosmic's own applet buttons do: `on_press`
++        // fires only on a release over a button still marked pressed.
++        let button = self
++            .core
++            .applet
++            .icon_button(icon)
++            .on_press_down(Message::Toggle);
+         mouse_area(button)
+             .on_right_press(Message::ToggleSettings)
+             .into()
+diff --git a/src/requests.rs b/src/requests.rs
+new file mode 100644
+index 0000000..d661f48
+--- /dev/null
++++ b/src/requests.rs
+@@ -0,0 +1,188 @@
++//! Which gamma state to ask the worker for. Pure: no I/O; the caller sends
++//! the targets these methods return and reports each reply.
++//!
++//! At most one request is in flight. Input that arrives meanwhile is never
++//! dropped: it replaces the wanted target, and the reply sends the latest
++//! one (so a slider drag costs one round trip per reply, not one per step).
++
++/// What the screen should show: `Some(kelvin)` tinted, `None` neutral.
++pub type Target = Option<u32>;
++
++#[derive(Debug, Default)]
++pub struct Requests {
++    /// The latest target asked for; the popup and icon show this.
++    wanted: Target,
++    /// The target sent and not answered yet.
++    in_flight: Option<Target>,
++    /// The target the backend confirmed last.
++    applied: Target,
++}
++
++/// What to do after a reply.
++#[derive(Debug, PartialEq)]
++pub struct Replied {
++    /// The target the reply answered (`None` for a reply nothing waited for).
++    pub sent: Option<Target>,
++    /// The next target to send.
++    pub send: Option<Target>,
++}
++
++impl Requests {
++    /// Night light is wanted on (shown at once, before the backend answers).
++    pub fn is_on(&self) -> bool {
++        self.wanted.is_some()
++    }
++
++    /// Ask for `target`. Returns the target to send now, if any: nothing is
++    /// sent while a request is in flight (its reply sends the latest target)
++    /// or when the backend already shows `target`.
++    pub fn want(&mut self, target: Target) -> Option<Target> {
++        self.wanted = target;
++        self.next()
++    }
++
++    /// The worker answered the request in flight. A success records the
++    /// target as applied. A failed enable leaves gamma neutral (the worker
++    /// resets it); a failed disable leaves it as it was. If nothing newer was
++    /// asked for meanwhile, the wanted state falls back to the real one, so
++    /// the UI shows reality and a failure is not retried in a loop.
++    pub fn replied(&mut self, ok: bool) -> Replied {
++        let sent = self.in_flight.take();
++        if let Some(target) = sent {
++            if ok {
++                self.applied = target;
++            } else {
++                if target.is_some() {
++                    self.applied = None;
++                }
++                if self.wanted == target {
++                    self.wanted = self.applied;
++                }
++            }
++        }
++        Replied {
++            sent,
++            send: self.next(),
++        }
++    }
++
++    fn next(&mut self) -> Option<Target> {
++        if self.in_flight.is_some() || self.wanted == self.applied {
++            return None;
++        }
++        self.in_flight = Some(self.wanted);
++        Some(self.wanted)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn starts_off_and_sends_a_change_at_once() {
++        let mut r = Requests::default();
++        assert!(!r.is_on());
++        assert_eq!(r.want(None), None);
++        assert_eq!(r.want(Some(3500)), Some(Some(3500)));
++        assert!(r.is_on(), "shown on before the reply");
++    }
++
++    #[test]
++    fn toggle_while_in_flight_is_kept_and_sent_on_reply() {
++        let mut r = Requests::default();
++        assert_eq!(r.want(Some(3500)), Some(Some(3500)));
++        // Toggled off again before the worker answered: shown at once.
++        assert_eq!(r.want(None), None);
++        assert!(!r.is_on());
++        assert_eq!(
++            r.replied(true),
++            Replied {
++                sent: Some(Some(3500)),
++                send: Some(None)
++            }
++        );
++        assert_eq!(
++            r.replied(true),
++            Replied {
++                sent: Some(None),
++                send: None
++            }
++        );
++        assert!(!r.is_on());
++    }
++
++    #[test]
++    fn slider_drag_coalesces_to_the_latest_value() {
++        let mut r = Requests::default();
++        assert_eq!(r.want(Some(3500)), Some(Some(3500)));
++        for k in (2000..3500).step_by(100) {
++            assert_eq!(r.want(Some(k)), None);
++        }
++        assert_eq!(r.want(Some(2100)), None);
++        assert_eq!(r.replied(true).send, Some(Some(2100)));
++        assert_eq!(r.replied(true).send, None);
++    }
++
++    #[test]
++    fn same_target_as_applied_sends_nothing() {
++        let mut r = Requests::default();
++        r.want(Some(3500));
++        r.replied(true);
++        assert_eq!(r.want(Some(3500)), None);
++        // Back to the applied value while a request is in flight: the reply
++        // sends it again, since the backend now shows the other value.
++        assert_eq!(r.want(Some(3000)), Some(Some(3000)));
++        assert_eq!(r.want(Some(3500)), None);
++        assert_eq!(r.replied(true).send, Some(Some(3500)));
++    }
++
++    #[test]
++    fn failed_enable_shows_off_and_does_not_retry() {
++        let mut r = Requests::default();
++        r.want(Some(3500));
++        assert_eq!(
++            r.replied(false),
++            Replied {
++                sent: Some(Some(3500)),
++                send: None
++            }
++        );
++        assert!(!r.is_on());
++        // The next press tries again.
++        assert_eq!(r.want(Some(3500)), Some(Some(3500)));
++    }
++
++    #[test]
++    fn failed_disable_keeps_it_on() {
++        let mut r = Requests::default();
++        r.want(Some(3500));
++        r.replied(true);
++        assert_eq!(r.want(None), Some(None));
++        assert_eq!(r.replied(false).send, None);
++        assert!(r.is_on());
++    }
++
++    #[test]
++    fn failure_with_newer_input_sends_the_newer_target_once() {
++        let mut r = Requests::default();
++        r.want(Some(3500));
++        r.want(Some(3000));
++        // The enable failed (gamma is neutral now); 3000 K is still wanted.
++        assert_eq!(r.replied(false).send, Some(Some(3000)));
++        assert_eq!(r.replied(false).send, None);
++        assert!(!r.is_on());
++    }
++
++    #[test]
++    fn reply_with_nothing_in_flight_is_ignored() {
++        let mut r = Requests::default();
++        assert_eq!(
++            r.replied(true),
++            Replied {
++                sent: None,
++                send: None
++            }
++        );
++    }
++}
+diff --git a/src/saver.rs b/src/saver.rs
+new file mode 100644
+index 0000000..3c4a8f2
+--- /dev/null
++++ b/src/saver.rs
+@@ -0,0 +1,219 @@
++//! Saves settings on a long-lived thread, so the UI never waits on the disk.
++//!
++//! Each `cosmic_config` write creates the config folder, writes a temporary
++//! file, fsyncs it, renames it and fsyncs the folder. Done on the UI thread
++//! for every slider step, that made the applet lag. Here the UI only sends a
++//! message; the thread waits until no change has come for `QUIET`, keeps
++//! only the latest value of each kind, and writes those.
++
++use std::sync::mpsc;
++use std::thread;
++use std::time::Duration;
++
++use cosmic::cosmic_config::Config;
++
++use crate::{location, Settings, TimeOfDay};
++
++/// How long the settings must stay unchanged before they are written.
++const QUIET: Duration = Duration::from_millis(250);
++
++/// One setting to save.
++#[derive(Clone, Debug, PartialEq)]
++pub enum Save {
++    Enabled(bool),
++    Temperature(u32),
++    Schedule {
++        on: bool,
++        start: TimeOfDay,
++        end: TimeOfDay,
++    },
++    Auto(bool),
++    Location(Option<location::Coords>),
++}
++
++impl Save {
++    /// The setting's name for messages; never its value.
++    fn kind(&self) -> &'static str {
++        match self {
++            Save::Enabled(_) => "state",
++            Save::Temperature(_) => "temperature",
++            Save::Schedule { .. } => "schedule",
++            Save::Auto(_) => "auto setting",
++            Save::Location(_) => "location",
++        }
++    }
++}
++
++/// Add `save` to the writes waiting, replacing an older value of the same
++/// kind (only the latest is worth writing).
++pub fn merge(pending: &mut Vec<Save>, save: Save) {
++    let kind = std::mem::discriminant(&save);
++    match pending
++        .iter_mut()
++        .find(|p| std::mem::discriminant(*p) == kind)
++    {
++        Some(slot) => *slot = save,
++        None => pending.push(save),
++    }
++}
++
++fn write(config: &Config, save: &Save) -> Result<(), cosmic::cosmic_config::Error> {
++    match *save {
++        Save::Enabled(on) => Settings::save_enabled(config, on),
++        Save::Temperature(kelvin) => Settings::save_temperature(config, kelvin),
++        Save::Schedule { on, start, end } => Settings::save_schedule(config, on, start, end),
++        Save::Auto(on) => Settings::save_auto(config, on),
++        Save::Location(custom) => Settings::save_location(config, custom),
++    }
++}
++
++/// Handle to the saving thread. Dropping it writes what is waiting and
++/// ends the thread.
++pub struct Saver {
++    /// `None` only while dropping.
++    tx: Option<mpsc::Sender<Save>>,
++    thread: Option<thread::JoinHandle<()>>,
++}
++
++impl Saver {
++    /// Save to the applet's settings.
++    pub fn spawn() -> Self {
++        Self::spawn_with(|| Config::new(crate::APP_ID, crate::CONFIG_VERSION))
++    }
++
++    /// Save to the config `open` returns; it runs on the thread, since
++    /// opening creates the config folder.
++    fn spawn_with<F>(open: F) -> Self
++    where
++        F: FnOnce() -> Result<Config, cosmic::cosmic_config::Error> + Send + 'static,
++    {
++        let (tx, rx) = mpsc::channel();
++        let thread = thread::spawn(move || run(open(), &rx));
++        Self {
++            tx: Some(tx),
++            thread: Some(thread),
++        }
++    }
++
++    /// Queue a setting to save; never blocks.
++    pub fn save(&self, save: Save) {
++        if let Some(tx) = &self.tx {
++            let _ = tx.send(save);
++        }
++    }
++}
++
++impl Drop for Saver {
++    /// Close the channel, so the thread writes what is waiting at once
++    /// (without the quiet period), and wait for it: a change made just
++    /// before the applet exits is not lost.
++    fn drop(&mut self) {
++        drop(self.tx.take());
++        if let Some(thread) = self.thread.take() {
++            let _ = thread.join();
++        }
++    }
++}
++
++fn run(config: Result<Config, cosmic::cosmic_config::Error>, rx: &mpsc::Receiver<Save>) {
++    let config = match config {
++        Ok(c) => Some(c),
++        Err(e) => {
++            eprintln!("nightlight: cannot open settings, changes won't be saved: {e}");
++            None
++        }
++    };
++    let mut pending = Vec::new();
++    while let Ok(first) = rx.recv() {
++        merge(&mut pending, first);
++        let open = loop {
++            match rx.recv_timeout(QUIET) {
++                Ok(save) => merge(&mut pending, save),
++                Err(mpsc::RecvTimeoutError::Timeout) => break true,
++                Err(mpsc::RecvTimeoutError::Disconnected) => break false,
++            }
++        };
++        for save in pending.drain(..) {
++            if let Some(c) = &config {
++                if let Err(e) = write(c, &save) {
++                    // The kind only: a value (e.g. the location) is private
++                    // and stderr goes to the journal.
++                    eprintln!("nightlight: cannot save {}: {e}", save.kind());
++                }
++            }
++        }
++        if !open {
++            return;
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn merge_keeps_the_latest_of_each_kind_in_first_seen_order() {
++        let mut pending = Vec::new();
++        for k in [3400, 3300, 3200] {
++            merge(&mut pending, Save::Temperature(k));
++        }
++        merge(&mut pending, Save::Enabled(true));
++        merge(&mut pending, Save::Temperature(3100));
++        merge(&mut pending, Save::Enabled(false));
++        assert_eq!(pending, vec![Save::Temperature(3100), Save::Enabled(false)]);
++    }
++
++    #[test]
++    fn kind_names_the_setting_without_its_value() {
++        let kind = Save::Location(Some((48.8566, 2.3522))).kind();
++        assert_eq!(kind, "location");
++        assert!(!kind.contains("48"));
++    }
++
++    #[test]
++    fn dropping_the_saver_writes_what_is_waiting() {
++        let dir = tempfile::tempdir().expect("temp dir");
++        let path = dir.path().to_path_buf();
++        let open = move || Config::with_custom_path(crate::APP_ID, crate::CONFIG_VERSION, path);
++        let saver = Saver::spawn_with(open.clone());
++        saver.save(Save::Temperature(2700));
++        saver.save(Save::Enabled(true));
++        // Dropped at once, well inside the quiet period.
++        drop(saver);
++        let s = Settings::load(&open().expect("config in temp dir"));
++        assert_eq!(s.temperature, 2700);
++        assert!(s.enabled);
++    }
++
++    #[test]
++    fn every_kind_writes_its_keys() {
++        let dir = tempfile::tempdir().expect("temp dir");
++        let config = Config::with_custom_path(
++            crate::APP_ID,
++            crate::CONFIG_VERSION,
++            dir.path().to_path_buf(),
++        )
++        .expect("config in temp dir");
++        let saves = [
++            Save::Enabled(true),
++            Save::Temperature(2800),
++            Save::Schedule {
++                on: true,
++                start: TimeOfDay(20 * 60),
++                end: TimeOfDay(6 * 60),
++            },
++            Save::Auto(true),
++            Save::Location(Some((48.85, 2.35))),
++        ];
++        for save in &saves {
++            write(&config, save).expect("write");
++        }
++        let s = Settings::load(&config);
++        assert!(s.enabled && s.schedule_on && s.auto_on);
++        assert_eq!(s.temperature, 2800);
++        assert_eq!(s.schedule_start, TimeOfDay(20 * 60));
++        assert_eq!(s.schedule_end, TimeOfDay(6 * 60));
++        assert_eq!(s.custom_location, Some((48.85, 2.35)));
++    }
++}
