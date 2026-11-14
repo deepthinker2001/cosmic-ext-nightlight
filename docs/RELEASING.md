@@ -56,7 +56,12 @@ if it exists.
 
 The `gh-pages` branch holds only generated files: `pool/` (every published
 `.deb`), `dists/stable/` (`Packages`, `Release`, `InRelease`, `Release.gpg`),
-`key.gpg` (the public key) and `.nojekyll`. Never edit it by hand.
+`key.gpg` (the public key), `index.html` (the landing page with fingerprint-first
+apt setup instructions) and `.nojekyll`. Never edit it by hand. Keep the
+instructions and pinned fingerprint in `scripts/publish-apt.sh` in sync with
+the README when changing the installation steps or rotating the signing key.
+The landing page reaches an already-published site at the next release, or
+a manual workflow rerun from `main` with an existing tag.
 
 ## One-time setup
 

@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "id": "agent-8kk18d",
+  "title": "Work on issue FV-T8KSHK: GitHub Pages site root returns 404: add an index page…",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "chatgpt:gpt-6.1-sol",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-t8kshk-github-pages-site-root-returns-404-add-a",
+  "base_commit": "6db778d492f07bfe8e86ebe20f6095840a8d38c1",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-T8KSHK",
+    "title": "GitHub Pages site root returns 404: add an index page to the apt site"
+  },
+  "started": 1794668130,
+  "finished": 1794668329,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "requests": [
+    "Work on issue FV-T8KSHK: GitHub Pages site root returns 404: add an index page to the apt site\n\nAfter a release, https://deepthinker2001.github.io/cosmic-ext-nightlight shows a 404. The site (built by scripts/publish-apt.sh onto gh-pages) has pool/, dists/, key.gpg and .nojekyll but no index.html, so the root has nothing to serve.\n\nDo:\n- Make scripts/publish-apt.sh write a small index.html at the site root: what the repo is, the apt setup lines (key download with fingerprint check, sources line; same as README, no shortcut that skips the fingerprint check), and links to key.gpg and the GitHub repo. Static, no scripts or external assets.\n- Keep the script's existing checks; test it locally with a throwaway key and dummy .deb (see project knowledge k12) and check index.html is in the output.\n- Update docs/RELEASING.md's list of gh-pages files.\n- Note in your report that the already-published site gets the page at the next release (or a manual workflow rerun from main with the existing tag), and that Settings → Pages must be set to gh-pages / root.\n\nLabels: Docs"
+  ],
+  "understanding": [
+    {
+      "request": "Fix FV-T8KSHK by generating a static root index.html for the signed apt site, with the README's fingerprint-first setup instructions and project/key links, and documenting the generated file.",
+      "assumptions": [
+        "The landing page must pin the same trusted fingerprint as README.md rather than derive trust from the downloaded or signing key.",
+        "Existing signing and fingerprint verification must remain unchanged.",
+        "No live GitHub deployment or settings change is part of this task; the project manager owns requirements/features."
+      ],
+      "plan": [
+        "Add a quoted HTML heredoc after the publisher's signature checks.",
+        "Update the gh-pages generated-file list and fingerprint maintenance note.",
+        "Exercise publishing with a throwaway ed25519 key and dummy .deb, validate the generated HTML/instructions and negative key checks, and run contract-required Rust checks.",
+        "Commit the verified change and report deployment prerequisites."
+      ],
+      "out_of_scope": [
+        "Changing release workflow or publishing to GitHub",
+        "Using the real private signing key",
+        "Changing README installation behavior or applet Rust code"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "docs/RELEASING.md",
+      "status": "modified",
+      "added": 6,
+      "removed": 1
+    },
+    {
+      "path": "scripts/publish-apt.sh",
+      "status": "modified",
+      "added": 46,
+      "removed": 0
+    }
+  ],
+  "tests": [
+    {
+      "command": "scripts/publish-apt.sh with scratch throwaway key/dummy .deb plus Python HTML assertions",
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check && cargo clippy --all-targets && cargo test --locked",
+      "passed": 47,
+      "failed": 0,
+      "skipped": 1
+    }
+  ],
+  "progress": [
+    "Local publisher checks passed: fresh publish and rebuild produce index.html, README commands match exactly, static links are present, and short/unknown signing keys are rejected.",
+    "Contract checks passed: cargo fmt and clippy clean; Rust tests 47 passed, 0 failed, 1 ignored. Local apt publisher checks also passed."
+  ],
+  "contract": [
+    "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests.",
+    "C4: Commit messages describe the change itself (what and why) and never name Ferrivide agents such as \"Engineer 1\", \"Merge engineer 1\", or agent branches."
+  ],
+  "summary": "The local publish test passed: `index.html` is generated, its command blocks match the README exactly, and both repository signatures verify. Short and unknown key IDs are still rejected. Formatting, Clippy, and Rust tests also passed (47 passed, 1 ignored). I’ll review the diff and commit."
+}
