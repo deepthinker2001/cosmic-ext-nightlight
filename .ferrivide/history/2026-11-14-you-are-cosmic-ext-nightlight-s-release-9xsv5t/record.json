@@ -13,7 +13,10 @@
   },
   "branch": "ferrivide/release-pass-fv-6f5h0e",
   "base_commit": "35b77c73eff650e35cd99047278cff4abc8281ae",
-  "head_commit": "",
+  "head_commit": "2fb5c6f044aa3a00b3794e6f0917c919d31af334",
+  "commits": [
+    "2fb5c6f044aa3a00b3794e6f0917c919d31af334"
+  ],
   "started": 1794634757,
   "finished": 1794635047,
   "usage": {
@@ -23,7 +26,8 @@
   },
   "requests": [
     "You are cosmic-ext-nightlight's Release pass, for this one job: nobody else is working here now, so what you change can't collide with anyone. The user has asked for a release. You work like an engineer, in your own worktree and branch; what you change is reviewed and merged like any other work. Check four things, fix what you can in your branch, and file an issue (create_issue) for each thing you can't fix in this one pass. You don't build, sign or publish the release: that is the user's, and you never read, copy or ask for a private signing key.\n\n1. Signing. Check against the project's requirements (the ide tool's requirements action; R14 asks that release builds be signed and that users can verify the signatures) that the release scripts sign every build they produce, that the public keys the project ships verify what they sign, and that the project's own verification (its release tool's verify command, where it has one) passes on the latest signed output.\n2. Licenses. Check against R33 that no build contains GPL, LGPL or AGPL code, including code generated from GPL-family sources (read the dependency licenses, the vendored code and what is linked in), and that every bundled font, model and asset has a clear license listed with its owner and notice, as the project's list of bundled assets and its third-party notices require.\n3. Vulnerabilities. Check against R34 that no critical or actively exploited finding is left unaddressed: read the CVE tab's findings (the ide tool's vulnerabilities action); Compliance runs the scanners, so you don't. A finding is addressed when it is fixed, or when a person has accepted it as an exception; you never accept one yourself. Name each open critical or actively exploited finding in your report as a blocker.\n4. Release notes. Check that the release notes (the change log and the notes in the docs) match what merged since the last release: read the git log from the last release's tag or commit, and correct a note that is missing, wrong or about work that isn't in.\n\nLeave alone what's another job: no new features, no speed work, no redesign. Run a command heavier than the default resource limits only after asking through C13.\n\nYour closing report_status is published as your report, in the project's Reports tab (Release Pass). Put in its summary a section for each: Signing, Licenses, Vulnerabilities and Release notes (what you checked, what you fixed, what's filed), and begin it with one line: ready to release, or the blockers that remain. List your changes in its decisions and files. If nothing needs changing, commit nothing and say what you checked. Once your work is merged (or you finish with nothing to merge), you're discarded.\n\nThe user's direction for this start, as the project manager carries it (it comes first where it narrows the work):\nRelease",
-    "[Ferrivide] Your helper's answer to \"In this repo (cosmic-ext-nightlight), where did data/icons/io.github.cosmic_ext.Nightlight-on-symbolic.svg and -off-symbolic.svg come from: hand-drawn by an agent, or copied/adapted from a third-party icon set (Adwaita, Pop, cosmic-icons, Material, etc.)? Check the SVG contents (metadata, comments, \":\n\n**Short answer: the icons were hand-written by an agent, not copied from a third-party set.** I found no third-party markers in them, and no notices or attribution text in the repo.\n\n**SVG contents** (`data/icons/`)\n- `io.github.cosmic_ext.Nightlight-on-symbolic.svg`: one `<path>` with a hand-typed `d=` (a circle-with-notch crescent), `fill=\"#bebebe\"`. No metadata, comments, `<title>`, Inkscape/Sodipodi tags, or `<defs>`. The file is a single line.\n- `io.github.cosmic_ext.Nightlight-off-symbolic.svg`: a crescent path at `opacity=\".4\"` plus a diagonal bar path (`M2 3l1-1 11 11-1 1z`). Same bare format, no metadata.\n\n**Git / history**\n- The reflog for `/home/mad/projects/cosmic-ext-nightlight/.git/logs/HEAD` contains no SVG-specific entries. Commit `5eff73e \"Scaffold libcosmic panel applet\"` is the commit that first contains these files (per the review-1 output in the scaffold session). I did not run git, so I haven't confirmed the blob directly.\n- Session `.ferrivide/history/2026-11-11-work-on-issue-fv-19xwhq-scaffold-the-b2xyj9/`:\n  - `transcript.jsonl` line 11 writes both SVGs with `cat > ... <<'E'` heredocs. The agent typed the markup itself.\n  - `transcript.jsonl` line 22 runs `sed -i 's/1\\.400/1.4/g;...' data/icons/*.svg`, which only normalises decimal numbers in the path data.\n  - `changes.diff` lines 6885–6898 show both as \"new file\", one line each.\n  - `record.md` lines 22–23 list both as \"added\".\n- Nothing in any session mentions Adwaita, Pop, cosmic-icons, Material, or another icon set as a source. Searching `.ferrivide` for \"icon\" found no reference to a source or template.\n- Later sessions only reference the icon names (`src/main.rs:23`, `data/io.github.cosmic_ext.Nightlight.desktop:9`, `Cargo.toml:30`). None of them modify the SVGs.\n\n**Notices, asset lists, licence text**\n- Searched for \"Adwaita\", \"THIRD\", \"NOTICE\", \"attribution\", and \"licen\" across the repo, `docs/`, and `README.md`. The only hits are in `LICENSE` (the GPL-3.0 text, which is the project licence in `Cargo.toml:6`) and generic words in it.\n- There is no third-party notices file, asset list, or per-asset attribution anywhere. `docs/` contains only `RELEASING.md`, which has no licence mention.\n- `data/` contains only `icons/` and the `.desktop` file.\n- `src/` contains Rust code. The search found no copyright headers there. The copyright and SPDX headers in `.ferrivide/history/2026-11-14-work-on-issue-fv-fk5e4x-automatic-schedule-gxh4v6/transcript.jsonl` (lines 13, 19) belong to libcosmic/iced files that an agent read, not to this repo's own files.\n\n**Not verified / gaps**\n- I didn't check whether the two SVGs have the same blob hash in git history, or whether any later commit changed them. The history says they were only added.\n- I didn't read `Cargo.lock` licences, or the `.github/` and `scripts/` directories. Those would be needed to judge the licence of all bundled assets.\n- Two `.ferrivide` search results were cut off before I could confirm their content. Notably, `data/icons/` and the on/off icons do not appear in any bundled-asset list because none exists.\n- Incidental, not asked: the repo root contains `private-key.asc`. Check whether it should be tracked before release."
+    "[Ferrivide] Your helper's answer to \"In this repo (cosmic-ext-nightlight), where did data/icons/io.github.cosmic_ext.Nightlight-on-symbolic.svg and -off-symbolic.svg come from: hand-drawn by an agent, or copied/adapted from a third-party icon set (Adwaita, Pop, cosmic-icons, Material, etc.)? Check the SVG contents (metadata, comments, \":\n\n**Short answer: the icons were hand-written by an agent, not copied from a third-party set.** I found no third-party markers in them, and no notices or attribution text in the repo.\n\n**SVG contents** (`data/icons/`)\n- `io.github.cosmic_ext.Nightlight-on-symbolic.svg`: one `<path>` with a hand-typed `d=` (a circle-with-notch crescent), `fill=\"#bebebe\"`. No metadata, comments, `<title>`, Inkscape/Sodipodi tags, or `<defs>`. The file is a single line.\n- `io.github.cosmic_ext.Nightlight-off-symbolic.svg`: a crescent path at `opacity=\".4\"` plus a diagonal bar path (`M2 3l1-1 11 11-1 1z`). Same bare format, no metadata.\n\n**Git / history**\n- The reflog for `/home/mad/projects/cosmic-ext-nightlight/.git/logs/HEAD` contains no SVG-specific entries. Commit `5eff73e \"Scaffold libcosmic panel applet\"` is the commit that first contains these files (per the review-1 output in the scaffold session). I did not run git, so I haven't confirmed the blob directly.\n- Session `.ferrivide/history/2026-11-11-work-on-issue-fv-19xwhq-scaffold-the-b2xyj9/`:\n  - `transcript.jsonl` line 11 writes both SVGs with `cat > ... <<'E'` heredocs. The agent typed the markup itself.\n  - `transcript.jsonl` line 22 runs `sed -i 's/1\\.400/1.4/g;...' data/icons/*.svg`, which only normalises decimal numbers in the path data.\n  - `changes.diff` lines 6885–6898 show both as \"new file\", one line each.\n  - `record.md` lines 22–23 list both as \"added\".\n- Nothing in any session mentions Adwaita, Pop, cosmic-icons, Material, or another icon set as a source. Searching `.ferrivide` for \"icon\" found no reference to a source or template.\n- Later sessions only reference the icon names (`src/main.rs:23`, `data/io.github.cosmic_ext.Nightlight.desktop:9`, `Cargo.toml:30`). None of them modify the SVGs.\n\n**Notices, asset lists, licence text**\n- Searched for \"Adwaita\", \"THIRD\", \"NOTICE\", \"attribution\", and \"licen\" across the repo, `docs/`, and `README.md`. The only hits are in `LICENSE` (the GPL-3.0 text, which is the project licence in `Cargo.toml:6`) and generic words in it.\n- There is no third-party notices file, asset list, or per-asset attribution anywhere. `docs/` contains only `RELEASING.md`, which has no licence mention.\n- `data/` contains only `icons/` and the `.desktop` file.\n- `src/` contains Rust code. The search found no copyright headers there. The copyright and SPDX headers in `.ferrivide/history/2026-11-14-work-on-issue-fv-fk5e4x-automatic-schedule-gxh4v6/transcript.jsonl` (lines 13, 19) belong to libcosmic/iced files that an agent read, not to this repo's own files.\n\n**Not verified / gaps**\n- I didn't check whether the two SVGs have the same blob hash in git history, or whether any later commit changed them. The history says they were only added.\n- I didn't read `Cargo.lock` licences, or the `.github/` and `scripts/` directories. Those would be needed to judge the licence of all bundled assets.\n- Two `.ferrivide` search results were cut off before I could confirm their content. Notably, `data/icons/` and the on/off icons do not appear in any bundled-asset list because none exists.\n- Incidental, not asked: the repo root contains `private-key.asc`. Check whether it should be tracked before release.",
+    "[Event] Your reviewers approve, with findings to fix in this change before it merges:\n#1 [suggestion] scripts/publish-apt.sh:49: With a wrong or short key id, the earlier `gpg --local-user` signing or `gpg --export` fails under `set -e` before the new fingerprint message can print, so the friendly message only appears when the id resolves to a key whose fingerprint differs from the one given. The check still fails closed, so this is cosmetic. (Quick reviewer (Haiku 5.5))\n   Suggested fix: Optional: move the fingerprint comparison to right after the key is chosen, or note in the usage line that <key-id> must be a full fingerprint.\nFix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. \"Out of scope\" isn't a reason. Your reviewers accept or reject each reason in the next round."
   ],
   "understanding": [
     {
@@ -55,32 +59,83 @@
       "path": ".gitignore",
       "status": "modified",
       "added": 5,
-      "removed": 0
+      "removed": 0,
+      "why": "Never commit a private signing key (private-key*, *.key, *.asc)"
     },
     {
       "path": "CHANGELOG.md",
       "status": "added",
       "added": 53,
-      "removed": 0
+      "removed": 0,
+      "why": "New change log: Unreleased (everything since v0.1.0) and 0.1.0"
     },
     {
       "path": "README.md",
       "status": "modified",
       "added": 2,
-      "removed": 0
+      "removed": 0,
+      "why": "Link to CHANGELOG.md"
     },
     {
       "path": "docs/RELEASING.md",
       "status": "modified",
       "added": 13,
-      "removed": 3
+      "removed": 3,
+      "why": "The v* environment rule must be a Tag rule; spent tags; update CHANGELOG when setting the version; describe the signature check"
     },
     {
       "path": "scripts/publish-apt.sh",
       "status": "modified",
-      "added": 16,
-      "removed": 0
+      "added": 30,
+      "removed": 3,
+      "why": "Check that the exported key.gpg has the expected fingerprint, and verify InRelease and Release.gpg with it via gpgv"
     }
   ],
-  "summary": "No tracked file falls under the new ignore rules. No Rust code changed, so the real check is the `publish-apt.sh` test above. Committing:"
+  "decisions": [
+    {
+      "decision": "Added a key/signature self-check to publish-apt.sh, not a separate verify step in the workflow",
+      "why": "The script is what signs, so a check there runs in every path (CI and by hand) before anything is pushed, and it can be tested locally with a throwaway key.",
+      "alternatives": [
+        "A separate workflow step verifying gh-pages after push (too late: users would already see a broken repo)"
+      ]
+    },
+    {
+      "decision": "Didn't add signatures for the release-page .deb; filed FV-KRNV6Q",
+      "why": "The user asked in FV-QVWSWT to drop the per-.deb gpgv flow, so changing that is their call.",
+      "alternatives": [
+        "Sign the .deb in the apt job and upload an .asc"
+      ]
+    },
+    {
+      "decision": "Didn't change LICENSE or Cargo.toml's license; filed FV-9CWESN",
+      "why": "Choosing the license, and whether R33 makes an exception for the GPL crates libcosmic's applet feature needs, are the user's decisions."
+    },
+    {
+      "decision": "The change log treats everything since v0.1.0 as Unreleased",
+      "why": "v0.1.1 is tagged, but its build failed and shipped no package, so none of that work has reached users; the next version must be new (0.1.1 is spent).",
+      "alternatives": [
+        "A 0.1.1 entry (it would describe a release that doesn't exist)"
+      ]
+    },
+    {
+      "decision": "Didn't bump the Cargo.toml version",
+      "why": "The version number is the user's choice when they cut the release; RELEASING.md and FV-V9V00C say it must be new."
+    }
+  ],
+  "tests": [
+    {
+      "command": "scripts/publish-apt.sh run against a throwaway key and a dummy .deb: matching fingerprint, short key id, signed with another key",
+      "passed": 3,
+      "failed": 0
+    }
+  ],
+  "progress": [
+    "NOT ready to release. Blockers: (1) R33 — every build contains GPL code: libcosmic's applet feature links GPL-3.0-only cosmic-panel-config / xdg-shell-wrapper-config, and the project itself is GPL-family (Cargo.toml says GPL-3.0-only, LICENSE is AGPL-3.0) — FV-9CWESN, user decision; (2) R34 — the CVE tab has never been scanned, so nothing shows the absence of critical or exploited findings — FV-X6J1CF, Compliance; (3) R14 — no build has ever been signed: the GitHub `release` environment rejected v0.1.0's signing job, and v0.1.1's build failed its version check — FV-V9V00C, GitHub setting; (4) third-party notices for the embedded OFL fonts and dependencies are missing — FV-W86KWZ.\n\n## Signing (R14)\nChecked: release.yml and publish-apt.sh sign the apt repository (InRelease, Release.gpg) after checking the build's hash; the public Actions API for both releases; gh-pages; the README's fingerprint steps. Nothing signed exists to verify: gh-pages holds only its empty first commit. v0.1.0's `apt` job was refused (\"Tag v0.1.0 is not allowed to deploy to release due to environment protection rules\"). v0.1.1 failed at \"Check the tag matches the version\" (Cargo.toml still says 0.1.0). The project has no release tool with a verify command. Fixed: publish-apt.sh now checks that the shipped key.gpg has the fingerprint in APT_SIGNING_KEY_ID and verifies both signatures with gpgv before anything is pushed. I tested it with a throwaway key: correct key passes, short key id fails, signing with a different key fails. RELEASING.md now says the v* environment rule must be of type Tag. Filed: FV-V9V00C (environment setting, next version number), FV-KRNV6Q (the release-page .deb has only a .sha256 from the same release, a trade-off the user chose in FV-QVWSWT).\n\n## Licenses (R33)\nChecked all 527 packages in the Linux build (cargo tree, license fields, and LICENSE files in the git checkouts), and the fonts and icons compiled in. GPL found: the project's own license, and cosmic-panel-config / xdg-shell-wrapper-config (GPL-3.0-only, required for R1). configparser and self_cell are dual-licensed and fine under their MIT/Apache options; the MPL-2.0 crates are not GPL. Bundled fonts: Open Sans and Noto Sans Mono (OFL-1.1, from libcosmic) and Iced-Icons.ttf (iced, MIT, origin to confirm). The two SVG icons are the project's own, hand-written in the scaffold session. There is no notices file or asset list. Filed FV-9CWESN and FV-W86KWZ; changing the license is the user's choice.\n\n## Vulnerabilities (R34)\nThe CVE tab: scanned_at null, no findings, no scanners, exploitation status unknown. No finding is open, but none has been looked for. Filed FV-X6J1CF for Compliance. I accepted nothing.\n\n## Release notes\nThere was no change log. GitHub's v0.1.1 notes are only a compare link, for a build that shipped nothing. Added CHANGELOG.md: an Unreleased section with the settings popup, temperature slider, custom schedule, sunrise/sunset auto ramp, the trademark rewording and the apt signature check, plus 0.1.0. Also added a RELEASING.md step to roll the Unreleased section into each new version, and a README link.\n\nAlso: a `private-key.asc` sits untracked in the user's main checkout (never committed; I didn't open it). .gitignore now excludes key files. It would be safer moved out of the project folder. FV-CK2Y04 and FV-B4S568 (fingerprint and badge placeholders) are already resolved on main and can be closed. R14, R33 and R34 aren't in the project's recorded requirements (only R0–R2)."
+  ],
+  "learned": [
+    "Packaging: libcosmic's `applet` feature links GPL-3.0-only crates from pop-os/cosmic-panel (cosmic-panel-config, xdg-shell-wrapper-config); their Cargo.toml has no license field, so license tools show them blank. Check with `cargo tree -i cosmic-panel-config`.",
+    "Packaging: The release state on GitHub can be read without credentials: `curl https://api.github.com/repos/deepthinker2001/cosmic-ext-nightlight/actions/runs` and each run's jobs_url and check-run annotations give each job's failure reason. As of 2026-11-13, no release has published the apt repository (gh-pages is empty).",
+    "Packaging: scripts/publish-apt.sh can be tested locally without a real key: make a throwaway ed25519 key in a temporary GNUPGHOME and a dummy .deb with dpkg-deb --build, then run the script on an empty site folder."
+  ],
+  "summary": "All four cases behave as intended. A short or unknown key ID now gets the clear message before anything is signed."
 }

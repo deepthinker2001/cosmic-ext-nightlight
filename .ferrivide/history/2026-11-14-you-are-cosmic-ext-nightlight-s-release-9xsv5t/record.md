@@ -51,6 +51,11 @@ Then:
 
 (Shortened here; record.json has all of it.)
 
+> [Event] Your reviewers approve, with findings to fix in this change before it merges:
+> #1 [suggestion] scripts/publish-apt.sh:49: With a wrong or short key id, the earlier `gpg --local-user` signing or `gpg --export` fails under `set -e` before the new fingerprint message can print, so the friendly message only appears when the id resolves to a key whose fingerprint differs from the one given. The check still fails closed, so this is cosmetic. (Quick reviewer (Haiku 5.5))
+>    Suggested fix: Optional: move the fingerprint comparison to right after the key is chosen, or note in the usage line that <key-id> must be a full fingerprint.
+> Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
+
 ## Understood
 
 Release pass for cosmic-ext-nightlight: check signing (R14), licenses (R33), vulnerabilities (R34) and release notes against what merged since the last release; fix what I can in this branch, file an issue for each thing I can't, and report blockers. No build, signing or publishing.
@@ -82,20 +87,46 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `.gitignore` | modified | +5 −0 |  |
-| `CHANGELOG.md` | added | +53 −0 |  |
-| `README.md` | modified | +2 −0 |  |
-| `docs/RELEASING.md` | modified | +13 −3 |  |
-| `scripts/publish-apt.sh` | modified | +16 −0 |  |
+| `.gitignore` | modified | +5 −0 | Never commit a private signing key (private-key*, *.key, *.asc) |
+| `CHANGELOG.md` | added | +53 −0 | New change log: Unreleased (everything since v0.1.0) and 0.1.0 |
+| `README.md` | modified | +2 −0 | Link to CHANGELOG.md |
+| `docs/RELEASING.md` | modified | +13 −3 | The v* environment rule must be a Tag rule; spent tags; update CHANGELOG when setting the version; describe the signature check |
+| `scripts/publish-apt.sh` | modified | +30 −3 | Check that the exported key.gpg has the expected fingerprint, and verify InRelease and Release.gpg with it via gpgv |
+
+### Decisions
+
+- **Added a key/signature self-check to publish-apt.sh, not a separate verify step in the workflow**: The script is what signs, so a check there runs in every path (CI and by hand) before anything is pushed, and it can be tested locally with a throwaway key. Turned down: A separate workflow step verifying gh-pages after push (too late: users would already see a broken repo).
+- **Didn't add signatures for the release-page .deb; filed FV-KRNV6Q**: The user asked in FV-QVWSWT to drop the per-.deb gpgv flow, so changing that is their call. Turned down: Sign the .deb in the apt job and upload an .asc.
+- **Didn't change LICENSE or Cargo.toml's license; filed FV-9CWESN**: Choosing the license, and whether R33 makes an exception for the GPL crates libcosmic's applet feature needs, are the user's decisions.
+- **The change log treats everything since v0.1.0 as Unreleased**: v0.1.1 is tagged, but its build failed and shipped no package, so none of that work has reached users; the next version must be new (0.1.1 is spent). Turned down: A 0.1.1 entry (it would describe a release that doesn't exist).
+- **Didn't bump the Cargo.toml version**: The version number is the user's choice when they cut the release; RELEASING.md and FV-V9V00C say it must be new.
 
 ## Tested
 
-No test runs were reported.
+- `scripts/publish-apt.sh run against a throwaway key and a dummy .deb: matching fingerprint, short key id, signed with another key`: 3 passed, 0 failed
+
+Progress reports:
+
+- NOT ready to release. Blockers: (1) R33 — every build contains GPL code: libcosmic's applet feature links GPL-3.0-only cosmic-panel-config / xdg-shell-wrapper-config, and the project itself is GPL-family (Cargo.toml says GPL-3.0-only, LICENSE is AGPL-3.0) — FV-9CWESN, user decision; (2) R34 — the CVE tab has never been scanned, so nothing shows the absence of critical or exploited findings — FV-X6J1CF, Compliance; (3) R14 — no build has ever been signed: the GitHub `release` environment rejected v0.1.0's signing job, and v0.1.1's build failed its version check — FV-V9V00C, GitHub setting; (4) third-party notices for the embedded OFL fonts and dependencies are missing — FV-W86KWZ.
+
+## Signing (R14)
+Checked: release.yml and publish-apt.sh sign the apt repository (InRelease, Release.gpg) after checking the build's hash; the public Actions API for both releases; gh-pages; the README's fingerprint steps. Nothing signed exists to verify: gh-pages holds only its empty first commit. v0.1.0's `apt` job was refused ("Tag v0.1.0 is not allowed to deploy to release due to environment protection rules"). v0.1.1 failed at "Check the tag matches the version" (Cargo.toml still says 0.1.0). The project has no release tool with a verify command. Fixed: publish-apt.sh now checks that the shipped key.gpg has the fingerprint in APT_SIGNING_KEY_ID and verifies both signatures with gpgv before anything is pushed. I tested it with a throwaway key: correct key passes, short key id fails, signing with a different key fails. RELEASING.md now says the v* environment rule must be of type Tag. Filed: FV-V9V00C (environment setting, next version number), FV-KRNV6Q (the release-page .deb has only a .sha256 from the same release, a trade-off the user chose in FV-QVWSWT).
+
+## Licenses (R33)
+Checked all 527 packages in the Linux build (cargo tree, license fields, and LICENSE files in the git checkouts), and the fonts and icons compiled in. GPL found: the project's own license, and cosmic-panel-config / xdg-shell-wrapper-config (GPL-3.0-only, required for R1). configparser and self_cell are dual-licensed and fine under their MIT/Apache options; the MPL-2.0 crates are not GPL. Bundled fonts: Open Sans and Noto Sans Mono (OFL-1.1, from libcosmic) and Iced-Icons.ttf (iced, MIT, origin to confirm). The two SVG icons are the project's own, hand-written in the scaffold session. There is no notices file or asset list. Filed FV-9CWESN and FV-W86KWZ; changing the license is the user's choice.
+
+## Vulnerabilities (R34)
+The CVE tab: scanned_at null, no findings, no scanners, exploitation status unknown. No finding is open, but none has been looked for. Filed FV-X6J1CF for Compliance. I accepted nothing.
+
+## Release notes
+There was no change log. GitHub's v0.1.1 notes are only a compare link, for a build that shipped nothing. Added CHANGELOG.md: an Unreleased section with the settings popup, temperature slider, custom schedule, sunrise/sunset auto ramp, the trademark rewording and the apt signature check, plus 0.1.0. Also added a RELEASING.md step to roll the Unreleased section into each new version, and a README link.
+
+Also: a `private-key.asc` sits untracked in the user's main checkout (never committed; I didn't open it). .gitignore now excludes key files. It would be safer moved out of the project folder. FV-CK2Y04 and FV-B4S568 (fingerprint and badge placeholders) are already resolved on main and can be closed. R14, R33 and R34 aren't in the project's recorded requirements (only R0–R2).
 
 ## Summary
 
-No tracked file falls under the new ignore rules. No Rust code changed, so the real check is the `publish-apt.sh` test above. Committing:
+All four cases behave as intended. A short or unknown key ID now gets the clear message before anything is signed.
 
 ---
 
-From `35b77c73ef` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `35b77c73ef` to `2fb5c6f044`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.

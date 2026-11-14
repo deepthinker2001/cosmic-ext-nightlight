@@ -6,17 +6,29 @@
 # <site-dir> is a checkout of the gh-pages branch. New .deb files are added
 # to its pool (earlier ones stay, so apt can still find them); the package
 # index and the signed Release files are then generated again from the whole
-# pool. Signing uses the key <key-id> from the keyring in $GNUPGHOME.
-# Needs apt-ftparchive (apt-utils) and gpg.
+# pool. Signing uses the key <key-id> from the keyring in $GNUPGHOME; it must
+# be the key's full fingerprint (spaces and letter case don't matter).
+# Needs apt-ftparchive (apt-utils), gpg and gpgv.
 set -eu
 
 if [ $# -lt 2 ]; then
-    echo "usage: $0 <site-dir> <key-id> [new .deb files...]" >&2
+    echo "usage: $0 <site-dir> <key-id: full fingerprint> [new .deb files...]" >&2
     exit 2
 fi
 site=$1
 key=$2
 shift 2
+
+# Check the key before anything is signed: <key-id> must name exactly the
+# key in the keyring whose full fingerprint it is.
+want=$(printf '%s' "$key" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+got=$(gpg --batch --with-colons --list-secret-keys -- "$want" 2>/dev/null \
+    | awk -F: '$1 == "fpr" { print $10; exit }') || true
+if [ "$got" != "$want" ]; then
+    echo "No secret key with fingerprint '$want' in the keyring (found '$got');" \
+        "pass the key's full fingerprint." >&2
+    exit 1
+fi
 
 pool=pool/main/c/cosmic-ext-nightlight
 dist=dists/stable
@@ -49,7 +61,6 @@ gpg --batch --yes --armor --export "$key" > key.gpg
 # Check that the public key users download is the one asked for and that it
 # verifies both signatures, so a wrong key or a bad signature fails here
 # instead of on every user's `apt update`.
-want=$(printf '%s' "$key" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
 got=$(gpg --batch --with-colons --import-options show-only --import key.gpg \
     | awk -F: '$1 == "fpr" { print $10; exit }')
 if [ "$got" != "$want" ]; then
