@@ -46,6 +46,22 @@ gpg --batch --yes --local-user "$key" --clearsign -o "$dist/InRelease" "$dist/Re
 gpg --batch --yes --local-user "$key" --armor --detach-sign -o "$dist/Release.gpg" "$dist/Release"
 gpg --batch --yes --armor --export "$key" > key.gpg
 
+# Check that the public key users download is the one asked for and that it
+# verifies both signatures, so a wrong key or a bad signature fails here
+# instead of on every user's `apt update`.
+want=$(printf '%s' "$key" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+got=$(gpg --batch --with-colons --import-options show-only --import key.gpg \
+    | awk -F: '$1 == "fpr" { print $10; exit }')
+if [ "$got" != "$want" ]; then
+    echo "key.gpg has fingerprint '$got', not '$want' (pass the full fingerprint)." >&2
+    exit 1
+fi
+check=$(mktemp -d)
+trap 'rm -rf "$check"' EXIT
+gpg --batch --dearmor -o "$check/key.gpg" key.gpg
+gpgv --keyring "$check/key.gpg" "$dist/InRelease"
+gpgv --keyring "$check/key.gpg" "$dist/Release.gpg" "$dist/Release"
+
 # Serve the files as they are, without GitHub Pages' Jekyll processing.
 touch .nojekyll
 echo "Repository in $site rebuilt and signed with $key."

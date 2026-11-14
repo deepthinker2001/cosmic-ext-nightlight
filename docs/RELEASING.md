@@ -35,7 +35,10 @@ or a write token:
 - `apt` holds the signing key. It takes the `.deb` from the build job's
   artifact (not from the release, which could have been changed), checks it
   against the build's hash, adds it to the apt repository on the `gh-pages` branch with
-  `scripts/publish-apt.sh`, signs the repository and pushes the branch.
+  `scripts/publish-apt.sh`, signs the repository, checks that the exported
+  `key.gpg` has the fingerprint in `APT_SIGNING_KEY_ID` and verifies both
+  signatures with it (`gpgv`), and pushes the branch. A failed check stops
+  the job before anything is pushed.
   GitHub Pages serves the branch at
   `https://deepthinker2001.github.io/cosmic-ext-nightlight`.
 
@@ -68,7 +71,10 @@ rerun the workflow for the latest tag), or apt will refuse the repository.
 
 Create a GitHub environment named `release` (Settings → Environments), add a
 required reviewer, and limit its deployment branches and tags to `v*` tags
-and `main` (`main` so a manual rerun from the Actions tab can run). Put the
+and `main` (`main` so a manual rerun from the Actions tab can run). Add `v*`
+as a rule of type **Tag**, not Branch: with only a branch rule, GitHub
+rejects the `apt` job of a release ("Tag ... is not allowed to deploy to
+release due to environment protection rules"), as it did for v0.1.0. Put the
 key in that environment, not in repository secrets, which every workflow run
 can read:
 
@@ -113,7 +119,11 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
 1. Make sure CI is green on `main`.
 2. Set `version` in `Cargo.toml` (for example `0.2.0`) and commit the
    updated `Cargo.lock` (CI builds with `--locked`). A version is never
-   reused: apt caches packages by version, so a fix is a new version.
+   reused: apt caches packages by version, so a fix is a new version. Tags
+   that already exist are spent too, even if their release failed (`v0.1.1`
+   is: its build stopped at the version check).
+   In the same commit, rename the `Unreleased` heading in `CHANGELOG.md` to
+   the version and date, and add an empty `Unreleased` above it.
 3. Publish a GitHub release whose tag is `v` plus that version:
    `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
    (or Releases → Draft a new release on GitHub). Don't attach a `.deb`

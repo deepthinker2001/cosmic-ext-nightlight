@@ -1,0 +1,152 @@
+diff --git a/.gitignore b/.gitignore
+index e1562b3..daf5127 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -9,4 +9,9 @@ Thumbs.db
+ .env
+ .env.*
+ !.env.example
++# Never commit a signing key (docs/RELEASING.md keeps it in a GitHub
++# environment secret only).
++private-key*
++*.key
++*.asc
+ target
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..5157ea9
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,53 @@
++# Changelog
++
++What changed in each release, for users. Maintainers: see
++[docs/RELEASING.md](docs/RELEASING.md) for how to cut one.
++
++## Unreleased
++
++Everything since 0.1.0. The `v0.1.1` tag points into this work, but its
++release build failed and published no package, so these changes ship in the
++next version.
++
++### Added
++
++- Settings popup: right-click the panel button to open it (right-click
++  again to close it). It has the same on/off switch as a left click.
++- Colour temperature slider in the popup, from 1900 K to 6500 K in steps of
++  100 K (default 3500 K). The change applies at once while night light is
++  on.
++- Custom schedule: night light turns on at a start time and off at an end
++  time you pick (defaults 21:00 and 07:00; the window may cross midnight).
++  A failed switch is retried on the next check, 20 seconds later.
++- Auto (sunrise/sunset): the screen warms smoothly over the hour around
++  sunset and cools over the hour around sunrise. Sunrise and sunset are
++  calculated on your computer from your system timezone's location, or from
++  a latitude and longitude you type in. There is no network access. Auto and
++  the custom schedule exclude each other.
++- All settings are saved and restored with the on/off state.
++
++### Changed
++
++- Described as a "panel applet for COSMIC" (package description included),
++  in place of "COSMIC panel applet".
++- README: documents the settings, and lists what hasn't been checked on a
++  live COSMIC session.
++
++### Packaging
++
++- `scripts/publish-apt.sh` now checks that the published `key.gpg` has the
++  expected fingerprint and verifies the repository's signatures with it
++  before the repository is pushed.
++
++## 0.1.0 - 2026-11-13
++
++First release.
++
++- Panel button that turns night light on or off with one click, at a fixed
++  warm tint of about 3500 K.
++- Sets the screen gamma directly through the Wayland `wlr-gamma-control`
++  protocol; no other daemon is needed.
++- Remembers the on/off state between starts.
++- `.deb` package, attached to the GitHub release. The signed apt repository
++  was not published: the release's signing job was rejected by the GitHub
++  environment's protection rules.
+diff --git a/README.md b/README.md
+index 6df8883..563b037 100644
+--- a/README.md
++++ b/README.md
+@@ -174,4 +174,6 @@ If it does not appear, log out and back in so the panel reloads its applet list.
+ 
+ GPL-3.0-only.
+ 
++What changed in each version: [CHANGELOG.md](CHANGELOG.md).
++
+ Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for packaging and releases.
+diff --git a/docs/RELEASING.md b/docs/RELEASING.md
+index 3ef95d2..45d9287 100644
+--- a/docs/RELEASING.md
++++ b/docs/RELEASING.md
+@@ -35,7 +35,10 @@ or a write token:
+ - `apt` holds the signing key. It takes the `.deb` from the build job's
+   artifact (not from the release, which could have been changed), checks it
+   against the build's hash, adds it to the apt repository on the `gh-pages` branch with
+-  `scripts/publish-apt.sh`, signs the repository and pushes the branch.
++  `scripts/publish-apt.sh`, signs the repository, checks that the exported
++  `key.gpg` has the fingerprint in `APT_SIGNING_KEY_ID` and verifies both
++  signatures with it (`gpgv`), and pushes the branch. A failed check stops
++  the job before anything is pushed.
+   GitHub Pages serves the branch at
+   `https://deepthinker2001.github.io/cosmic-ext-nightlight`.
+ 
+@@ -68,7 +71,10 @@ rerun the workflow for the latest tag), or apt will refuse the repository.
+ 
+ Create a GitHub environment named `release` (Settings → Environments), add a
+ required reviewer, and limit its deployment branches and tags to `v*` tags
+-and `main` (`main` so a manual rerun from the Actions tab can run). Put the
++and `main` (`main` so a manual rerun from the Actions tab can run). Add `v*`
++as a rule of type **Tag**, not Branch: with only a branch rule, GitHub
++rejects the `apt` job of a release ("Tag ... is not allowed to deploy to
++release due to environment protection rules"), as it did for v0.1.0. Put the
+ key in that environment, not in repository secrets, which every workflow run
+ can read:
+ 
+@@ -113,7 +119,11 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
+ 1. Make sure CI is green on `main`.
+ 2. Set `version` in `Cargo.toml` (for example `0.2.0`) and commit the
+    updated `Cargo.lock` (CI builds with `--locked`). A version is never
+-   reused: apt caches packages by version, so a fix is a new version.
++   reused: apt caches packages by version, so a fix is a new version. Tags
++   that already exist are spent too, even if their release failed (`v0.1.1`
++   is: its build stopped at the version check).
++   In the same commit, rename the `Unreleased` heading in `CHANGELOG.md` to
++   the version and date, and add an empty `Unreleased` above it.
+ 3. Publish a GitHub release whose tag is `v` plus that version:
+    `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
+    (or Releases → Draft a new release on GitHub). Don't attach a `.deb`
+diff --git a/scripts/publish-apt.sh b/scripts/publish-apt.sh
+index d9b3d15..1f04980 100755
+--- a/scripts/publish-apt.sh
++++ b/scripts/publish-apt.sh
+@@ -46,6 +46,22 @@ gpg --batch --yes --local-user "$key" --clearsign -o "$dist/InRelease" "$dist/Re
+ gpg --batch --yes --local-user "$key" --armor --detach-sign -o "$dist/Release.gpg" "$dist/Release"
+ gpg --batch --yes --armor --export "$key" > key.gpg
+ 
++# Check that the public key users download is the one asked for and that it
++# verifies both signatures, so a wrong key or a bad signature fails here
++# instead of on every user's `apt update`.
++want=$(printf '%s' "$key" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
++got=$(gpg --batch --with-colons --import-options show-only --import key.gpg \
++    | awk -F: '$1 == "fpr" { print $10; exit }')
++if [ "$got" != "$want" ]; then
++    echo "key.gpg has fingerprint '$got', not '$want' (pass the full fingerprint)." >&2
++    exit 1
++fi
++check=$(mktemp -d)
++trap 'rm -rf "$check"' EXIT
++gpg --batch --dearmor -o "$check/key.gpg" key.gpg
++gpgv --keyring "$check/key.gpg" "$dist/InRelease"
++gpgv --keyring "$check/key.gpg" "$dist/Release.gpg" "$dist/Release"
++
+ # Serve the files as they are, without GitHub Pages' Jekyll processing.
+ touch .nojekyll
+ echo "Repository in $site rebuilt and signed with $key."

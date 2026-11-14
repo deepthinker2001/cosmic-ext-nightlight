@@ -174,4 +174,6 @@ If it does not appear, log out and back in so the panel reloads its applet list.
 
 GPL-3.0-only.
 
+What changed in each version: [CHANGELOG.md](CHANGELOG.md).
+
 Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for packaging and releases.
