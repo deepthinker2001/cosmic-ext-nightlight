@@ -1,6 +1,6 @@
 # Work on issue FV-CK2Y04: Audit: what the reviews of Engineer 1's work on…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-ck2y04-audit-what-the-reviews-of-engineer-1-s-w` · FV-CK2Y04: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Release)
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-ck2y04-audit-what-the-reviews-of-engineer-1-s-w` · FV-CK2Y04: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Release)
 
 0 tokens in, 0 out
 
@@ -41,21 +41,46 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `docs/RELEASING.md` | modified | +9 −1 |  |
+| `docs/RELEASING.md` | modified | +9 −1 | Require the trusted signing key's primary fingerprint and release environment variable to match the published README fingerprint before releasing; stop on mismatch. |
+
+### Decisions
+
+- **Retain the existing README fingerprint and verification flow.**: A merged session records the user's explicit fingerprint; both current README occurrences match it, so the deferred placeholder finding is stale. Turned down: Generate a new signing key or ask the user for the already-recorded fingerprint..
+- **Add the fingerprint comparison before merging a version bump.**: The current workflow releases from main automatically; a check before pushing a tag would be too late. This addresses the release-specific timing of the trust check. Turned down: Only report that the placeholder was already removed.; Change the fingerprint based on a downloaded key..
 
 ## Tested
 
+- `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 - `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - Fingerprint audit checks pass; cargo test: 47 passed, 0 failed, 1 ignored; fmt and clippy clean. Preparing the focused release-checklist commit.
+- FV-CK2Y04 audited and committed as a7895b8fc3: README already has the user-provided fingerprint; release checklist now requires checking trusted key and environment variable before release. Live key/environment not accessed.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`chatgpt:gpt-6-luna`): The added maintainer release checklist addresses the unresolved fingerprint audit item and uses the same fingerprint already published in the README. It is limited to the requested documentation change; formatting, clippy, and tests pass.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Docs-only change to docs/RELEASING.md. The README already holds the real fingerprint, and the one added in RELEASING.md matches it (spaces removed). The anchor #with-apt-recommended exists and APT_SIGNING_KEY_ID is the variable the workflow reads. No code changed, so I didn't run the tests or build, and the smell scan found nothing.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The change only touches docs: it adds a check to step 1 of docs/RELEASING.md that the signing key's full fingerprint and the `release` environment's APT_SIGNING_KEY_ID both match the published fingerprint. That fingerprint matches README.md lines 107 and 145, the #with-apt-recommended anchor resolves, and no placeholder is left anywhere in the tree. It also tells the maintainer not to replace the documented fingerprint to match a downloaded key, which is the right way round. The change has no secrets, no code and no workflow edits, and the commit message keeps C4. cargo test --locked: 47 passed, 1 ignored.
 
 ## Summary
 
-The placeholder was already replaced in a merged change with the fingerprint you supplied: `0472CEF01CE0E79EC118662D34A06EB979E58584`. Both README verification paths use it.
+Committed as `a7895b8fc3` — **Document signing-key fingerprint check before release**.
 
-I’ll leave those steps intact and add a maintainer pre-release check that the signing key and GitHub fingerprint variable match the README. I haven’t verified the live key or GitHub settings.
+The README placeholder was already resolved in a merged change. Both verification paths contain the maintainer-provided fingerprint:
+`0472CEF01CE0E79EC118662D34A06EB979E58584`.
+
+I updated `docs/RELEASING.md` to require checking the trusted signing key and `APT_SIGNING_KEY_ID` against that fingerprint **before merging the version change**, since releases now start automatically from `main`.
+
+Validation:
+- Tests: **47 passed, 0 failed, 1 ignored**
+- Formatting and Clippy: clean
+- Documentation consistency and diff checks: passed
+
+I did not access the live signing key or GitHub environment, and did not publish a release.
 
 ## Contract
 
@@ -66,4 +91,4 @@ The clauses this work was bound by:
 
 ---
 
-From `376bbf9531` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `376bbf9531` to `a7895b8fc3`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
