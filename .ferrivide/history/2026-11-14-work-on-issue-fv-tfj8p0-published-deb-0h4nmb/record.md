@@ -1,8 +1,8 @@
 # Work on issue FV-TFJ8P0: Published .deb needs libc6 >= 2.43, so it won't…
 
-**In progress** 2026-11-14 · Engineer 2 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-tfj8p0-published-deb-needs-libc6-2-43-so-it-won` · FV-TFJ8P0: Published .deb needs libc6 >= 2.43, so it won't install on Ubuntu 24.04
+**Merged** 2026-11-14 · Engineer 2 (project agent) · `claude-opus-5-5` · branch `fv-tfj8p0-published-deb-needs-libc6-2-43-so-it-won` · FV-TFJ8P0: Published .deb needs libc6 >= 2.43, so it won't install on Ubuntu 24.04
 
-0 tokens in, 0 out
+About $0.00, 0 tokens in, 0 out
 
 ## Asked
 
@@ -69,22 +69,60 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `.github/workflows/ci.yml` | modified | +6 −1 |  |
-| `.github/workflows/release.yml` | modified | +7 −1 |  |
-| `CHANGELOG.md` | modified | +10 −0 |  |
-| `Cargo.lock` | modified | +1 −1 |  |
-| `Cargo.toml` | modified | +1 −1 |  |
-| `docs/RELEASING.md` | modified | +14 −0 |  |
-| `scripts/check-deb-libc.py` | added | +36 −0 |  |
-| `scripts/test-check-deb-libc.py` | added | +64 −0 |  |
+| `.github/workflows/ci.yml` | modified | +6 −1 | Runs on ubuntu-24.04 so a build-host problem shows before a release; also runs the guard's tests. |
+| `.github/workflows/release.yml` | modified | +7 −1 | The build job runs on ubuntu-24.04 (with a comment saying why) and checks the libc6 floor after cargo deb; attach and apt are unchanged. |
+| `CHANGELOG.md` | modified | +10 −0 | 0.2.1 entry describing the libc6 fix. |
+| `Cargo.lock` | modified | +1 −1 | Matches the 0.2.1 bump; only this package's entry changed. |
+| `Cargo.toml` | modified | +1 −1 | Version 0.2.1, so a fixed package can be published. |
+| `docs/RELEASING.md` | modified | +14 −0 | Explains that releases are built on the oldest supported distro (Ubuntu 24.04), and why. |
+| `scripts/check-deb-libc.py` | added | +36 −0 | Fails if the .deb's libc6 floor is above 2.39, or if the libc6 dependency is missing or in an unexpected form. |
+| `scripts/test-check-deb-libc.py` | added | +64 −0 | Tests the guard against sample .deb files built with dpkg-deb. |
+
+### Decisions
+
+- **Put the check in a script (scripts/check-deb-libc.py) rather than inline shell in the workflow**: Lets CI test it against real sample packages, and it compares versions with dpkg --compare-versions, which orders Debian versions correctly (2.39.1 > 2.39). Turned down: Inline grep/sort -V in release.yml: can't be tested and is easy to get subtly wrong.
+- **Fail when the libc6 dependency is missing, doubled or in an unexpected form, not only when it is too new**: If cargo-deb's output ever changes, a guard that ignored unexpected input would let a bad package through unnoticed, which is the failure this change exists to prevent.
+- **Keep the apt build-dependency list unchanged**: Each of the existing packages has a package in Ubuntu noble's main or universe archive (checked with apt-cache on a noble system).
+- **Bump to 0.2.1 (patch)**: Fixes packaging only, with no change to the applet; apt caches packages by version, so 0.2.0 can't be replaced.
 
 ## Tested
 
-No test runs were reported.
+- `cargo test --locked; python3 -I scripts/test-check-deb-libc.py; cargo deb --locked + check-deb-libc.py`: 50 passed, 0 failed, 1 skipped
+
+Progress reports:
+
+- FV-TFJ8P0 done (46b1a60bed): CI and the release build run on ubuntu-24.04, a libc6 guard runs after cargo deb, version is 0.2.1. A real .deb built on 24.04 needs libc6 >= 2.39 and passes the guard. Nothing released.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The change does what the task asked. Release and CI both run on ubuntu-24.04, a libc6 floor check runs after the .deb is built, RELEASING.md is updated, and the version is bumped to 0.2.1 in Cargo.toml and Cargo.lock with a CHANGELOG entry. I ran the guard's Python tests and they pass. I did not run the cargo build or tests, and I did not review the apt package list against 24.04.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Release build and CI now run on ubuntu-24.04, a post-`cargo deb` guard fails the job if the libc6 floor is above 2.39, RELEASING.md and the 0.2.1 bump (Cargo.toml, Cargo.lock, CHANGELOG) are in. The guard's tests pass locally. I did not run the Rust build or clippy, and I did not check the apt package list against 24.04.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The change moves the release build job and CI to ubuntu-24.04 and adds a libc6 floor check after cargo deb. The check runs only in the build job, which has no secrets and a read-only token, so no trust boundary or privilege changes. The script fails closed on a missing, duplicate or oddly formed libc6 dependency, on a bad version, and on a missing or ambiguous .deb glob. It passes paths and versions to dpkg as argv lists, with no shell. Python guard tests (3), cargo test (47 passed, 1 ignored), fmt and clippy all pass here. Cargo.lock changes only the package version.
 
 ## Summary
 
-The real package built on 24.04 asks for `libc6 (>= 2.39)` and the guard accepts it, which confirms the fix end to end. Committing:
+I'd stalled because the project manager's 8:00 message said "commit now and stop", and I ended my turn without replying. That message was also wrong: I hadn't run the checks yet, and the docs, version bump and changelog weren't done. The work is now finished and committed as `46b1a60bed`.
+
+**Why it broke:** `cargo-deb` sets the `libc6 (>= …)` dependency from the glibc of the machine that builds the package. `ubuntu-latest` is now newer than 24.04, so the 0.2.0 package asked for `libc6 (>= 2.43)` and apt refused it on 24.04, which has glibc 2.39.
+
+**What changed:**
+- **Build machine:** the release `build` job and CI both run on `ubuntu-24.04`, each with a comment saying why. The `attach` and `apt` release jobs are unchanged.
+- **Build dependencies:** every apt package the workflows install exists on Ubuntu 24.04, so the list stays as it is.
+- **New check:** after `cargo deb`, a new step runs `scripts/check-deb-libc.py`, which fails the release if the package asks for a libc6 newer than 2.39. It also fails if the libc6 dependency is missing or in an unexpected form, so a change in `cargo-deb`'s output can't slip a bad package through. CI tests the check against sample packages.
+- **Docs:** `docs/RELEASING.md` now says releases are built on the oldest supported Ubuntu (24.04), and why.
+- **Version:** bumped to 0.2.1 in `Cargo.toml` and `Cargo.lock`, with a `CHANGELOG.md` entry.
+
+**Checks:**
+- `cargo fmt` and `clippy` are clean.
+- `cargo test`: 47 passed, 1 ignored.
+- The new check's own tests (3) pass.
+- Both workflow files still parse.
+- I built the real 0.2.1 package on this 24.04 machine. It asks for `libc6 (>= 2.39)` and passes the new check.
+- Nothing has run on GitHub yet.
+
+**For you:** the published 0.2.0 package has the wrong dependency and can't be fixed in place, because apt caches packages by version. Merging this and pushing `main` releases 0.2.1 through the existing workflow, which is the version that installs on 24.04. I haven't released or pushed anything.
 
 ## Contract
 
@@ -95,4 +133,4 @@ The clauses this work was bound by:
 
 ---
 
-From `6db778d492` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `6db778d492` to `46b1a60bed`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
