@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "id": "agent-c2thyh",
+  "title": "Work on issue FV-RPDW68: Build a .deb package",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-rpdw68-build-a-deb-package",
+  "base_commit": "806260f1f13d72107f05be2faef6e4e9f01fa3d1",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-RPDW68",
+    "title": "Build a .deb package"
+  },
+  "started": 1794625228,
+  "finished": 1794625325,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-RPDW68: Build a .deb package\n\nAdd .deb packaging (cargo-deb or a justfile target) installing the applet binary, desktop file and icon. Pure build config, no code changes. Dependencies must be right for COSMIC. Document how to build it locally.\n\nLabels: Release"
+  ],
+  "files": [
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 16,
+      "removed": 0
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 13,
+      "removed": 0
+    },
+    {
+      "path": "justfile",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    }
+  ],
+  "summary": ""
+}

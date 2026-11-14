@@ -13,6 +13,9 @@ build:
 check:
     cargo clippy --locked --all-targets
 
+deb:
+    cargo deb --locked
+
 clean:
     cargo clean
 

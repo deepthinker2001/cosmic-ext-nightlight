@@ -43,6 +43,19 @@ To remove it: `sudo just uninstall`.
 
 Other recipes: `just check` runs clippy, `just clean` removes build output.
 
+## Build a .deb package
+
+Install `cargo-deb` once (`cargo install cargo-deb`), then:
+
+```sh
+just deb                # cargo deb --locked; builds the release binary too
+sudo apt install ./target/debian/cosmic-ext-nightlight_*.deb
+```
+
+The package installs the same files as `just install` and depends on the
+shared libraries the binary links (detected automatically), plus `cosmic-panel`
+and `cosmic-comp`. Remove it with `sudo apt remove cosmic-ext-nightlight`.
+
 ## Add it to the panel
 
 Open COSMIC Settings, go to the panel (or dock) settings, and use its applet

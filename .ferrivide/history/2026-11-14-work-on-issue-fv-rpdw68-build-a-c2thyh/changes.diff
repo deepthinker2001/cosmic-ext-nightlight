@@ -1,0 +1,64 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index f9f3603..815b80f 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -11,5 +11,21 @@ wayland-client = "0.31"
+ wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+ rustix = { version = "1", features = ["fs"] }
+ 
++[package.metadata.deb]
++name = "cosmic-ext-nightlight"
++maintainer = "cosmic-ext-nightlight contributors"
++section = "x11"
++priority = "optional"
++extended-description = "A COSMIC panel applet that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
++# $auto adds the shared libraries the binary links (libc, libwayland-client, ...).
++# cosmic-panel is what hosts the applet; cosmic-comp provides the gamma protocol.
++depends = "$auto, cosmic-panel, cosmic-comp"
++assets = [
++    ["target/release/cosmic-ext-nightlight", "usr/bin/", "755"],
++    ["data/io.github.cosmic_ext.Nightlight.desktop", "usr/share/applications/", "644"],
++    ["data/icons/io.github.cosmic_ext.Nightlight-on-symbolic.svg", "usr/share/icons/hicolor/scalable/status/", "644"],
++    ["data/icons/io.github.cosmic_ext.Nightlight-off-symbolic.svg", "usr/share/icons/hicolor/scalable/status/", "644"],
++]
++
+ [profile.release]
+ lto = "thin"
+diff --git a/README.md b/README.md
+index c1797a4..90b0e88 100644
+--- a/README.md
++++ b/README.md
+@@ -43,6 +43,19 @@ To remove it: `sudo just uninstall`.
+ 
+ Other recipes: `just check` runs clippy, `just clean` removes build output.
+ 
++## Build a .deb package
++
++Install `cargo-deb` once (`cargo install cargo-deb`), then:
++
++```sh
++just deb                # cargo deb --locked; builds the release binary too
++sudo apt install ./target/debian/cosmic-ext-nightlight_*.deb
++```
++
++The package installs the same files as `just install` and depends on the
++shared libraries the binary links (detected automatically), plus `cosmic-panel`
++and `cosmic-comp`. Remove it with `sudo apt remove cosmic-ext-nightlight`.
++
+ ## Add it to the panel
+ 
+ Open COSMIC Settings, go to the panel (or dock) settings, and use its applet
+diff --git a/justfile b/justfile
+index a8e3033..cf517e8 100644
+--- a/justfile
++++ b/justfile
+@@ -13,6 +13,9 @@ build:
+ check:
+     cargo clippy --locked --all-targets
+ 
++deb:
++    cargo deb --locked
++
+ clean:
+     cargo clean
+ 
