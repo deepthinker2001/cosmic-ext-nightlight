@@ -5,6 +5,10 @@ What changed in each release, for users. Maintainers: see
 
 ## Unreleased
 
+- Apt setup instructions now specify `arch=amd64` to avoid the harmless
+  missing-i386 notice on multiarch systems; the README explains how existing
+  users can update their sources line.
+
 ## 0.2.1 - 2026-11-14
 
 ### Packaging

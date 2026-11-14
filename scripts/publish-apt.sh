@@ -107,7 +107,7 @@ gpg --show-keys --with-fingerprint "$key"
       terminal, so <code>$key</code> is still set):</p>
     <pre><code>sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg "$key"
 rm "$key"
-echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
   | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
 sudo apt update
 sudo apt install cosmic-ext-nightlight

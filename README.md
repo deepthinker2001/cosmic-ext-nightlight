@@ -113,7 +113,7 @@ add the repository (in the same terminal, so `$key` is still set):
 ```sh
 sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg "$key"
 rm "$key"
-echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
   | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
 sudo apt update
 sudo apt install cosmic-ext-nightlight
@@ -123,6 +123,11 @@ Then [add it to the panel](#add-it-to-the-panel).
 
 To update to a new version: `sudo apt update && sudo apt upgrade`, or just
 install your system updates as usual.
+
+Already added the repository? To remove apt's harmless notice about missing
+`i386` packages, edit `/etc/apt/sources.list.d/cosmic-ext-nightlight.list`
+with administrator privileges and add `arch=amd64` before `signed-by` inside
+the brackets, as above. The repository provides amd64 packages only.
 
 Remove it with `sudo apt remove cosmic-ext-nightlight`. To also stop trusting
 the repository, delete `/etc/apt/sources.list.d/cosmic-ext-nightlight.list`

@@ -1,0 +1,53 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index f32b013..88c96cb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,10 @@ What changed in each release, for users. Maintainers: see
+ 
+ ## Unreleased
+ 
++- Apt setup instructions now specify `arch=amd64` to avoid the harmless
++  missing-i386 notice on multiarch systems; the README explains how existing
++  users can update their sources line.
++
+ ## 0.2.1 - 2026-11-14
+ 
+ ### Packaging
+diff --git a/README.md b/README.md
+index 4e08531..68d9149 100644
+--- a/README.md
++++ b/README.md
+@@ -113,7 +113,7 @@ add the repository (in the same terminal, so `$key` is still set):
+ ```sh
+ sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg "$key"
+ rm "$key"
+-echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
++echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
+   | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
+ sudo apt update
+ sudo apt install cosmic-ext-nightlight
+@@ -124,6 +124,11 @@ Then [add it to the panel](#add-it-to-the-panel).
+ To update to a new version: `sudo apt update && sudo apt upgrade`, or just
+ install your system updates as usual.
+ 
++Already added the repository? To remove apt's harmless notice about missing
++`i386` packages, edit `/etc/apt/sources.list.d/cosmic-ext-nightlight.list`
++with administrator privileges and add `arch=amd64` before `signed-by` inside
++the brackets, as above. The repository provides amd64 packages only.
++
+ Remove it with `sudo apt remove cosmic-ext-nightlight`. To also stop trusting
+ the repository, delete `/etc/apt/sources.list.d/cosmic-ext-nightlight.list`
+ and `/usr/share/keyrings/cosmic-ext-nightlight.gpg`.
+diff --git a/scripts/publish-apt.sh b/scripts/publish-apt.sh
+index 6d675f3..077f722 100755
+--- a/scripts/publish-apt.sh
++++ b/scripts/publish-apt.sh
+@@ -107,7 +107,7 @@ gpg --show-keys --with-fingerprint "$key"
+       terminal, so <code>$key</code> is still set):</p>
+     <pre><code>sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg "$key"
+ rm "$key"
+-echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
++echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
+   | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
+ sudo apt update
+ sudo apt install cosmic-ext-nightlight
