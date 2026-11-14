@@ -13,7 +13,10 @@
   },
   "branch": "fv-ska1wx-audit-what-the-reviews-of-engineer-2-s-w",
   "base_commit": "626aa5bb40791d4732b64147ca66a48b98e45e93",
-  "head_commit": "",
+  "head_commit": "a242028de6f3e978c53ffc0b25f3f817f1cac162",
+  "commits": [
+    "a242028de6f3e978c53ffc0b25f3f817f1cac162"
+  ],
   "issue": {
     "id": "FV-SKA1WX",
     "title": "Audit: what the reviews of Engineer 2's work on cosmic-ext-nightlight left for later (Applet)"
@@ -26,18 +29,32 @@
     "cost_usd": 0.0
   },
   "requests": [
-    "Work on issue FV-SKA1WX: Audit: what the reviews of Engineer 2's work on cosmic-ext-nightlight left for later (Applet)\n\nFindings that couldn't be resolved in that change (R24), each with why:\n\n- [suggestion] src/main.rs:160: `Settings::load` and `save_enabled` have no test. A small test of the default value would be worthwhile.\n  - Why it's left for later: a suggestion raised in a re-review round, which can't hold the merge\n  - Raised by Sonnet 5.5 on Engineer 2's work on cosmic-ext-nightlight\n\nLabels: audit, Applet"
+    "Work on issue FV-SKA1WX: Audit: what the reviews of Engineer 2's work on cosmic-ext-nightlight left for later (Applet)\n\nFindings that couldn't be resolved in that change (R24), each with why:\n\n- [suggestion] src/main.rs:160: `Settings::load` and `save_enabled` have no test. A small test of the default value would be worthwhile.\n  - Why it's left for later: a suggestion raised in a re-review round, which can't hold the merge\n  - Raised by Sonnet 5.5 on Engineer 2's work on cosmic-ext-nightlight\n\nLabels: audit, Applet",
+    "[Event] Your reviewers approve, with findings to fix in this change before it merges:\n#1 [suggestion] src/main.rs:475: The round-trip assertion sits behind `if Settings::save_enabled(...).is_ok()`, so if saving fails the test still passes after checking only the defaults. The cleanup also runs only if the test gets that far, and it copies cosmic_config's config-path logic by hand (dirs_config_dir), which could drift from the real path. (Quick reviewer (Haiku 5.5))\n   Suggested fix: Either assert that save_enabled succeeds when Config::new succeeds, or accept the skip explicitly and say so in the test's comment. Consider a drop guard for the cleanup, and reuse the library's path function if cosmic_config exposes one.\n#2 [suggestion] src/main.rs:472: The test returns early when Config::new fails and skips the round trip when save fails, so it can pass without checking anything. It also leaves a stray config dir if the first assert fails, because cleanup comes after it. Both are minor. (Sonnet 5.5)\n#3 [should fix] src/main.rs:475: The test calls `Config::new`, which writes into the real user config directory (`~/.config/cosmic/<APP_ID>.test<pid>/v1`). It then deletes that folder with `remove_dir_all`, using a path it rebuilds itself in `dirs_config_dir` (line 486). That rebuilt path doesn't match how cosmic-config resolves the directory. cosmic-config honours `FLATPAK_ID`/`HOST_XDG_CONFIG_HOME`, and its `dirs::config_dir` ignores an empty or relative `XDG_CONFIG_HOME`, while the helper accepts any value. When the two differ, the test leaves a folder in the user's real config, and the delete aims at a path relative to the working directory. If an assertion fails, the cleanup never runs. A later run that gets the same pid then loads the leftover file and fails `load == default` for no real reason. Also, when `Config::new` or `save_enabled` fails, the test returns early or skips its assertion, so it can pass without checking anything. (Cyber reviewer (Opus 5.5))\n   Suggested fix: Use cosmic-config's own isolation instead of the real home. Use `let dir = tempfile::tempdir()?;` (add `tempfile` as a dev-dependency; it's already in Cargo.lock), then `let config = Config::with_custom_path(APP_ID, CONFIG_VERSION, dir.path().to_path_buf()).expect(\"config\");`. The temp folder gets a random name and 0700 permissions and is removed on drop, even after a panic. Delete `dirs_config_dir` and the `remove_dir_all` call. Use `expect` instead of the early `return` and the `if ... is_ok()`, so a failed save makes the test fail.\nFix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. \"Out of scope\" isn't a reason. Your reviewers accept or reject each reason in the next round."
   ],
   "files": [
     {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 1,
+      "removed": 0
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 3,
+      "removed": 0
+    },
+    {
       "path": "src/main.rs",
       "status": "modified",
-      "added": 25,
+      "added": 11,
       "removed": 0
     }
   ],
   "contract": [
-    "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests."
+    "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests.",
+    "C4: Commit messages describe the change itself (what and why) and never name Ferrivide agents such as \"Engineer 1\", \"Merge engineer 1\", or agent branches."
   ],
-  "summary": "Remove the pointless `system` bit."
+  "summary": "Replace lines 472–494."
 }

@@ -470,27 +470,13 @@ mod tests {
 
     #[test]
     fn settings_load_defaults_then_roundtrips_enabled() {
-        // A throwaway app id so the user's real settings are never touched.
-        let id = format!("{APP_ID}.test{}", std::process::id());
-        let Ok(config) = Config::new(&id, CONFIG_VERSION) else {
-            return; // no writable config dir here
-        };
+        // A private temp folder, removed on drop: the user's settings are never touched.
+        let dir = tempfile::tempdir().expect("temp dir");
+        let config = Config::with_custom_path(APP_ID, CONFIG_VERSION, dir.path().to_path_buf())
+            .expect("config in temp dir");
         assert_eq!(Settings::load(&config), Settings::default());
-        if Settings::save_enabled(&config, true).is_ok() {
-            assert!(Settings::load(&config).enabled);
-        }
-        if let Some(base) = dirs_config_dir() {
-            let _ = std::fs::remove_dir_all(base.join(&id));
-        }
-    }
-
-    fn dirs_config_dir() -> Option<std::path::PathBuf> {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
-            })
-            .map(|p| p.join("cosmic"))
+        Settings::save_enabled(&config, true).expect("save enabled");
+        assert!(Settings::load(&config).enabled);
     }
 
     #[test]

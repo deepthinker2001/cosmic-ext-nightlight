@@ -12,6 +12,9 @@ wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 rustix = { version = "1", features = ["fs"] }
 
+[dev-dependencies]
+tempfile = "3"
+
 [package.metadata.deb]
 name = "cosmic-ext-nightlight"
 maintainer = "cosmic-ext-nightlight contributors"
