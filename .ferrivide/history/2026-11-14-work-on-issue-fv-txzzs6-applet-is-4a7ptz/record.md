@@ -21,6 +21,17 @@ About $0.00, 0 tokens in, 0 out
 >
 > Notes from the first attempt (it ran out of budget before committing, so start fresh): the real code is a monolithic src/main.rs (~1190 lines) plus gamma.rs, location.rs, solar.rs; the module names in the issue are stale. Confirmed suspects: Config::new/set done synchronously on the UI thread per slider event and per reply; toggle_request drops input while the worker is busy. Also check gamma.rs: the worker's dispatch/prepare_read/guard.read after an idle 500 ms might block waiting for events and strand later requests. Work in small steps, commit early, and fix the causes first; split out only what you touch (small module for pure input/debounce logic). FV-WS027J edits main.rs right after.
 
+Then:
+
+> [Event] Cyber reviewer (Opus 5.5) asks for changes: The change adds no unsafe code, dependencies, process spawning, file paths taken from input, or secrets. The new saver thread and the latest-wins request state are sound, and a hostile caller can't make either grow without bound, because each kind of setting keeps only its latest value. X-HostWaylandDisplay hands the applet the host compositor's display. That is needed for gamma control and grants nothing an unsandboxed user process couldn't already reach, so I don't count it as a widening. One regression: a failed save now logs the user's custom location to stderr, and from there it reaches the journal. fmt is clean, clippy has no warnings, and 52 tests pass (1 ignored).
+> #1 [must fix] src/saver.rs:97: The error message prints the whole Save with {save:?}. For Save::Location(Some((lat, lon))) that writes the user's exact coordinates to stderr, which cosmic-panel sends to the system journal, where other tools and users in the journal groups can read it. The old code logged only "cannot save location: {e}", without the value. This is a new exposure of private data. (Cyber reviewer (Opus 5.5))
+>    Suggested fix: Log the kind of setting, never its value. For example, add `fn kind(&self) -> &'static str` on Save that returns "state", "temperature", "schedule", "auto setting" or "location", and write `eprintln!("nightlight: cannot save {}: {e}", save.kind());`. If you keep the Debug derive for tests, make sure nothing logs it.
+> Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
+
+> [Event] Your other reviewers' findings, to fix along with the changes asked for:
+> #2 [suggestion] src/saver.rs:1: The saver is a detached thread that writes after 250 ms of quiet. A setting changed within 250 ms of the applet exiting (panel restart, logout) can be lost, because process exit doesn't wait for the thread. Optionally flush on shutdown, or keep the JoinHandle and drop the sender at exit. (Sonnet 5.5)
+> Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
+
 ## Understood
 
 Fix FV-TXZZS6: on a live COSMIC panel the applet feels slow, a left click on the icon does nothing, the popup's night-light toggle can't be clicked, the slider lags and the schedule/auto toggles change late. Find the root causes in src/main.rs and gamma.rs and fix them, with unit tests for any pure logic changed.
@@ -49,19 +60,30 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `CHANGELOG.md` | modified | +7 −0 |  |
-| `data/io.github.cosmic_ext.Nightlight.desktop` | modified | +1 −0 |  |
-| `src/main.rs` | modified | +87 −202 |  |
-| `src/requests.rs` | added | +188 −0 |  |
-| `src/saver.rs` | added | +153 −0 |  |
+| `CHANGELOG.md` | modified | +7 −0 | Unreleased entries for the fixes |
+| `data/io.github.cosmic_ext.Nightlight.desktop` | modified | +1 −0 | X-HostWaylandDisplay=true so cosmic-panel keeps WAYLAND_DISPLAY for the gamma worker's own connection |
+| `src/main.rs` | modified | +87 −202 | Use Requests and Saver; Worker::request takes a Target; Applied carries only the result; icon toggles on press; UI shows the wanted state |
+| `src/requests.rs` | added | +188 −0 | New pure latest-wins request state (wanted/in flight/applied) with unit tests, replacing busy, retune_pending, toggle_request, applied and Retune |
+| `src/saver.rs` | added | +219 −0 | New long-lived settings-saving thread with one Config and a 250 ms quiet-period merge; tests for merge and every write kind |
+
+### Decisions
+
+- **Add X-HostWaylandDisplay=true to the desktop entry instead of changing how gamma.rs connects**: cosmic-panel (wrapper_space.rs) drops WAYLAND_DISPLAY without it, and the X_PRIVILEGED_WAYLAND_SOCKET it offers is a single fd already taken by libcosmic's token handler (applet-token feature), so it can't be shared. Turned down: Reuse X_PRIVILEGED_WAYLAND_SOCKET (already owned by libcosmic); Connect before libcosmic starts and steal WAYLAND_SOCKET (would break the applet's panel surface).
+- **Latest-wins coalescing with one request in flight, instead of dropping input while busy**: A dropped toggle reads as 'can't be clicked'. Coalescing keeps slider retunes at one round trip per reply, never a backlog. Turned down: A queue of every request (lags behind a drag); Debouncing gamma updates on a timer (adds latency to the display change).
+- **Save settings on a background thread after 250 ms of quiet, rather than on slider release only**: Covers every write path (slider, schedule, auto, location typing, replies) with one mechanism, and keeps the UI thread free of fsync. Turned down: Slider on_release saving only (leaves the other writes on the UI thread).
+- **Kept the existing rule: save the enabled flag only on success**: An earlier session decided a failed startup restore must keep the saved flag so the next start retries.
 
 ## Tested
 
-No test runs were reported.
+- `cargo test`: 52 passed, 0 failed, 1 skipped
+
+Progress reports:
+
+- FV-TXZZS6 committed (1cf1c4928d): applet can reach gamma control (X-HostWaylandDisplay), settings saved off the UI thread (22–36 ms → ~0.13 µs per slider step), toggles/slider never dropped while busy, left click on press. 52 tests pass; not verified on a live panel.
 
 ## Summary
 
-Checks pass: fmt is clean, clippy has no warnings, 52 tests pass (1 live probe ignored), and the smell scan finds nothing. Committing.
+I want a test that dropping the `Saver` flushes. The thread currently opens the user's real config, so I'm letting the caller pass in the config, which lets the test use a temp folder.
 
 ## Contract
 
@@ -72,4 +94,4 @@ The clauses this work was bound by:
 
 ---
 
-From `f4a92c2c25` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `f4a92c2c25` to `1cf1c4928d`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.

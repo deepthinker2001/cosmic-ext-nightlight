@@ -31,6 +31,19 @@ pub enum Save {
     Location(Option<location::Coords>),
 }
 
+impl Save {
+    /// The setting's name for messages; never its value.
+    fn kind(&self) -> &'static str {
+        match self {
+            Save::Enabled(_) => "state",
+            Save::Temperature(_) => "temperature",
+            Save::Schedule { .. } => "schedule",
+            Save::Auto(_) => "auto setting",
+            Save::Location(_) => "location",
+        }
+    }
+}
+
 /// Add `save` to the writes waiting, replacing an older value of the same
 /// kind (only the latest is worth writing).
 pub fn merge(pending: &mut Vec<Save>, save: Save) {
@@ -57,24 +70,53 @@ fn write(config: &Config, save: &Save) -> Result<(), cosmic::cosmic_config::Erro
 /// Handle to the saving thread. Dropping it writes what is waiting and
 /// ends the thread.
 pub struct Saver {
-    tx: mpsc::Sender<Save>,
+    /// `None` only while dropping.
+    tx: Option<mpsc::Sender<Save>>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Saver {
+    /// Save to the applet's settings.
     pub fn spawn() -> Self {
+        Self::spawn_with(|| Config::new(crate::APP_ID, crate::CONFIG_VERSION))
+    }
+
+    /// Save to the config `open` returns; it runs on the thread, since
+    /// opening creates the config folder.
+    fn spawn_with<F>(open: F) -> Self
+    where
+        F: FnOnce() -> Result<Config, cosmic::cosmic_config::Error> + Send + 'static,
+    {
         let (tx, rx) = mpsc::channel();
-        thread::spawn(move || run(&rx));
-        Self { tx }
+        let thread = thread::spawn(move || run(open(), &rx));
+        Self {
+            tx: Some(tx),
+            thread: Some(thread),
+        }
     }
 
     /// Queue a setting to save; never blocks.
     pub fn save(&self, save: Save) {
-        let _ = self.tx.send(save);
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(save);
+        }
     }
 }
 
-fn run(rx: &mpsc::Receiver<Save>) {
-    let config = match Config::new(crate::APP_ID, crate::CONFIG_VERSION) {
+impl Drop for Saver {
+    /// Close the channel, so the thread writes what is waiting at once
+    /// (without the quiet period), and wait for it: a change made just
+    /// before the applet exits is not lost.
+    fn drop(&mut self) {
+        drop(self.tx.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn run(config: Result<Config, cosmic::cosmic_config::Error>, rx: &mpsc::Receiver<Save>) {
+    let config = match config {
         Ok(c) => Some(c),
         Err(e) => {
             eprintln!("nightlight: cannot open settings, changes won't be saved: {e}");
@@ -94,7 +136,9 @@ fn run(rx: &mpsc::Receiver<Save>) {
         for save in pending.drain(..) {
             if let Some(c) = &config {
                 if let Err(e) = write(c, &save) {
-                    eprintln!("nightlight: cannot save {save:?}: {e}");
+                    // The kind only: a value (e.g. the location) is private
+                    // and stderr goes to the journal.
+                    eprintln!("nightlight: cannot save {}: {e}", save.kind());
                 }
             }
         }
@@ -118,6 +162,28 @@ mod tests {
         merge(&mut pending, Save::Temperature(3100));
         merge(&mut pending, Save::Enabled(false));
         assert_eq!(pending, vec![Save::Temperature(3100), Save::Enabled(false)]);
+    }
+
+    #[test]
+    fn kind_names_the_setting_without_its_value() {
+        let kind = Save::Location(Some((48.8566, 2.3522))).kind();
+        assert_eq!(kind, "location");
+        assert!(!kind.contains("48"));
+    }
+
+    #[test]
+    fn dropping_the_saver_writes_what_is_waiting() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().to_path_buf();
+        let open = move || Config::with_custom_path(crate::APP_ID, crate::CONFIG_VERSION, path);
+        let saver = Saver::spawn_with(open.clone());
+        saver.save(Save::Temperature(2700));
+        saver.save(Save::Enabled(true));
+        // Dropped at once, well inside the quiet period.
+        drop(saver);
+        let s = Settings::load(&open().expect("config in temp dir"));
+        assert_eq!(s.temperature, 2700);
+        assert!(s.enabled);
     }
 
     #[test]
