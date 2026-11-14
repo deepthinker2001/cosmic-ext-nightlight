@@ -37,7 +37,8 @@ tint) with one click.
 
 Remove it with `sudo apt remove cosmic-ext-nightlight`.
 
-To build from source instead, read on.
+To build from source instead, see
+[Build and install from source](#build-and-install-from-source) below.
 
 ## Verify a download
 

@@ -1,8 +1,8 @@
 diff --git a/README.md b/README.md
-index 7b6877a..0241d8f 100644
+index 7b6877a..2a1ffac 100644
 --- a/README.md
 +++ b/README.md
-@@ -20,72 +20,26 @@ tint) with one click.
+@@ -20,72 +20,27 @@ tint) with one click.
    provides it. If the compositor lacks it, the icon stays off and the error is
    printed to stderr.
  - COSMIC panel (the applet runs inside it).
@@ -28,9 +28,12 @@ index 7b6877a..0241d8f 100644
  4. [Add it to the panel](#add-it-to-the-panel).
  
 -To build from source instead, read on.
--
++Remove it with `sudo apt remove cosmic-ext-nightlight`.
+ 
 -## Build and install
--
++To build from source instead, see
++[Build and install from source](#build-and-install-from-source) below.
+ 
 -```sh
 -just build              # cargo build --release
 -sudo just install       # installs under /usr
@@ -66,8 +69,7 @@ index 7b6877a..0241d8f 100644
 -install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
 -
 -## Signed releases
-+Remove it with `sudo apt remove cosmic-ext-nightlight`.
- 
+-
 -Pushing a tag like `v0.1.0` (it must equal the `version` in `Cargo.toml`) runs
 -`.github/workflows/release.yml`. It builds the `.deb` with `just deb` in a job
 -that has no secrets, signs it in a separate job, and publishes a GitHub Release
@@ -77,14 +79,13 @@ index 7b6877a..0241d8f 100644
 -- `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
 -- `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
 -- `signing-key.asc` (the public key, for convenience only)
-+To build from source instead, read on.
- 
+-
 -### Verify a download
 +## Verify a download
  
  The releases are signed with the key whose full fingerprint is:
  
-@@ -116,68 +70,24 @@ gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nigh
+@@ -116,68 +71,24 @@ gpgv --keyring ./signing-key.gpg cosmic-ext-nightlight_*.deb.asc cosmic-ext-nigh
  The hashes are checked from the verified text, not from the unsigned
  `SHA256SUMS`. If `gpgv` fails, do not use `SHA256SUMS.verified` or the `.deb`.
  
@@ -164,7 +165,7 @@ index 7b6877a..0241d8f 100644
  
  ## Add it to the panel
  
-@@ -190,3 +100,5 @@ If it does not appear, log out and back in so the panel reloads its applet list.
+@@ -190,3 +101,5 @@ If it does not appear, log out and back in so the panel reloads its applet list.
  ## License
  
  GPL-3.0-only.
