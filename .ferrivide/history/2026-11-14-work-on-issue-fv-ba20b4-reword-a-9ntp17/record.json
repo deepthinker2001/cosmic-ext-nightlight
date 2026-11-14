@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "id": "agent-9ntp17",
+  "title": "Work on issue FV-BA20B4: Reword \"a COSMIC panel applet\" (trademark)",
+  "outcome": "merged",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-ba20b4-reword-a-cosmic-panel-applet-trademark",
+  "base_commit": "2cb5cb58cadbe3329a3afc90e66406414e81d0e2",
+  "head_commit": "a44d0408618aaa8d4b76b5db0a4b4bb7d91409e4",
+  "commits": [
+    "a44d0408618aaa8d4b76b5db0a4b4bb7d91409e4"
+  ],
+  "issue": {
+    "id": "FV-BA20B4",
+    "title": "Reword \"a COSMIC panel applet\" (trademark)"
+  },
+  "started": 1794630272,
+  "finished": 1794630436,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-BA20B4: Reword \"a COSMIC panel applet\" (trademark)\n\nCOSMIC is a trademark, so we can't call the project \"a COSMIC panel applet\". Reword it as \"a panel applet for COSMIC\" everywhere it appears in files we ship or show: README.md line 5, Cargo.toml `description` (line 5) and the `[package.metadata.deb]` `extended-description` (line 19). Also check the .desktop file, data/ and docs/ for the same phrase. Keep the other uses that merely name the desktop environment (e.g. \"COSMIC's compositor\"). Don't edit .ferrivide/history. Run the tests.\n\nLabels: Docs"
+  ],
+  "files": [
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 2,
+      "removed": 2
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "The change rewords the three places the task named (README.md line 5, Cargo.toml description and the deb extended-description) as \"a panel applet for COSMIC\" and leaves the other COSMIC mentions (cosmic-comp, COSMIC panel, COSMIC Settings) alone, as asked. The .desktop file, data/, docs/ and scripts/ contain no \"COSMIC panel applet\" phrase; the one in scripts/publish-apt.sh already reads \"a panel applet that toggles\" and needs no change. cargo test passes (9 passed, 1 ignored live probe), and no code or history files changed.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The three required spots are reworded: README line 5, Cargo.toml `description` and the deb `extended-description`. A grep finds no remaining \"COSMIC panel applet\", and the .desktop file, data/ and docs/ needed no change. I did not run the tests or the build, but the diff touches only text and metadata.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The change only rewords text in README.md and Cargo.toml (description, deb extended-description). It touches no code, dependencies, permissions or build logic, so it has no security impact. The phrase appears nowhere else outside .ferrivide/history. cargo test: 9 passed, 1 ignored.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
+  ],
+  "summary": "I reworded \"a COSMIC panel applet\" as \"a panel applet for COSMIC\" in three places and committed it. `cargo test` passes: 9 passed, 1 ignored, 0 failed.\n\n- **`README.md` line 5:** now \"A panel applet for COSMIC that toggles a night light…\".\n- **`Cargo.toml` `description` (line 5):** now \"Panel applet for COSMIC to toggle night light\".\n- **`Cargo.toml` `extended-description` (line 19):** now \"A panel applet for COSMIC that toggles night light…\".\n\nI searched the repo for other uses of the phrase and found none in the `.desktop` file, `data/` or `docs/`. The `.desktop` file's `Comment` reads \"Toggle night light from the panel\", and its `X-CosmicApplet=true` line is a key name, not prose, so I left both. I didn't touch `.ferrivide/history`."
+}
