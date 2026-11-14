@@ -113,9 +113,18 @@ mod tests {
 
     #[test]
     fn parses_degrees_and_minutes() {
-        assert!(close(parse_iso6709("+3114+12128").unwrap(), (31.2333, 121.4667)));
-        assert!(close(parse_iso6709("-3352+15113").unwrap(), (-33.8667, 151.2167)));
-        assert!(close(parse_iso6709("+4903-12307").unwrap(), (49.05, -123.1167)));
+        assert!(close(
+            parse_iso6709("+3114+12128").unwrap(),
+            (31.2333, 121.4667)
+        ));
+        assert!(close(
+            parse_iso6709("-3352+15113").unwrap(),
+            (-33.8667, 151.2167)
+        ));
+        assert!(close(
+            parse_iso6709("+4903-12307").unwrap(),
+            (49.05, -123.1167)
+        ));
     }
 
     #[test]
@@ -128,7 +137,17 @@ mod tests {
 
     #[test]
     fn rejects_garbage() {
-        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128", "é+3114+12128"] {
+        for bad in [
+            "",
+            "+",
+            "+31",
+            "3114+12128",
+            "+3114",
+            "+31x4+12128",
+            "+9914+12128",
+            "+3114+18128",
+            "é+3114+12128",
+        ] {
             assert_eq!(parse_iso6709(bad), None, "{bad}");
         }
     }
@@ -136,8 +155,14 @@ mod tests {
     #[test]
     fn finds_a_zone_in_a_table() {
         let table = "# comment\nFR\t+4852+00220\tEurope/Paris\nDE,DK\t+5230+01322\tEurope/Berlin\tmost of Germany\n";
-        assert!(close(find_zone(table, "Europe/Paris").unwrap(), (48.8667, 2.3333)));
-        assert!(close(find_zone(table, "Europe/Berlin").unwrap(), (52.5, 13.3667)));
+        assert!(close(
+            find_zone(table, "Europe/Paris").unwrap(),
+            (48.8667, 2.3333)
+        ));
+        assert!(close(
+            find_zone(table, "Europe/Berlin").unwrap(),
+            (52.5, 13.3667)
+        ));
         assert_eq!(find_zone(table, "Europe/Nowhere"), None);
     }
 
