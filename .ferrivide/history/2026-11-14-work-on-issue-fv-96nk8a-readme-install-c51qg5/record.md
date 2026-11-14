@@ -1,6 +1,6 @@
 # Work on issue FV-96NK8A: README: install from release, verify signature, badges
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-96nk8a-readme-install-from-release-verify-signa` · FV-96NK8A: README: install from release, verify signature, badges
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-96nk8a-readme-install-from-release-verify-signa` · FV-96NK8A: README: install from release, verify signature, badges
 
 About $0.00, 0 tokens in, 0 out
 
@@ -46,20 +46,24 @@ No test runs were reported.
 Progress reports:
 
 - README updated and committed: CI badge, an install-from-release section, key creation, release steps. The fingerprint placeholder is kept, and the badge still has OWNER/REPO to fill in. I didn't run anything.
+- Fixed #1 and #2 in README.md and committed. #3 and #4 (the badge's OWNER/REPO placeholder) are declined, because the GitHub path isn't known. I didn't run anything.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Round 2 check. #1 (must_fix) is fixed: the signing-key section no longer prints the private key. It now pipes the export straight into `gh secret set ... --env release`, or writes it to a umask-077 file that is shredded afterwards, and it says where gpg saves the revocation certificate. The secrets table points to that section and says never to print the key. #2 is fixed: the Secrets paragraph is reflowed. #3 and #4 are accepted as needing a decision from the user: the GitHub owner/repo isn't known in this checkout, and only the maintainer can supply it. They go to a backlog issue. The rest of the change is unchanged since the last review, and I found nothing new on the changed lines.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Finding #1 is fixed. The private key now goes straight into the secret through `gh`, or into a umask-077 file that is shredded afterwards. The docs also say where gpg saves the revocation certificate, tell maintainers to set a passphrase, and the secrets table was changed to match. The paragraph reflow (#2) is done. I accept the reasons for leaving #3 and #4: the badge's OWNER/REPO needs the maintainer's GitHub path, which only they can supply.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): #1 is fixed. The private key now goes straight from gpg into `gh secret set`, or into a file only the maintainer can read that is then shredded. The revocation certificate's location and the passphrase are now covered, and the secrets table links to that section instead of repeating the command. The paragraph rewrap (#2) is done. I accept the deferrals of #3 and #4: only the user can give the GitHub path. cargo test: 9 passed, 1 ignored.
 
 ## Summary
 
-I updated `README.md` and committed it. I didn't run anything, so the commands and links in it are untested.
+I fixed findings #1 and #2 in `README.md` and committed the change. I didn't run anything, so the commands in the README are still untested.
 
-- **CI badge:** I added it at the top. It uses `OWNER/REPO` placeholders, because the repository has no remote and I didn't want to guess its GitHub path. A comment next to the badge says to replace them.
-- **Install from a release:** There is a new section that says which files to download, to verify the signature first, and then to install with `sudo apt install ./cosmic-ext-nightlight_*.deb`.
-- **Public key:** The verify section now says the public key ships as `signing-key.asc` in each release. It tells readers to compare its fingerprint with the one in the README.
-- **Creating the signing key:** A new maintainer section gives the `gpg` commands. It also covers where to paste the fingerprint, backing up the key, and the two-year expiry.
-- **Cutting a release:** A new numbered list covers the steps, from the checks to tagging, approving the run and checking the result.
-- **Fingerprint placeholder:** I kept it as it was. I also took out the old sentence in the secrets section about putting the fingerprint in the README, since it is now covered elsewhere.
-
-`release.yml` refuses to run while the fingerprint placeholder text is anywhere in the README. So I didn't repeat that exact text in the new sections, or a filled-in README would still fail.
+- **#1, private key printing:** The README now pipes the key straight into the GitHub secret with `gpg --armor --export-secret-keys KEYID | gh secret set GPG_PRIVATE_KEY --env release`. Without `gh`, it writes the key to a file made under `umask 077` and then runs `shred -u` on it. It says never to print the private key. It also says to set a passphrase and gives the revocation certificate's location, `~/.gnupg/openpgp-revocs.d/<FINGERPRINT>.rev`. The secrets table now points to the key-creation section instead of repeating the print command.
+- **#2, line wrap:** I rewrapped the paragraph at the end of the secrets section so the lines fill evenly.
+- **#3 and #4, badge placeholder:** I'm declining both as `needs_user_decision`. The repository has no git remote, so I don't know the GitHub path for the CI badge. The maintainer has to replace `OWNER/REPO` in `README.md` before publishing, and a comment beside the badge says so.
 
 ---
 
-From `9f5fb1a4a5` to `c0d0ebb447`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `9f5fb1a4a5` to `4d1566d716`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
