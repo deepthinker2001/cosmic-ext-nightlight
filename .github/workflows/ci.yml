@@ -16,7 +16,9 @@ env:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # Match the oldest supported release build host so incompatibilities fail
+    # here before packaging; do not follow the moving ubuntu-latest image.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -43,6 +45,9 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Test packaging compatibility guard
+        run: python3 scripts/test-check-deb-libc.py
 
       - name: Test
         run: cargo test --locked
