@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "id": "agent-tjmn8b",
+  "title": "Work on issue FV-4QZ3T4: Auto night light: smooth sunset/sunrise ramp",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-4qz3t4-auto-night-light-smooth-sunset-sunrise-r",
+  "base_commit": "ce6cac97114a075523122b39ef15e6921a8d66aa",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-4QZ3T4",
+    "title": "Auto night light: smooth sunset/sunrise ramp"
+  },
+  "started": 1794631833,
+  "finished": 1794632056,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-4QZ3T4: Auto night light: smooth sunset/sunrise ramp\n\nAdd an \"Auto (sunrise/sunset)\" toggle to the settings popup. Do after FV-568VXF (temperature slider) and FV-FK5E4X (schedule); it builds on both.\n\nLocation: the DEFAULT is the system timezone's coordinates (from /usr/share/zoneinfo/zone1970.tab or zone.tab, read locally, no network). The popup also lets the user override it by entering latitude and longitude; once set, those win, with a way to go back to the timezone default. If neither works, show a note in the popup and leave auto off. No IP lookup, no external services.\n\nBehaviour: compute sunrise and sunset for today from the location (standard solar-position formula; handle polar day/night). Read the user's temperature setting from the slider (the target). Ramp in 1% steps: percent 0 is neutral (6500 K) and 100 is the user's target. Use a sinusoidal ease (sin^2 of the progress, or an equivalent half-cosine curve) over a ramp window before and after each event: evening ramps 0 to 100% around sunset, morning ramps 100 to 0% around sunrise. Make the window length a constant (default 60 min, centred on the event) and say so in the popup. Apply a new step only when the whole percent changes, via a timer, and recompute after resume from sleep. If the user changes the target temperature, the ramp uses the new value at once. The manual toggle still works and holds until the next step. Auto and the custom schedule are mutually exclusive: turning one on turns the other off.\n\nPersist settings with the others. Unit-test the solar times, the ramp curve and the 1% step logic. Gamma still goes only through the Wayland protocol (R2). Document it in the README (FV-J959H4 covers docs: add this to its scope).\n\nLabels: Applet\n\nAlso fix the smell scan finding RS4 at src/main.rs:66: GammaBackend::new is called inside a loop in spawn and does Vec::new (src/gamma.rs:324) each call; hoist or avoid the allocation."
+  ],
+  "understanding": [
+    {
+      "request": "Add an Auto (sunrise/sunset) mode to the settings popup. Location defaults to the system timezone's coordinates from zone.tab or zone1970.tab, and the user can override it with latitude and longitude, with a way back to the default. Sun times come from a solar formula and handle polar day and night. A 1% sin^2 ramp over a 60 min window centred on each event moves the gamma toward the slider's target. A step is applied when the whole percent changes, from the existing 20 s tick, which also catches up after sleep. Auto and the custom schedule are mutually exclusive. Settings persist and the README documents the mode. Also fix the RS4 smell at the GammaBackend::new call in the worker loop.",
+      "assumptions": [
+        "Percent 0 means gamma disabled (neutral)",
+        "Manual toggle in auto mode uses the current ramp temperature"
+      ],
+      "plan": [
+        "Add pure modules src/solar.rs and src/location.rs, with unit tests",
+        "Wire auto state, messages, popup and config keys into main.rs",
+        "Move backend creation out of the worker loop body into a helper",
+        "Update the README and run cargo test"
+      ],
+      "out_of_scope": [
+        "Live panel testing",
+        "IP geolocation"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 29,
+      "removed": 0
+    },
+    {
+      "path": "src/location.rs",
+      "status": "added",
+      "added": 161,
+      "removed": 0
+    },
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 342,
+      "removed": 32
+    },
+    {
+      "path": "src/solar.rs",
+      "status": "added",
+      "added": 216,
+      "removed": 0
+    }
+  ],
+  "summary": "Now Settings."
+}
