@@ -13,7 +13,10 @@
   },
   "branch": "fv-ws027j-popup-remove-the-manual-schedule-add-a-u",
   "base_commit": "a970acc40cfb958292d0f3cd732f557f6785ad66",
-  "head_commit": "",
+  "head_commit": "ffa6566fc83597dae9c84bb16f0415256c5d4523",
+  "commits": [
+    "ffa6566fc83597dae9c84bb16f0415256c5d4523"
+  ],
   "issue": {
     "id": "FV-WS027J",
     "title": "Popup: remove the manual schedule, add a \"use timezone\" toggle that replaces the lat/long entry"
@@ -54,6 +57,18 @@
   ],
   "files": [
     {
+      "path": "CHANGELOG.md",
+      "status": "modified",
+      "added": 8,
+      "removed": 0
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 11,
+      "removed": 16
+    },
+    {
       "path": "src/location.rs",
       "status": "modified",
       "added": 141,
@@ -76,5 +91,5 @@
     "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests.",
     "C4: Commit messages describe the change itself (what and why) and never name Ferrivide agents such as \"Engineer 1\", \"Merge engineer 1\", or agent branches."
   ],
-  "summary": "Clean. Committing the code step, then the docs."
+  "summary": "Only past release notes mention the schedule, and those stay as history. Final fmt, clippy and tests, then the docs commit:"
 }

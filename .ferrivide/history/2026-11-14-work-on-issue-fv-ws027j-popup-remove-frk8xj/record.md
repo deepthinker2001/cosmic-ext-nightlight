@@ -49,6 +49,8 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
+| `CHANGELOG.md` | modified | +8 −0 |  |
+| `README.md` | modified | +11 −16 |  |
 | `src/location.rs` | modified | +141 −4 |  |
 | `src/main.rs` | modified | +228 −457 |  |
 | `src/saver.rs` | modified | +20 −20 |  |
@@ -59,7 +61,7 @@ No test runs were reported.
 
 ## Summary
 
-Clean. Committing the code step, then the docs.
+Only past release notes mention the schedule, and those stay as history. Final fmt, clippy and tests, then the docs commit:
 
 ## Contract
 
@@ -70,4 +72,4 @@ The clauses this work was bound by:
 
 ---
 
-From `a970acc40c` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `a970acc40c` to `ffa6566fc8`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
