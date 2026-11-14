@@ -1,0 +1,33 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 143164b..ae30139 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -233,15 +233,6 @@ jobs:
+             gpgv --keyring "$GNUPGHOME/check.gpg" "$deb.asc" "$deb"
+           done
+ 
+-      - name: Attach the detached signature to the release
+-        env:
+-          GH_TOKEN: ${{ github.token }}
+-          TAG: ${{ needs.build.outputs.tag }}
+-        run: |
+-          for asc in debs/cosmic-ext-nightlight_*.deb.asc; do
+-            gh release upload "$TAG" "$asc" --clobber -R "$GITHUB_REPOSITORY"
+-          done
+-
+       - name: Publish the repository
+         env:
+           GH_TOKEN: ${{ github.token }}
+@@ -259,3 +250,12 @@ jobs:
+           # The token is passed only here, not stored in the checkout.
+           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+           git -c "http.extraheader=AUTHORIZATION: basic $auth" push
++
++      - name: Attach the detached signature to the release
++        env:
++          GH_TOKEN: ${{ github.token }}
++          TAG: ${{ needs.build.outputs.tag }}
++        run: |
++          for asc in debs/cosmic-ext-nightlight_*.deb.asc; do
++            gh release upload "$TAG" "$asc" --clobber -R "$GITHUB_REPOSITORY"
++          done
