@@ -21,15 +21,20 @@ install on.
 
 ## How a release is built
 
-Publishing a GitHub release runs `.github/workflows/release.yml`. It has two
-jobs, so that code from the build never shares a runner with the signing key:
+Publishing a GitHub release runs `.github/workflows/release.yml`. It has three
+jobs, so that code from the build never shares a runner with the signing key
+or a write token:
 
 - `build` checks out the release's tag, checks the tag equals `v` plus the
   `version` in `Cargo.toml`, builds the `.deb` with `just deb` (no cache; `just`
-  and `cargo-deb` at fixed versions) and attaches it and its `.sha256` to the
-  release. It has no secrets.
-- `apt` holds the signing key. It downloads that `.deb`, checks its checksum,
-  adds it to the apt repository on the `gh-pages` branch with
+  and `cargo-deb` at fixed versions) and hands the `.deb` and its hash on. It
+  has no secrets and a read-only token.
+- `attach` holds the write token for the release. It runs no checkout and no
+  cargo: it checks the artifact against the build's hash and attaches the
+  `.deb` and its `.sha256` to the release.
+- `apt` holds the signing key. It takes the `.deb` from the build job's
+  artifact (not from the release, which could have been changed), checks it
+  against the build's hash, adds it to the apt repository on the `gh-pages` branch with
   `scripts/publish-apt.sh`, signs the repository and pushes the branch.
   GitHub Pages serves the branch at
   `https://deepthinker2001.github.io/cosmic-ext-nightlight`.
@@ -95,6 +100,13 @@ git switch main
 
 Then in Settings → Pages, set the source to **Deploy from a branch**, branch
 `gh-pages`, folder `/ (root)`. The first release fills the branch in.
+
+### Protect `main`
+
+The `apt` job runs `scripts/publish-apt.sh` from `main` with the signing key
+loaded, and the reviewer approves a run, not the script's contents. So `main`
+must have branch protection (a ruleset: no direct pushes, pull request reviews
+required), and so should `gh-pages` against pushes by anyone but the workflow.
 
 ## Cut a release
 

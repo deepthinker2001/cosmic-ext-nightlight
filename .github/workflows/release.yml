@@ -3,11 +3,14 @@ name: Release
 # Publishing a GitHub release builds the .deb, attaches it to the release and
 # adds it to the signed apt repository on the gh-pages branch.
 #
-# Two jobs so that no code from the build ever shares a runner with the
-# signing key:
-#   build - compiles dependencies and runs cargo; no secrets; write token only
-#           to attach the .deb to the release; no cache
-#   apt   - holds the signing key; runs no cargo, only gpg and apt-ftparchive
+# Three jobs so that no code from the build ever shares a runner with the
+# signing key or a write token:
+#   build  - runs cargo and dependency build scripts; no secrets, read-only
+#            token, no cache; hands over the .deb as an artifact and its hash
+#   attach - holds the release write token; no checkout, no cargo
+#   apt    - holds the signing key (environment `release`) and the write token
+#            for gh-pages; no cargo; signs the artifact from `build`, not
+#            whatever is on the release
 
 on:
   release:
@@ -35,7 +38,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to attach the .deb to the release
+      contents: read
+    outputs:
+      sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
       # Third-party actions are pinned by commit, not by movable tag.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -74,19 +79,48 @@ jobs:
       - name: Build the .deb
         run: just deb
 
+      - name: Hash the .deb
+        id: hash
+        run: |
+          set -- target/debian/cosmic-ext-nightlight_*.deb
+          [ $# -eq 1 ] || { echo "Expected exactly one .deb." >&2; exit 1; }
+          echo "sha256=$(sha256sum "$1" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deb
+          path: target/debian/*.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  attach:
+    # Runs no cargo and no checkout: only the release's write token.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to attach the .deb to the release
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: deb
+          path: debs
+
       - name: Attach it to the release
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
         run: |
-          cd target/debian
+          cd debs
           for deb in cosmic-ext-nightlight_*.deb; do
+            echo "$SHA256  $deb" | sha256sum -c -
             sha256sum "$deb" > "$deb.sha256"
             gh release upload "$TAG" "$deb" "$deb.sha256" --clobber -R "$GITHUB_REPOSITORY"
           done
 
   apt:
-    # Signs only: downloads the finished .deb and runs gpg and apt-ftparchive.
-    needs: build
+    # Signs only: takes the finished .deb from the build job's artifact and
+    # runs gpg and apt-ftparchive.
+    needs: [build, attach]
     runs-on: ubuntu-latest
     # The signing key and its id live in this environment (required reviewer,
     # limited to v* tags and main), not in repository secrets.
@@ -101,23 +135,28 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      # This one keeps its credentials: the last step pushes with them.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: gh-pages
           path: site
+          persist-credentials: false
 
       - name: Install apt-ftparchive
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
 
-      - name: Download the .deb from the release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: deb
+          path: debs
+
+      - name: Check it is the file the build job hashed
         env:
-          GH_TOKEN: ${{ github.token }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
         run: |
-          mkdir debs
-          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D debs \
-            -p 'cosmic-ext-nightlight_*.deb' -p 'cosmic-ext-nightlight_*.deb.sha256'
-          cd debs && sha256sum -c ./*.sha256
+          cd debs
+          for deb in cosmic-ext-nightlight_*.deb; do
+            echo "$SHA256  $deb" | sha256sum -c -
+          done
 
       - name: Add it to the repository and sign
         env:
@@ -131,6 +170,8 @@ jobs:
           scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
 
       - name: Publish the repository
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cd site
           git config user.name "github-actions[bot]"
@@ -141,4 +182,6 @@ jobs:
             exit 0
           fi
           git commit -m "apt repository: cosmic-ext-nightlight ${TAG#v}"
-          git push
+          # The token is passed only here, not stored in the checkout.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push

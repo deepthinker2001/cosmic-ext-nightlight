@@ -20,13 +20,21 @@ Then:
 > #1 [must fix] .github/workflows/release.yml:87: The `apt` job no longer runs in the `release` environment. The old `sign` job had `environment: release` (required reviewer, deployment limited to v* tags, secret kept as an environment secret), and RELEASING.md used to set that up. Now every published release signs with APT_SIGNING_KEY automatically, with no approval step, and the secret is a repository secret that any workflow in the repo can read. The task asked to keep this project's existing hardening, and dimmer's lack of an environment doesn't make dropping it a deliberate choice here. Fix: add `environment: release` to the `apt` job, keep APT_SIGNING_KEY and APT_SIGNING_KEY_ID as environment secret and variable in RELEASING.md's setup (as before), and state the approval gate in the doc. If the engineer drops the gate on purpose, say why in the change and have the cybersecurity stage review it. (Quick reviewer (Haiku 5.5))
 > Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
 
+> [Event] Cyber reviewer (Opus 5.5) asks for changes: The fix for last round's finding is in: the `apt` job runs in the `release` environment again, and the key is an environment secret. But the `build` job now holds a `contents: write` token while it runs untrusted build code (dependency build scripts, `cargo install`). The old workflow kept that job read-only and used a separate publish job that ran no cargo. With that token, a compromised dependency could push to `main` and change `scripts/publish-apt.sh`, which the approved `apt` job then runs with the signing key loaded. That would expose the key. It could also swap the release's `.deb` before `apt` signs it. No Rust source changed; `sh -n` passes on the script; shellcheck and actionlint aren't installed here.
+> #1 [must fix] .github/workflows/release.yml:38: The `build` job runs `cargo install` and `just deb`, which execute code from every dependency, with `contents: write` on the job token. The old workflow gave this job `contents: read`, and only a publish job that ran no cargo held the write token. The task said to keep that hardening. A malicious build script can read the token from the runner even with persist-credentials false; on GitHub-hosted runners, job tokens can be scraped from Runner.Worker memory, as the tj-actions attack did. With it, the script can do three things. It can push to the default branch, editing `scripts/publish-apt.sh`, which the `apt` job checks out from that branch (line 96) and runs with APT_SIGNING_KEY in GNUPGHOME, so the key can be stolen. The environment approval doesn't help, because the reviewer approves a run, not the script's contents. It can replace the release assets that `apt` downloads and signs; the `.sha256` check proves nothing there, since it comes from the same release. And it can push gh-pages directly. (Cyber reviewer (Opus 5.5))
+>    Suggested fix: Give `build` `permissions: contents: read`. Have it upload `target/debian/*.deb` with a pinned actions/upload-artifact (as the old workflow did) and expose the sha256 as a job output. Add an `attach` job with `needs: build` and `contents: write`, with no checkout and no cargo, that downloads the artifact and runs `sha256sum` and `gh release upload`. Have `apt` take the .deb from the artifact (or check the downloaded asset against the build job's output hash), not from the release alone. Also state in RELEASING.md that `main` must have branch protection (no direct pushes, reviews required), because `apt` runs `main`'s publish script with the key loaded.
+> #2 [should fix] .github/workflows/release.yml:101: The gh-pages checkout keeps its write credentials in `site/.git/config` through the signing step. That step runs `apt-ftparchive` over .deb files downloaded from the release, which the step should treat as untrusted, so the token is exposed for longer than it needs to be. (Cyber reviewer (Opus 5.5))
+>    Suggested fix: Check gh-pages out with `persist-credentials: false`. In the final step, push with the …
+
+(Shortened here; record.json has all of it.)
+
 ## Implemented
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `.github/workflows/release.yml` | modified | +84 −88 |  |
+| `.github/workflows/release.yml` | modified | +111 −72 |  |
 | `README.md` | modified | +27 −32 |  |
-| `docs/RELEASING.md` | modified | +83 −55 |  |
+| `docs/RELEASING.md` | modified | +96 −56 |  |
 | `scripts/publish-apt.sh` | added | +51 −0 |  |
 
 ## Tested
@@ -35,8 +43,8 @@ No test runs were reported.
 
 ## Summary
 
-Also fix the "secret and variable" heading reference if any, then commit.
+Whitespace mismatch on the replacement; fix the doc directly.
 
 ---
 
-From `4b7f92a194` to `011f177694`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `4b7f92a194` to `2215273516`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.

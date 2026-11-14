@@ -1,23 +1,25 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
-index 3a2ddae..5c1cbed 100644
+index 3a2ddae..ed4b539 100644
 --- a/.github/workflows/release.yml
 +++ b/.github/workflows/release.yml
-@@ -1,46 +1,54 @@
+@@ -1,46 +1,59 @@
  name: Release
  
--# Three jobs so that no code from the build ever shares a runner with the
++# Publishing a GitHub release builds the .deb, attaches it to the release and
++# adds it to the signed apt repository on the gh-pages branch.
++#
+ # Three jobs so that no code from the build ever shares a runner with the
 -# signing key, and the write token is held only by the job that publishes:
 -#   build   - runs untrusted build code; no secrets, read-only token, no cache
 -#   sign    - holds the key (environment `release`); runs no cargo, no checkout
 -#   publish - holds the write token; runs nothing but `gh release create`
-+# Publishing a GitHub release builds the .deb, attaches it to the release and
-+# adds it to the signed apt repository on the gh-pages branch.
-+#
-+# Two jobs so that no code from the build ever shares a runner with the
-+# signing key:
-+#   build - compiles dependencies and runs cargo; no secrets; write token only
-+#           to attach the .deb to the release; no cache
-+#   apt   - holds the signing key; runs no cargo, only gpg and apt-ftparchive
++# signing key or a write token:
++#   build  - runs cargo and dependency build scripts; no secrets, read-only
++#            token, no cache; hands over the .deb as an artifact and its hash
++#   attach - holds the release write token; no checkout, no cargo
++#   apt    - holds the signing key (environment `release`) and the write token
++#            for gh-pages; no cargo; signs the artifact from `build`, not
++#            whatever is on the release
  
  on:
 -  push:
@@ -48,8 +50,9 @@ index 3a2ddae..5c1cbed 100644
    build:
      runs-on: ubuntu-latest
      permissions:
--      contents: read
-+      contents: write # to attach the .deb to the release
+       contents: read
++    outputs:
++      sha256: ${{ steps.hash.outputs.sha256 }}
      steps:
 +      # Third-party actions are pinned by commit, not by movable tag.
        - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -79,54 +82,51 @@ index 3a2ddae..5c1cbed 100644
              exit 1
            fi
  
-@@ -66,83 +74,71 @@ jobs:
+@@ -66,6 +79,13 @@ jobs:
        - name: Build the .deb
          run: just deb
  
--      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
--        with:
--          name: deb
--          path: target/debian/*.deb
--          if-no-files-found: error
--          retention-days: 7
-+      - name: Attach it to the release
-+        env:
-+          GH_TOKEN: ${{ github.token }}
++      - name: Hash the .deb
++        id: hash
 +        run: |
-+          cd target/debian
-+          for deb in cosmic-ext-nightlight_*.deb; do
-+            sha256sum "$deb" > "$deb.sha256"
-+            gh release upload "$TAG" "$deb" "$deb.sha256" --clobber -R "$GITHUB_REPOSITORY"
-+          done
++          set -- target/debian/cosmic-ext-nightlight_*.deb
++          [ $# -eq 1 ] || { echo "Expected exactly one .deb." >&2; exit 1; }
++          echo "sha256=$(sha256sum "$1" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
++
+       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+         with:
+           name: deb
+@@ -73,76 +93,95 @@ jobs:
+           if-no-files-found: error
+           retention-days: 7
  
 -  sign:
-+  apt:
-+    # Signs only: downloads the finished .deb and runs gpg and apt-ftparchive.
++  attach:
++    # Runs no cargo and no checkout: only the release's write token.
      needs: build
      runs-on: ubuntu-latest
 -    # The GPG secrets live in this environment (restricted to v* tags, with a
 -    # required reviewer), not in repository secrets.
-+    # The signing key and its id live in this environment (required reviewer,
-+    # limited to v* tags and main), not in repository secrets.
-     environment: release
+-    environment: release
      permissions:
 -      contents: read
-+      contents: write # to push the gh-pages branch
++      contents: write # to attach the .deb to the release
      steps:
--      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-+      # The publishing script from the default branch, which may be newer
-+      # than the release being packaged.
-+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
          with:
--          name: deb
+           name: deb
 -          path: release
--
++          path: debs
+ 
 -      - name: Sign
--        env:
++      - name: Attach it to the release
+         env:
 -          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 -          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 -          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
--        run: |
++          GH_TOKEN: ${{ github.token }}
++          SHA256: ${{ needs.build.outputs.sha256 }}
+         run: |
 -          set -euo pipefail
 -          GPG=/usr/bin/gpg
 -          if [ -z "${GPG_PRIVATE_KEY}" ] || [ -z "${GPG_KEY_ID}" ]; then
@@ -146,54 +146,72 @@ index 3a2ddae..5c1cbed 100644
 -          }
 -          for f in *.deb; do
 -            sign --armor --detach-sign --output "${f}.asc" "${f}"
--          done
++          cd debs
++          for deb in cosmic-ext-nightlight_*.deb; do
++            echo "$SHA256  $deb" | sha256sum -c -
++            sha256sum "$deb" > "$deb.sha256"
++            gh release upload "$TAG" "$deb" "$deb.sha256" --clobber -R "$GITHUB_REPOSITORY"
+           done
 -          sign --clear-sign --output SHA256SUMS.asc SHA256SUMS
 -          "${GPG}" --batch --verify SHA256SUMS.asc
 -          # The public half, for convenience; users must check its fingerprint
 -          # against the one in the README, not trust this copy by itself.
 -          "${GPG}" --batch --armor --export "${GPG_KEY_ID}" > signing-key.asc
-+          ref: ${{ github.event.repository.default_branch }}
-+          persist-credentials: false
  
 -      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-+      # This one keeps its credentials: the last step pushes with them.
-+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-         with:
+-        with:
 -          name: signed
 -          path: release/*
 -          if-no-files-found: error
 -          retention-days: 7
-+          ref: gh-pages
-+          path: site
- 
+-
 -  publish:
 -    needs: sign
--    runs-on: ubuntu-latest
--    permissions:
++  apt:
++    # Signs only: takes the finished .deb from the build job's artifact and
++    # runs gpg and apt-ftparchive.
++    needs: [build, attach]
+     runs-on: ubuntu-latest
++    # The signing key and its id live in this environment (required reviewer,
++    # limited to v* tags and main), not in repository secrets.
++    environment: release
+     permissions:
 -      contents: write
--    steps:
--      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
--        with:
--          name: signed
--          path: release
++      contents: write # to push the gh-pages branch
+     steps:
++      # The publishing script from the default branch, which may be newer
++      # than the release being packaged.
++      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
++        with:
++          ref: ${{ github.event.repository.default_branch }}
++          persist-credentials: false
++
++      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
++        with:
++          ref: gh-pages
++          path: site
++          persist-credentials: false
++
 +      - name: Install apt-ftparchive
 +        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
++
+       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+         with:
+-          name: signed
+-          path: release
++          name: deb
++          path: debs
++
++      - name: Check it is the file the build job hashed
++        env:
++          SHA256: ${{ needs.build.outputs.sha256 }}
++        run: |
++          cd debs
++          for deb in cosmic-ext-nightlight_*.deb; do
++            echo "$SHA256  $deb" | sha256sum -c -
++          done
  
 -      - name: Publish the GitHub Release
-+      - name: Download the .deb from the release
-         env:
-           GH_TOKEN: ${{ github.token }}
--          TAG: ${{ github.ref_name }}
--          REPO: ${{ github.repository }}
-         run: |
--          gh release create "${TAG}" release/* \
--            --repo "${REPO}" \
--            --title "${TAG}" --generate-notes --verify-tag
-+          mkdir debs
-+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D debs \
-+            -p 'cosmic-ext-nightlight_*.deb' -p 'cosmic-ext-nightlight_*.deb.sha256'
-+          cd debs && sha256sum -c ./*.sha256
-+
 +      - name: Add it to the repository and sign
 +        env:
 +          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
@@ -206,7 +224,14 @@ index 3a2ddae..5c1cbed 100644
 +          scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
 +
 +      - name: Publish the repository
-+        run: |
+         env:
+           GH_TOKEN: ${{ github.token }}
+-          TAG: ${{ github.ref_name }}
+-          REPO: ${{ github.repository }}
+         run: |
+-          gh release create "${TAG}" release/* \
+-            --repo "${REPO}" \
+-            --title "${TAG}" --generate-notes --verify-tag
 +          cd site
 +          git config user.name "github-actions[bot]"
 +          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -216,7 +241,9 @@ index 3a2ddae..5c1cbed 100644
 +            exit 0
 +          fi
 +          git commit -m "apt repository: cosmic-ext-nightlight ${TAG#v}"
-+          git push
++          # The token is passed only here, not stored in the checkout.
++          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
++          git -c "http.extraheader=AUTHORIZATION: basic $auth" push
 diff --git a/README.md b/README.md
 index 2a1ffac..3d5f54c 100644
 --- a/README.md
@@ -300,10 +327,10 @@ index 2a1ffac..3d5f54c 100644
  ## Build and install from source
  
 diff --git a/docs/RELEASING.md b/docs/RELEASING.md
-index 67779d1..d83b312 100644
+index 67779d1..3ef95d2 100644
 --- a/docs/RELEASING.md
 +++ b/docs/RELEASING.md
-@@ -21,78 +21,106 @@ install on.
+@@ -21,78 +21,118 @@ install on.
  
  ## How a release is built
  
@@ -311,24 +338,31 @@ index 67779d1..d83b312 100644
 -`.github/workflows/release.yml`. It builds the `.deb` with `just deb` in a job
 -that has no secrets, signs it in a separate job, and publishes a GitHub Release
 -in a third. The release contains:
-+Publishing a GitHub release runs `.github/workflows/release.yml`. It has two
-+jobs, so that code from the build never shares a runner with the signing key:
- 
+-
 -- `cosmic-ext-nightlight_*.deb`
 -- `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
 -- `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
 -- `signing-key.asc` (the public key, for convenience only)
+-
+-## Create the signing key (once)
++Publishing a GitHub release runs `.github/workflows/release.yml`. It has three
++jobs, so that code from the build never shares a runner with the signing key
++or a write token:
++
 +- `build` checks out the release's tag, checks the tag equals `v` plus the
 +  `version` in `Cargo.toml`, builds the `.deb` with `just deb` (no cache; `just`
-+  and `cargo-deb` at fixed versions) and attaches it and its `.sha256` to the
-+  release. It has no secrets.
-+- `apt` holds the signing key. It downloads that `.deb`, checks its checksum,
-+  adds it to the apt repository on the `gh-pages` branch with
++  and `cargo-deb` at fixed versions) and hands the `.deb` and its hash on. It
++  has no secrets and a read-only token.
++- `attach` holds the write token for the release. It runs no checkout and no
++  cargo: it checks the artifact against the build's hash and attaches the
++  `.deb` and its `.sha256` to the release.
++- `apt` holds the signing key. It takes the `.deb` from the build job's
++  artifact (not from the release, which could have been changed), checks it
++  against the build's hash, adds it to the apt repository on the `gh-pages` branch with
 +  `scripts/publish-apt.sh`, signs the repository and pushes the branch.
 +  GitHub Pages serves the branch at
 +  `https://deepthinker2001.github.io/cosmic-ext-nightlight`.
- 
--## Create the signing key (once)
++
 +The workflow can also be run by hand from the Actions tab with a tag, to
 +redo the packaging of an existing release.
 +
@@ -357,12 +391,12 @@ index 67779d1..d83b312 100644
 +private key somewhere offline. Note the expiry date: extend the key before
 +then (`gpg --quick-set-expire FINGERPRINT 5y`, then update the secret and
 +rerun the workflow for the latest tag), or apt will refuse the repository.
++
++### Secret and variable
  
 -Send the private key straight into the environment secret (after creating the
 -`release` environment, see [Secrets](#secrets)), so it never appears on screen
 -or in scrollback:
-+### Secret and variable
-+
 +Create a GitHub environment named `release` (Settings → Environments), add a
 +required reviewer, and limit its deployment branches and tags to `v*` tags
 +and `main` (`main` so a manual rerun from the Actions tab can run). Put the
@@ -422,13 +456,19 @@ index 67779d1..d83b312 100644
 -| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (export it as in [Create the signing key](#create-the-signing-key-once); never print it) |
 -| `GPG_KEY_ID` | Key ID or fingerprint to sign with |
 -| `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
--
++Then in Settings → Pages, set the source to **Deploy from a branch**, branch
++`gh-pages`, folder `/ (root)`. The first release fills the branch in.
+ 
 -Also add a tag ruleset protecting `v*` (restrict who can create, update and
 -delete those tags). The build tools are installed at fixed versions (`just`
 -1.59.0, `cargo-deb` 3.8.0) in the workflow; bump them by hand in a reviewed
 -change.
-+Then in Settings → Pages, set the source to **Deploy from a branch**, branch
-+`gh-pages`, folder `/ (root)`. The first release fills the branch in.
++### Protect `main`
++
++The `apt` job runs `scripts/publish-apt.sh` from `main` with the signing key
++loaded, and the reviewer approves a run, not the script's contents. So `main`
++must have branch protection (a ruleset: no direct pushes, pull request reviews
++required), and so should `gh-pages` against pushes by anyone but the workflow.
  
  ## Cut a release
  
