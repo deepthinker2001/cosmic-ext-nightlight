@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "id": "agent-xfv8nb",
+  "title": "Work on issue FV-J959H4: README: document settings",
+  "outcome": "merged",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-j959h4-readme-document-settings",
+  "base_commit": "b04ef616140a6b25f8e6494c413c0091d326db82",
+  "head_commit": "bd50bd26f21bda917bd22898619fb56a5b7d0367",
+  "commits": [
+    "bd50bd26f21bda917bd22898619fb56a5b7d0367"
+  ],
+  "issue": {
+    "id": "FV-J959H4",
+    "title": "README: document settings"
+  },
+  "started": 1794632580,
+  "finished": 1794632758,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-J959H4: README: document settings\n\nUpdate README.md: how to open the settings (right click), what the temperature and schedule settings do, and anything not verified on a live COSMIC session. Use the wording 'panel applet for COSMIC', not 'a COSMIC panel applet'.\n\nLabels: Docs\n\nThe auto sunrise/sunset mode already added a README section. Check the README covers everything accurately now (right-click popup, temperature slider, custom schedule, auto mode and location) and fill only the gaps. Don't rewrite what's right."
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 33,
+      "removed": 3
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-haiku-5-5",
+      "verdict": "approve",
+      "summary": "The change is README-only (README.md, plus the session record under .ferrivide/history). It adds a Settings section covering right-click open and close, the colour temperature slider, the custom schedule, the Auto pointer, and a \"Not verified on a live COSMIC session\" list, and it keeps the existing Auto section as it was. I checked its concrete claims against the code: the 1900–6500 K range and 100 K step (gamma.rs, main.rs slider .step(100)), the 3500 K default, the four hint bands (Very warm / Warm / Neutral warm / Cool, temperature_hint), the 21:00 and 07:00 defaults, the 20-second schedule tick, the midnight-crossing window and equal-times behaviour, and the right-click toggle. All match. The trademark wording uses \"A panel applet for COSMIC\", and no \"COSMIC panel applet\" remains. No code changed, so no build or tests were needed.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "README-only change. The new Settings section and the \"Not verified on a live COSMIC session\" note match the code: right-click toggles the popup, the 1900–6500 K range and hint labels, the 20 s tick, and the schedule behaviour. The existing auto section is untouched, and the wording rule is kept. I didn't run the build or tests because no code changed.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "The change only touches README.md (plus its session record). It adds no code, commands, links, dependencies or secrets, and it leaves the existing install and apt-key instructions as they were. The session record holds no credentials. cargo test --locked passes: 46 passed, 1 ignored.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
+  ],
+  "summary": "I added the missing settings documentation to `README.md` and committed it. I didn't build or run anything, since it's documentation only. I checked the new text against `src/main.rs` and `src/gamma.rs`.\n\nThe existing \"Auto (sunrise/sunset)\" section was accurate, so I left it as it was. These are the changes:\n\n- **Stale line removed:** the README said the colour temperature \"is not adjustable yet\". It is adjustable now, so that line is replaced.\n- **New \"Settings\" section:**\n  - Right-clicking the button opens the popup, and right-clicking again closes it.\n  - The temperature slider runs from 1900 K to 6500 K in 100 K steps, with a warm/cool hint. It defaults to 3500 K, and a change applies at once when night light is on.\n  - The custom schedule has a start and end time, defaulting to 21:00 and 07:00 local time. The window can cross midnight, and equal times make an empty window.\n  - The schedule is checked every 20 seconds and acts only when the window changes, so a manual click holds until the next start or end.\n- **New \"Not verified on a live COSMIC session\" subsection:**\n  - It lists the right-click popup opening in the panel and the popup layout.\n  - It lists the real gamma output of the slider and the auto ramp, including on several monitors.\n  - It lists behaviour after suspend and resume.\n\nThe wording \"panel applet for COSMIC\" is already used in the README, so I didn't need to change it."
+}
