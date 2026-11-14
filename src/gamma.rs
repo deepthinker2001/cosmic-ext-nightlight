@@ -91,7 +91,11 @@ pub fn build_ramp(size: usize, kelvin: u32) -> Vec<u16> {
     let mut out = Vec::with_capacity(size * 3);
     for m in mul {
         for i in 0..size {
-            let x = if size > 1 { i as f64 / (size - 1) as f64 } else { 1.0 };
+            let x = if size > 1 {
+                i as f64 / (size - 1) as f64
+            } else {
+                1.0
+            };
             out.push((x * m * f64::from(u16::MAX)).round() as u16);
         }
     }
@@ -170,7 +174,11 @@ impl Dispatch<WlRegistry, GlobalListContents> for State {
         qh: &QueueHandle<Self>,
     ) {
         match event {
-            wl_registry::Event::Global { name, interface, version } if interface == "wl_output" => {
+            wl_registry::Event::Global {
+                name,
+                interface,
+                version,
+            } if interface == "wl_output" => {
                 let output = registry.bind::<WlOutput, _, _>(name, version.min(4), qh, ());
                 state.outputs.push(OutputEntry {
                     name,
@@ -199,7 +207,15 @@ impl Dispatch<WlRegistry, GlobalListContents> for State {
 }
 
 impl Dispatch<WlOutput, ()> for State {
-    fn event(_: &mut Self, _: &WlOutput, _: wl_output::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
+    fn event(
+        _: &mut Self,
+        _: &WlOutput,
+        _: wl_output::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
 }
 
 impl Dispatch<ZwlrGammaControlManagerV1, ()> for State {
@@ -279,8 +295,8 @@ impl GammaBackend {
     /// `zwlr_gamma_control_manager_v1`.
     pub fn new() -> Result<Self, GammaError> {
         let conn = Connection::connect_to_env().map_err(|e| GammaError::Connect(e.to_string()))?;
-        let (globals, mut queue) = registry_queue_init::<State>(&conn)
-            .map_err(|e| GammaError::Wayland(e.to_string()))?;
+        let (globals, mut queue) =
+            registry_queue_init::<State>(&conn).map_err(|e| GammaError::Wayland(e.to_string()))?;
         let qh = queue.handle();
 
         let advertised = globals
@@ -293,7 +309,11 @@ impl GammaBackend {
             .bind(&qh, 1..=1, ())
             .map_err(|_| GammaError::Unsupported)?;
 
-        let mut state = State { manager, outputs: Vec::new(), target: None };
+        let mut state = State {
+            manager,
+            outputs: Vec::new(),
+            target: None,
+        };
         let registry = globals.registry();
         globals.contents().with_list(|list| {
             for g in list.iter().filter(|g| g.interface == "wl_output") {
@@ -388,7 +408,11 @@ impl GammaBackend {
 
     /// Number of outputs that currently have a working gamma control.
     pub fn active_outputs(&self) -> usize {
-        self.state.outputs.iter().filter(|o| o.control.is_some()).count()
+        self.state
+            .outputs
+            .iter()
+            .filter(|o| o.control.is_some())
+            .count()
     }
 
     /// The underlying connection (for polling its fd).
@@ -434,7 +458,9 @@ mod tests {
         assert_eq!(temperature_to_rgb(0), temperature_to_rgb(1000));
         assert_eq!(temperature_to_rgb(100_000), temperature_to_rgb(10000));
         for k in [1000, 1500, 3500, 6500, 10000] {
-            assert!(temperature_to_rgb(k).iter().all(|c| (0.0..=1.0).contains(c)));
+            assert!(temperature_to_rgb(k)
+                .iter()
+                .all(|c| (0.0..=1.0).contains(c)));
         }
     }
 
