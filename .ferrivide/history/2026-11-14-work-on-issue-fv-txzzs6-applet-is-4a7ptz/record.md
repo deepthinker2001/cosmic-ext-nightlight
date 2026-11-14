@@ -1,6 +1,6 @@
 # Work on issue FV-TXZZS6: Applet is slow: left click does nothing, popup toggle…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-opus-5-5` · branch `fv-txzzs6-applet-is-slow-left-click-does-nothing-p` · FV-TXZZS6: Applet is slow: left click does nothing, popup toggle unclickable, slider and toggles lag
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-opus-5-5` · branch `fv-txzzs6-applet-is-slow-left-click-does-nothing-p` · FV-TXZZS6: Applet is slow: left click does nothing, popup toggle unclickable, slider and toggles lag
 
 About $0.00, 0 tokens in, 0 out
 
@@ -64,7 +64,7 @@ Out of scope:
 | `data/io.github.cosmic_ext.Nightlight.desktop` | modified | +1 −0 | X-HostWaylandDisplay=true so cosmic-panel keeps WAYLAND_DISPLAY for the gamma worker's own connection |
 | `src/main.rs` | modified | +87 −202 | Use Requests and Saver; Worker::request takes a Target; Applied carries only the result; icon toggles on press; UI shows the wanted state |
 | `src/requests.rs` | added | +188 −0 | New pure latest-wins request state (wanted/in flight/applied) with unit tests, replacing busy, retune_pending, toggle_request, applied and Retune |
-| `src/saver.rs` | added | +219 −0 | New long-lived settings-saving thread with one Config and a 250 ms quiet-period merge; tests for merge and every write kind |
+| `src/saver.rs` | added | +219 −0 | Save::kind for log messages instead of Debug (#1); Drop closes the channel and joins so pending writes flush (#2); spawn_with takes the Config opener so tests use a temp folder; two new tests |
 
 ### Decisions
 
@@ -72,18 +72,36 @@ Out of scope:
 - **Latest-wins coalescing with one request in flight, instead of dropping input while busy**: A dropped toggle reads as 'can't be clicked'. Coalescing keeps slider retunes at one round trip per reply, never a backlog. Turned down: A queue of every request (lags behind a drag); Debouncing gamma updates on a timer (adds latency to the display change).
 - **Save settings on a background thread after 250 ms of quiet, rather than on slider release only**: Covers every write path (slider, schedule, auto, location typing, replies) with one mechanism, and keeps the UI thread free of fsync. Turned down: Slider on_release saving only (leaves the other writes on the UI thread).
 - **Kept the existing rule: save the enabled flag only on success**: An earlier session decided a failed startup restore must keep the saved flag so the next start retries.
+- **Flush on drop by closing the channel and joining the thread**: The thread already writes at once when the channel disconnects, so joining is all that's needed. The cost at exit is at most one write (about 10-30 ms). Turned down: Catching SIGTERM to flush (a new dependency and signal handling, for a 250 ms window).
 
 ## Tested
 
 - `cargo test`: 52 passed, 0 failed, 1 skipped
+- `cargo test`: 54 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - FV-TXZZS6 committed (1cf1c4928d): applet can reach gamma control (X-HostWaylandDisplay), settings saved off the UI thread (22–36 ms → ~0.13 µs per slider step), toggles/slider never dropped while busy, left click on press. 52 tests pass; not verified on a live panel.
+- Review fixes committed (4287aa69e1): save errors name only the setting (no location in the journal); dropping the Saver flushes pending writes and joins the thread. fmt clean, clippy clean, 54 tests pass.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): Both earlier findings are fixed. The error log now prints only the setting's kind. Dropping the Saver closes the channel and joins the thread, so pending writes are flushed. I didn't build or run the tests this round. Both changes have tests.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The coordinates leak is fixed: the error message now prints only the setting's kind, and a test covers it. The saver also flushes on drop and waits for its thread, with a test. All 54 tests pass.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): Finding #1 is fixed. src/saver.rs now logs only the setting's kind through Save::kind(), and a test checks that the location's value stays out of it. The saver now keeps its thread handle and, on drop, closes the channel and waits for pending writes; that adds no security issue. fmt is clean, clippy has no warnings, and 54 tests pass (1 ignored).
 
 ## Summary
 
-I want a test that dropping the `Saver` flushes. The thread currently opens the user's real config, so I'm letting the caller pass in the config, which lets the test use a temp folder.
+I've fixed both review findings and committed them as `4287aa69e1` (Fixes FV-TXZZS6). Formatting and clippy are clean and all 54 tests pass (1 live probe is skipped).
+
+- **#1 (must fix), location leaking into the log:** when a save failed, the error message printed the whole setting, including a custom location's coordinates. The applet's error output ends up in the system journal. The message now names only the setting ("cannot save location: …"), and a new test checks that it contains no coordinates.
+- **#2 (suggestion), settings lost on exit:** a change made in the 250 ms before the applet exits is now saved instead of lost. When the saver is dropped it writes what's waiting at once and the applet waits for that write, at most one write (about 10–30 ms). A new test checks this against a temporary folder, not the user's real settings.
+
+Two limits remain:
+- **Killed applet:** the flush only happens on a clean shutdown. If the panel kills the applet without one, a change from its last 250 ms can still be lost. Catching that would mean adding signal handling; I judged that too much for such a short window.
+- **Live panel:** the earlier fixes (the `X-HostWaylandDisplay` key, background saving, keeping clicks made while a change is applied, toggling on press) still haven't been tried on a live panel.
 
 ## Contract
 
@@ -94,4 +112,4 @@ The clauses this work was bound by:
 
 ---
 
-From `f4a92c2c25` to `1cf1c4928d`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `f4a92c2c25` to `4287aa69e1`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
