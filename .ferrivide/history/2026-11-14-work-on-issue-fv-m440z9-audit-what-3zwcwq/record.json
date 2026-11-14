@@ -2,7 +2,7 @@
   "format": 1,
   "id": "agent-3zwcwq",
   "title": "Work on issue FV-M440Z9: Audit: what the reviews of Engineer 1's work on…",
-  "outcome": "in_progress",
+  "outcome": "merged",
   "project": "cosmic-ext-nightlight",
   "agent": {
     "name": "Engineer 2",
@@ -13,8 +13,9 @@
   },
   "branch": "fv-m440z9-audit-what-the-reviews-of-engineer-1-s-w",
   "base_commit": "1fa92a879b7bb7b1cfe1339d0e3bf5e7d45ac79e",
-  "head_commit": "7739e6b21ce203caf02b3d591168d6f7541a28f0",
+  "head_commit": "9a7b108e3617bdcf2499f2deaa21796591d44e62",
   "commits": [
+    "9a7b108e3617bdcf2499f2deaa21796591d44e62",
     "7739e6b21ce203caf02b3d591168d6f7541a28f0"
   ],
   "issue": {
@@ -22,7 +23,7 @@
     "title": "Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Docs)"
   },
   "started": 1794664741,
-  "finished": 1794664899,
+  "finished": 1794665186,
   "usage": {
     "input_tokens": 0,
     "output_tokens": 0
@@ -55,14 +56,15 @@
       "path": ".github/workflows/release.yml",
       "status": "modified",
       "added": 1,
-      "removed": 1
+      "removed": 1,
+      "why": "Updated the signing-environment comment to branch main only, no tag rule, resolving cyber finding #1."
     },
     {
       "path": "docs/RELEASING.md",
       "status": "modified",
       "added": 4,
       "removed": 1,
-      "why": "Clarifies that main-push replaces the former tag-push procedure, tags are created by the workflow after building, and the signing environment remains main-only."
+      "why": "Earlier commit in this change clarified that tag pushes do not start releases."
     }
   ],
   "decisions": [
@@ -79,9 +81,22 @@
       "alternatives": [
         "Leave documentation unchanged: rejected because the historical instructions remain easy to confuse with the current procedure."
       ]
+    },
+    {
+      "decision": "Corrected the stale workflow comment rather than changing the environment policy.",
+      "why": "The approved design limits signing to main with no tag rule; documentation must not invite maintainers to widen key access.",
+      "alternatives": [
+        "Allow v* tags in the signing environment: rejected as contrary to the chosen policy."
+      ]
     }
   ],
   "tests": [
+    {
+      "command": "cargo test --locked",
+      "passed": 47,
+      "failed": 0,
+      "skipped": 1
+    },
     {
       "command": "cargo test --locked",
       "passed": 47,
@@ -104,11 +119,36 @@
   "progress": [
     "Release-guide clarification added; fmt and clippy pass, tests: 47 passed, 0 failed, 1 ignored.",
     "Committed 7739e6b21c: clarified intentional main-push releases; workflow and environment unchanged; all C2 checks pass.",
-    "Fixed cyber finding #1: workflow comment now states main-only environment with no tag rule; fmt, clippy and tests pass."
+    "Fixed cyber finding #1: workflow comment now states main-only environment with no tag rule; fmt, clippy and tests pass.",
+    "Committed 9a7b108e36 resolving cyber finding #1; signing-environment comment matches the guide, with no behavior changes."
+  ],
+  "reviews": [
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "chatgpt:gpt-6-luna",
+      "verdict": "approve",
+      "summary": "The previously raised workflow-comment inconsistency is fixed: it now states the release environment is limited to branch main with no tag rule. The release guide clarification remains unchanged, and the validation recorded for this comment-only change passed.",
+      "transcript": "review-1.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-sonnet-5-5",
+      "verdict": "approve",
+      "summary": "The workflow comment in release.yml now says the environment is limited to branch main with no tag rule, matching the docs. The last round's finding is fixed.",
+      "transcript": "review-2.jsonl"
+    },
+    {
+      "reviewer": "cosmic-ext-nightlight reviewer",
+      "model": "claude-opus-5-5",
+      "verdict": "approve",
+      "summary": "Finding #1 is fixed. The comment above the `apt` job's environment in release.yml now says \"limited to branch main, no tag rule\", which matches docs/RELEASING.md. The only change since the last round is that one comment line, and the workflow still parses. Nothing new to raise.",
+      "transcript": "review-3.jsonl",
+      "security": true
+    }
   ],
   "contract": [
     "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests.",
     "C4: Commit messages describe the change itself (what and why) and never name Ferrivide agents such as \"Engineer 1\", \"Merge engineer 1\", or agent branches."
   ],
-  "summary": "I’ll correct the workflow comment to match the main-only signing rule, without changing workflow behavior."
+  "summary": "Fixed review finding #1 in **9a7b108e36**.\n\nThe workflow comment now says the signing environment is limited to **branch `main`, with no tag rule**, matching the release guide. No workflow behavior or live GitHub settings changed.\n\nChecks passed: formatting, clippy, whitespace check, and tests (**47 passed, 0 failed, 1 ignored**)."
 }

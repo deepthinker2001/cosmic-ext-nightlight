@@ -1,6 +1,6 @@
 # Work on issue FV-M440Z9: Audit: what the reviews of Engineer 1's work on…
 
-**In progress** 2026-11-14 · Engineer 2 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-m440z9-audit-what-the-reviews-of-engineer-1-s-w` · FV-M440Z9: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Docs)
+**Merged** 2026-11-14 · Engineer 2 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-m440z9-audit-what-the-reviews-of-engineer-1-s-w` · FV-M440Z9: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Docs)
 
 0 tokens in, 0 out
 
@@ -54,16 +54,18 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `.github/workflows/release.yml` | modified | +1 −1 |  |
-| `docs/RELEASING.md` | modified | +4 −1 | Clarifies that main-push replaces the former tag-push procedure, tags are created by the workflow after building, and the signing environment remains main-only. |
+| `.github/workflows/release.yml` | modified | +1 −1 | Updated the signing-environment comment to branch main only, no tag rule, resolving cyber finding #1. |
+| `docs/RELEASING.md` | modified | +4 −1 | Earlier commit in this change clarified that tag pushes do not start releases. |
 
 ### Decisions
 
 - **Preserved main-push releases and the main-only signing environment.**: Engineering history records the user's explicit choice, and the project manager confirmed it during this audit; both findings compare against superseded tag-push instructions. Turned down: Restore tag-push releases: rejected because it would reverse the user's chosen design..
 - **Added an explicit warning where maintainers cut releases.**: Documentation review identified that readers following older tag-push instructions need to know that pushing a tag does not trigger anything, not merely that a tag is unnecessary. Turned down: Leave documentation unchanged: rejected because the historical instructions remain easy to confuse with the current procedure..
+- **Corrected the stale workflow comment rather than changing the environment policy.**: The approved design limits signing to main with no tag rule; documentation must not invite maintainers to widen key access. Turned down: Allow v* tags in the signing environment: rejected as contrary to the chosen policy..
 
 ## Tested
 
+- `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 - `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 - `cargo test --locked`: 47 passed, 0 failed, 1 skipped
 - `cargo test --locked`: 47 passed, 0 failed, 1 skipped
@@ -73,10 +75,23 @@ Progress reports:
 - Release-guide clarification added; fmt and clippy pass, tests: 47 passed, 0 failed, 1 ignored.
 - Committed 7739e6b21c: clarified intentional main-push releases; workflow and environment unchanged; all C2 checks pass.
 - Fixed cyber finding #1: workflow comment now states main-only environment with no tag rule; fmt, clippy and tests pass.
+- Committed 9a7b108e36 resolving cyber finding #1; signing-environment comment matches the guide, with no behavior changes.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`chatgpt:gpt-6-luna`): The previously raised workflow-comment inconsistency is fixed: it now states the release environment is limited to branch main with no tag rule. The release guide clarification remains unchanged, and the validation recorded for this comment-only change passed.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The workflow comment in release.yml now says the environment is limited to branch main with no tag rule, matching the docs. The last round's finding is fixed.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): Finding #1 is fixed. The comment above the `apt` job's environment in release.yml now says "limited to branch main, no tag rule", which matches docs/RELEASING.md. The only change since the last round is that one comment line, and the workflow still parses. Nothing new to raise.
 
 ## Summary
 
-I’ll correct the workflow comment to match the main-only signing rule, without changing workflow behavior.
+Fixed review finding #1 in **9a7b108e36**.
+
+The workflow comment now says the signing environment is limited to **branch `main`, with no tag rule**, matching the release guide. No workflow behavior or live GitHub settings changed.
+
+Checks passed: formatting, clippy, whitespace check, and tests (**47 passed, 0 failed, 1 ignored**).
 
 ## Contract
 
@@ -87,4 +102,4 @@ The clauses this work was bound by:
 
 ---
 
-From `1fa92a879b` to `7739e6b21c`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `1fa92a879b` to `9a7b108e36`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
