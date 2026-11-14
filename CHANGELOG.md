@@ -1,0 +1,53 @@
+# Changelog
+
+What changed in each release, for users. Maintainers: see
+[docs/RELEASING.md](docs/RELEASING.md) for how to cut one.
+
+## Unreleased
+
+Everything since 0.1.0. The `v0.1.1` tag points into this work, but its
+release build failed and published no package, so these changes ship in the
+next version.
+
+### Added
+
+- Settings popup: right-click the panel button to open it (right-click
+  again to close it). It has the same on/off switch as a left click.
+- Colour temperature slider in the popup, from 1900 K to 6500 K in steps of
+  100 K (default 3500 K). The change applies at once while night light is
+  on.
+- Custom schedule: night light turns on at a start time and off at an end
+  time you pick (defaults 21:00 and 07:00; the window may cross midnight).
+  A failed switch is retried on the next check, 20 seconds later.
+- Auto (sunrise/sunset): the screen warms smoothly over the hour around
+  sunset and cools over the hour around sunrise. Sunrise and sunset are
+  calculated on your computer from your system timezone's location, or from
+  a latitude and longitude you type in. There is no network access. Auto and
+  the custom schedule exclude each other.
+- All settings are saved and restored with the on/off state.
+
+### Changed
+
+- Described as a "panel applet for COSMIC" (package description included),
+  in place of "COSMIC panel applet".
+- README: documents the settings, and lists what hasn't been checked on a
+  live COSMIC session.
+
+### Packaging
+
+- `scripts/publish-apt.sh` now checks that the published `key.gpg` has the
+  expected fingerprint and verifies the repository's signatures with it
+  before the repository is pushed.
+
+## 0.1.0 - 2026-11-13
+
+First release.
+
+- Panel button that turns night light on or off with one click, at a fixed
+  warm tint of about 3500 K.
+- Sets the screen gamma directly through the Wayland `wlr-gamma-control`
+  protocol; no other daemon is needed.
+- Remembers the on/off state between starts.
+- `.deb` package, attached to the GitHub release. The signed apt repository
+  was not published: the release's signing job was rejected by the GitHub
+  environment's protection rules.

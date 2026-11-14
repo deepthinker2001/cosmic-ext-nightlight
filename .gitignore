@@ -9,4 +9,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# Never commit a signing key (docs/RELEASING.md keeps it in a GitHub
+# environment secret only).
+private-key*
+*.key
+*.asc
 target
