@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "id": "agent-b7xghk",
+  "title": "Work on issue FV-R21AS5: README: keep it user-facing, move maintainer release…",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-r21as5-readme-keep-it-user-facing-move-maintain",
+  "base_commit": "f571a7e98ce7c4b3952ac4da02ce7f3ff30c1a80",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-R21AS5",
+    "title": "README: keep it user-facing, move maintainer release steps out"
+  },
+  "started": 1794627645,
+  "finished": 1794627666,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-R21AS5: README: keep it user-facing, move maintainer release steps out\n\nThe README is public and for people who want to use the applet. Keep in it: what it is, install (from the signed .deb release, and from source), how to add it to the panel, how to verify the download (with the key fingerprint), build from source, licence. Move the maintainer-only parts (creating the signing key, GitHub release environment and secrets, cutting a release, cargo-deb packaging details) into docs/RELEASING.md and drop them from the README, with at most one line linking to it. Keep release.yml working: it greps README.md for the fingerprint placeholder, so keep the placeholder where users read the fingerprint, or update the workflow's check and the README consistently. Fix any links and anchors that move. No code changes.\n\nLabels: Release"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 22,
+      "removed": 110
+    },
+    {
+      "path": "docs/RELEASING.md",
+      "status": "added",
+      "added": 98,
+      "removed": 0
+    }
+  ],
+  "summary": ""
+}
