@@ -21,7 +21,7 @@ install on.
 
 ## How a release is built
 
-Publishing a GitHub release runs `.github/workflows/release.yml`. It has three
+Pushing a tag `v*` runs `.github/workflows/release.yml`. It has three
 jobs, so that code from the build never shares a runner with the signing key
 or a write token:
 
@@ -30,8 +30,10 @@ or a write token:
   and `cargo-deb` at fixed versions) and hands the `.deb` and its hash on. It
   has no secrets and a read-only token.
 - `attach` holds the write token for the release. It runs no checkout and no
-  cargo: it checks the artifact against the build's hash and attaches the
-  `.deb` and its `.sha256` to the release.
+  cargo: it checks the artifact against the build's hash, creates the GitHub
+  release for the tag if there isn't one (generated notes, title = tag) and
+  attaches the `.deb` and its `.sha256`. A release made by hand first still
+  works.
 - `apt` holds the signing key. It takes the `.deb` from the build job's
   artifact (not from the release, which could have been changed), checks it
   against the build's hash, adds it to the apt repository on the `gh-pages` branch with
@@ -124,10 +126,10 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
    is: its build stopped at the version check).
    In the same commit, rename the `Unreleased` heading in `CHANGELOG.md` to
    the version and date, and add an empty `Unreleased` above it.
-3. Publish a GitHub release whose tag is `v` plus that version:
-   `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
-   (or Releases → Draft a new release on GitHub). Don't attach a `.deb`
-   yourself.
+3. Push a tag that is `v` plus that version:
+   `git tag v0.2.0 && git push origin v0.2.0`. That is the whole release
+   step: the workflow creates the GitHub release and attaches the `.deb`.
+   Don't create a release or attach a `.deb` yourself.
 4. Approve the `release` environment when GitHub asks (the `apt` job waits
    for it). Watch Actions → Release: `build` and `apt` should both pass. Check the
    release lists the `.deb` and `.sha256`, and on a machine with the

@@ -1,7 +1,8 @@
 name: Release
 
-# Publishing a GitHub release builds the .deb, attaches it to the release and
-# adds it to the signed apt repository on the gh-pages branch.
+# Pushing a tag v* builds the .deb, creates the GitHub release if there isn't
+# one, attaches the .deb to it and adds it to the signed apt repository on the
+# gh-pages branch.
 #
 # Three jobs so that no code from the build ever shares a runner with the
 # signing key or a write token:
@@ -13,8 +14,8 @@ name: Release
 #            whatever is on the release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
   # To redo a release's packaging by hand, from the Actions tab.
   workflow_dispatch:
     inputs:
@@ -32,7 +33,8 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  # inputs.tag is empty on a tag push; on a manual run ref_name is a branch.
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -105,11 +107,16 @@ jobs:
           name: deb
           path: debs
 
-      - name: Attach it to the release
+      - name: Create the release if needed, attach the .deb
         env:
           GH_TOKEN: ${{ github.token }}
           SHA256: ${{ needs.build.outputs.sha256 }}
         run: |
+          # A release made by hand first is kept as it is.
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG" \
+              -R "$GITHUB_REPOSITORY"
+          fi
           cd debs
           for deb in cosmic-ext-nightlight_*.deb; do
             echo "$SHA256  $deb" | sha256sum -c -

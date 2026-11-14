@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "id": "agent-5asysf",
+  "title": "Work on issue FV-6BE3MK: Release: start on a v* tag push, no manual release step",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-6be3mk-release-start-on-a-v-tag-push-no-manual",
+  "base_commit": "c62b1d06324e6a1259cd8bde577d12a763742c45",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-6BE3MK",
+    "title": "Release: start on a v* tag push, no manual release step"
+  },
+  "started": 1794639036,
+  "finished": 1794639052,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-6BE3MK: Release: start on a v* tag push, no manual release step\n\nToday .github/workflows/release.yml runs only when a GitHub release is published, so `git push` of a tag does nothing. Make `git tag vX.Y.Z && git push origin vX.Y.Z` enough.\n\n- Trigger on push of tags `v*` (keep workflow_dispatch). Drop the release:published trigger.\n- TAG comes from github.ref_name (or inputs.tag). Keep the tag-matches-Cargo-version check.\n- The attach job must create the release if it doesn't exist (gh release create --verify-tag --generate-notes, title = tag), then upload the .deb, so a release created by hand first also still works.\n- Keep the three-job split, pinned actions, the `release` environment (it already allows v* tags), and the minimal permissions: only attach gets contents: write.\n- Update docs/RELEASING.md (and README if it mentions the release step) to say: push a tag.\n- Check the YAML parses; no live run is possible.\n\nLabels: Docs"
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/release.yml",
+      "status": "modified",
+      "added": 13,
+      "removed": 6
+    },
+    {
+      "path": "docs/RELEASING.md",
+      "status": "modified",
+      "added": 9,
+      "removed": 7
+    }
+  ],
+  "contract": [
+    "C2: Before finishing, every engineer runs `cargo fmt --all -- --check`, and `cargo clippy --all-targets` with no new warnings, besides the tests."
+  ],
+  "summary": ""
+}

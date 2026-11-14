@@ -1,0 +1,95 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index ed4b539..8fc2a2d 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -1,7 +1,8 @@
+ name: Release
+ 
+-# Publishing a GitHub release builds the .deb, attaches it to the release and
+-# adds it to the signed apt repository on the gh-pages branch.
++# Pushing a tag v* builds the .deb, creates the GitHub release if there isn't
++# one, attaches the .deb to it and adds it to the signed apt repository on the
++# gh-pages branch.
+ #
+ # Three jobs so that no code from the build ever shares a runner with the
+ # signing key or a write token:
+@@ -13,8 +14,8 @@ name: Release
+ #            whatever is on the release
+ 
+ on:
+-  release:
+-    types: [published]
++  push:
++    tags: ["v*"]
+   # To redo a release's packaging by hand, from the Actions tab.
+   workflow_dispatch:
+     inputs:
+@@ -32,7 +33,8 @@ concurrency:
+ 
+ env:
+   CARGO_TERM_COLOR: always
+-  TAG: ${{ github.event.release.tag_name || inputs.tag }}
++  # inputs.tag is empty on a tag push; on a manual run ref_name is a branch.
++  TAG: ${{ inputs.tag || github.ref_name }}
+ 
+ jobs:
+   build:
+@@ -105,11 +107,16 @@ jobs:
+           name: deb
+           path: debs
+ 
+-      - name: Attach it to the release
++      - name: Create the release if needed, attach the .deb
+         env:
+           GH_TOKEN: ${{ github.token }}
+           SHA256: ${{ needs.build.outputs.sha256 }}
+         run: |
++          # A release made by hand first is kept as it is.
++          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
++            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG" \
++              -R "$GITHUB_REPOSITORY"
++          fi
+           cd debs
+           for deb in cosmic-ext-nightlight_*.deb; do
+             echo "$SHA256  $deb" | sha256sum -c -
+diff --git a/docs/RELEASING.md b/docs/RELEASING.md
+index 45d9287..529e7ec 100644
+--- a/docs/RELEASING.md
++++ b/docs/RELEASING.md
+@@ -21,7 +21,7 @@ install on.
+ 
+ ## How a release is built
+ 
+-Publishing a GitHub release runs `.github/workflows/release.yml`. It has three
++Pushing a tag `v*` runs `.github/workflows/release.yml`. It has three
+ jobs, so that code from the build never shares a runner with the signing key
+ or a write token:
+ 
+@@ -30,8 +30,10 @@ or a write token:
+   and `cargo-deb` at fixed versions) and hands the `.deb` and its hash on. It
+   has no secrets and a read-only token.
+ - `attach` holds the write token for the release. It runs no checkout and no
+-  cargo: it checks the artifact against the build's hash and attaches the
+-  `.deb` and its `.sha256` to the release.
++  cargo: it checks the artifact against the build's hash, creates the GitHub
++  release for the tag if there isn't one (generated notes, title = tag) and
++  attaches the `.deb` and its `.sha256`. A release made by hand first still
++  works.
+ - `apt` holds the signing key. It takes the `.deb` from the build job's
+   artifact (not from the release, which could have been changed), checks it
+   against the build's hash, adds it to the apt repository on the `gh-pages` branch with
+@@ -124,10 +126,10 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
+    is: its build stopped at the version check).
+    In the same commit, rename the `Unreleased` heading in `CHANGELOG.md` to
+    the version and date, and add an empty `Unreleased` above it.
+-3. Publish a GitHub release whose tag is `v` plus that version:
+-   `gh release create v0.2.0 --target main --title "0.2.0" --generate-notes`
+-   (or Releases → Draft a new release on GitHub). Don't attach a `.deb`
+-   yourself.
++3. Push a tag that is `v` plus that version:
++   `git tag v0.2.0 && git push origin v0.2.0`. That is the whole release
++   step: the workflow creates the GitHub release and attaches the `.deb`.
++   Don't create a release or attach a `.deb` yourself.
+ 4. Approve the `release` environment when GitHub asks (the `apt` job waits
+    for it). Watch Actions → Release: `build` and `apt` should both pass. Check the
+    release lists the `.deb` and `.sha256`, and on a machine with the
