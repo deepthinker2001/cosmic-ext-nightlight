@@ -1,6 +1,6 @@
 # Work on issue FV-A70TWP: GitHub Actions CI
 
-**In progress** 2026-11-14 · Engineer 2 (project agent) · `claude-sonnet-5-5` · branch `fv-a70twp-github-actions-ci` · FV-A70TWP: GitHub Actions CI
+**Merged** 2026-11-14 · Engineer 2 (project agent) · `claude-sonnet-5-5` · branch `fv-a70twp-github-actions-ci` · FV-A70TWP: GitHub Actions CI
 
 About $0.00, 0 tokens in, 0 out
 
@@ -42,24 +42,29 @@ Then:
 
 No test runs were reported.
 
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): All five findings from round 1 are addressed in caea889. The workflow now has a top-level `permissions: contents: read`, checkout uses `persist-credentials: false`, and all three actions are pinned to full commit SHAs with the tag in a comment. Unused `just` is removed, and a concurrency group with cancel-in-progress is added. A Dependabot config for github-actions is added too. The only changed lines are in ci.yml and dependabot.yml. I didn't check the pinned SHAs against upstream, since this light round doesn't re-run the build and I had no network check for them. Nothing blocks the merge.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): All five earlier findings are addressed: read-only permissions, persist-credentials false, actions pinned to commit SHAs with the tag in a comment, `just` removed, a concurrency group added, and Dependabot added for github-actions. I couldn't check the pinned SHAs against upstream, so confirm they match the stated tags (the checkout comment says v4.4.0).
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): Both must-fix findings are fixed. The token is now read-only (`permissions: contents: read`), and checkout runs with `persist-credentials: false`. All three actions are pinned to full commit SHAs, and I checked each one with git ls-remote against its upstream: checkout v4.4.0, the commit rust-cache's v2.9.3 tag points to, and the current head of rust-toolchain's stable branch. The new concurrency group and the Dependabot config for github-actions add no risk, and no Rust source changed since the last round.
+
 ## Summary
 
-I added `.github/workflows/ci.yml` and committed it. It has not run on GitHub yet, and I didn't run `cargo test` or the release build locally.
+I fixed all five findings in `.github/workflows/ci.yml` and committed. I haven't run the workflow on GitHub, and I didn't validate the YAML locally.
 
-**What the workflow does:** it runs on every push and pull request, on `ubuntu-latest`. It installs the system libraries libcosmic needs, then uses stable Rust with a cargo cache. The steps are:
-- `cargo fmt --all -- --check`
-- `cargo clippy --locked --all-targets -- -D warnings`
-- `cargo test --locked`
-- `cargo build --release --locked`
+- **#1 and #3, token scope:** the workflow now has a top-level `permissions: contents: read`. The checkout step sets `persist-credentials: false`, so later build steps can't read the token.
+- **#2, pinned actions:** all three actions are pinned to full commit SHAs, each with its tag in a comment. I got the SHAs from the actions' GitHub repositories:
+  - `actions/checkout` is pinned to v4.4.0.
+  - `Swatinem/rust-cache` is pinned to v2.9.3.
+  - `dtolnay/rust-toolchain` is pinned to the current head of its `stable` branch. I pass `toolchain: stable` explicitly.
+- **#2, Dependabot:** I added `.github/dependabot.yml` with a weekly `github-actions` update, which keeps the pins current.
+- **#4:** I removed `just` from the apt list because no step uses it.
+- **#5:** I added a concurrency group with `cancel-in-progress: true`.
 
-**Format fix:** the existing code wasn't rustfmt-clean, so the fmt step would have failed on the first run. I ran `cargo fmt` over `src/gamma.rs` and `src/main.rs` and included that in the commit. It only changes layout.
-
-**Local checks:** `cargo fmt --check` and `cargo clippy --locked --all-targets -- -D warnings` both pass locally.
-
-**Open points:**
-- **Package list:** I couldn't read the user's other projects' workflows from here, so I didn't match them. The apt package list is my best guess at what libcosmic needs. If the first CI run reports a missing library, add it to that list.
-- **Dependency pin:** the repo has no `rust-toolchain` file, so CI tracks `stable`. libcosmic is pinned by rev in `Cargo.toml`, so dependencies only change when you update that rev.
+None of the findings are declined.
 
 ---
 
-From `806260f1f1` to `d7366e99f7`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `806260f1f1` to `caea889786`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
