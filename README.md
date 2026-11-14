@@ -35,8 +35,9 @@ updates. First download the key to a temporary file and check its fingerprint
 before you trust it:
 
 ```sh
-curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg -o /tmp/nightlight-key.gpg
-gpg --show-keys --with-fingerprint /tmp/nightlight-key.gpg
+key=$(mktemp)
+curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg -o "$key"
+gpg --show-keys --with-fingerprint "$key"
 ```
 
 The fingerprint printed must be exactly:
@@ -45,12 +46,12 @@ The fingerprint printed must be exactly:
 0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584
 ```
 
-If it differs, run `rm /tmp/nightlight-key.gpg` and stop. If it matches,
-trust the key and add the repository:
+If it differs, run `rm "$key"` and stop. If it matches, trust the key and
+add the repository (in the same terminal, so `$key` is still set):
 
 ```sh
-sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg /tmp/nightlight-key.gpg
-rm /tmp/nightlight-key.gpg
+sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg "$key"
+rm "$key"
 echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
   | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
 sudo apt update
