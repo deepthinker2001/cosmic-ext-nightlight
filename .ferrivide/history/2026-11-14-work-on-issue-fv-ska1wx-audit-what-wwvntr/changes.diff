@@ -1,0 +1,36 @@
+diff --git a/src/main.rs b/src/main.rs
+index 99b5958..0bd1f0e 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -468,6 +468,31 @@ mod tests {
+         assert_eq!(Settings::default().temperature, gamma::DEFAULT_TEMPERATURE);
+     }
+ 
++    #[test]
++    fn settings_load_defaults_then_roundtrips_enabled() {
++        // A throwaway app id so the user's real settings are never touched.
++        let id = format!("{APP_ID}.test{}", std::process::id());
++        let Ok(config) = Config::new(&id, CONFIG_VERSION) else {
++            return; // no writable config dir here
++        };
++        assert_eq!(Settings::load(&config), Settings::default());
++        if Settings::save_enabled(&config, true).is_ok() {
++            assert!(Settings::load(&config).enabled);
++        }
++        if let Some(base) = dirs_config_dir() {
++            let _ = std::fs::remove_dir_all(base.join(&id));
++        }
++    }
++
++    fn dirs_config_dir() -> Option<std::path::PathBuf> {
++        std::env::var_os("XDG_CONFIG_HOME")
++            .map(std::path::PathBuf::from)
++            .or_else(|| {
++                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
++            })
++            .map(|p| p.join("cosmic"))
++    }
++
+     #[test]
+     fn closing_matching_popup_clears_it() {
+         let id = Id::unique();
