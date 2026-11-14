@@ -630,7 +630,12 @@ struct Nightlight {
     schedule_end: TimeOfDay,
     /// Window state seen by the last schedule check (see `schedule_step`).
     schedule_last: Option<bool>,
-    auto_on: bool,
+    auto: AutoState,
+}
+
+/// State of the sunrise/sunset mode.
+struct AutoState {
+    on: bool,
     /// Coordinates typed by the user, if any.
     custom_location: Option<location::Coords>,
     /// Coordinates of the system timezone, read once at start-up.
@@ -639,18 +644,18 @@ struct Nightlight {
     lat_input: String,
     lon_input: String,
     /// Ramp percent applied last (see `solar::auto_step`).
-    auto_last: Option<u8>,
+    last: Option<u8>,
 }
 
 impl Nightlight {
     /// The location in use: the user's, else the timezone's.
     fn location(&self) -> Option<location::Coords> {
-        self.custom_location.or(self.tz_location)
+        self.auto.custom_location.or(self.auto.tz_location)
     }
 
     fn save_auto(&self) {
         if let Some(c) = config() {
-            if let Err(e) = Settings::save_auto(&c, self.auto_on) {
+            if let Err(e) = Settings::save_auto(&c, self.auto.on) {
                 eprintln!("nightlight: cannot save auto setting: {e}");
             }
         }
@@ -660,14 +665,14 @@ impl Nightlight {
     /// percent changed. Waits while a request is in flight (the next tick
     /// retries).
     fn check_auto(&mut self) -> Task<Message> {
-        let Some(coords) = self.location().filter(|_| self.auto_on) else {
+        let Some(coords) = self.location().filter(|_| self.auto.on) else {
             return Task::none();
         };
         if self.busy {
             return Task::none();
         }
-        let (last, apply) = solar::auto_step(auto_percent_now(coords), self.auto_last);
-        self.auto_last = last;
+        let (last, apply) = solar::auto_step(auto_percent_now(coords), self.auto.last);
+        self.auto.last = last;
         match apply.and_then(|p| auto_action(p, self.temperature, self.enabled)) {
             Some((on, kelvin)) => {
                 self.busy = true;
@@ -679,7 +684,7 @@ impl Nightlight {
 
     fn save_location(&self) {
         if let Some(c) = config() {
-            if let Err(e) = Settings::save_location(&c, self.custom_location) {
+            if let Err(e) = Settings::save_location(&c, self.auto.custom_location) {
                 eprintln!("nightlight: cannot save location: {e}");
             }
         }
@@ -688,12 +693,12 @@ impl Nightlight {
     /// The text boxes changed: once both hold valid degrees they become the
     /// location. Half-typed or out-of-range text changes nothing.
     fn location_edited(&mut self) -> Task<Message> {
-        let coords = location::parse_degrees(&self.lat_input)
-            .zip(location::parse_degrees(&self.lon_input))
+        let coords = location::parse_degrees(&self.auto.lat_input)
+            .zip(location::parse_degrees(&self.auto.lon_input))
             .filter(|&(lat, lon)| location::valid(lat, lon));
         match coords {
-            Some(c) if self.custom_location != Some(c) => {
-                self.custom_location = Some(c);
+            Some(c) if self.auto.custom_location != Some(c) => {
+                self.auto.custom_location = Some(c);
                 self.save_location();
                 self.location_changed()
             }
@@ -704,17 +709,17 @@ impl Nightlight {
     /// The location in use changed: recompute at once, or switch auto off
     /// when there is none left.
     fn location_changed(&mut self) -> Task<Message> {
-        if self.auto_on && self.location().is_none() {
-            self.auto_on = false;
+        if self.auto.on && self.location().is_none() {
+            self.auto.on = false;
             self.save_auto();
         }
-        self.auto_last = None;
+        self.auto.last = None;
         self.check_auto()
     }
 
     /// Kelvin for a manual switch-on: the current ramp step while auto is on.
     fn manual_kelvin(&self) -> u32 {
-        match self.location().filter(|_| self.auto_on) {
+        match self.location().filter(|_| self.auto.on) {
             Some(coords) => match auto_percent_now(coords) {
                 0 => self.temperature,
                 p => solar::kelvin_for_percent(p, self.temperature, gamma::NEUTRAL_TEMPERATURE),
@@ -842,12 +847,14 @@ impl cosmic::Application for Nightlight {
                 core,
                 enabled: false,
                 busy: start.is_some(),
-                auto_on: auto_coords.is_some(),
-                custom_location: settings.custom_location,
-                tz_location,
-                lat_input: settings.custom_location.map(|c| fmt(c.0)).unwrap_or_default(),
-                lon_input: settings.custom_location.map(|c| fmt(c.1)).unwrap_or_default(),
-                auto_last,
+                auto: AutoState {
+                    on: auto_coords.is_some(),
+                    custom_location: settings.custom_location,
+                    tz_location,
+                    lat_input: settings.custom_location.map(|c| fmt(c.0)).unwrap_or_default(),
+                    lon_input: settings.custom_location.map(|c| fmt(c.1)).unwrap_or_default(),
+                    last: auto_last,
+                },
                 worker,
                 popup: None,
                 temperature: settings.temperature,
@@ -862,7 +869,7 @@ impl cosmic::Application for Nightlight {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.schedule_on || self.auto_on {
+        if self.schedule_on || self.auto.on {
             cosmic::iced::time::every(SCHEDULE_TICK).map(|_| Message::Tick)
         } else {
             Subscription::none()
@@ -893,11 +900,11 @@ impl cosmic::Application for Nightlight {
                         eprintln!("nightlight: cannot save temperature: {e}");
                     }
                 }
-                if self.auto_on {
+                if self.auto.on {
                     // The ramp uses the new target at once: forget the last
                     // step so the current one is applied again. While a
                     // request is in flight, its reply does this.
-                    self.auto_last = None;
+                    self.auto.last = None;
                     if self.busy {
                         self.retune_pending = true;
                         return Task::none();
@@ -916,10 +923,10 @@ impl cosmic::Application for Nightlight {
             Message::ScheduleOn(on) => {
                 self.schedule_on = on;
                 self.schedule_last = None;
-                if on && self.auto_on {
+                if on && self.auto.on {
                     // Auto and the custom schedule exclude each other.
-                    self.auto_on = false;
-                    self.auto_last = None;
+                    self.auto.on = false;
+                    self.auto.last = None;
                     self.save_auto();
                 }
                 self.save_schedule();
@@ -928,8 +935,8 @@ impl cosmic::Application for Nightlight {
             Message::AutoOn(on) => {
                 // No location: leave auto off (the popup shows a note).
                 let on = on && self.location().is_some();
-                self.auto_on = on;
-                self.auto_last = None;
+                self.auto.on = on;
+                self.auto.last = None;
                 self.save_auto();
                 if on && self.schedule_on {
                     self.schedule_on = false;
@@ -939,17 +946,17 @@ impl cosmic::Application for Nightlight {
                 return self.check_auto();
             }
             Message::LatInput(text) => {
-                self.lat_input = text;
+                self.auto.lat_input = text;
                 return self.location_edited();
             }
             Message::LonInput(text) => {
-                self.lon_input = text;
+                self.auto.lon_input = text;
                 return self.location_edited();
             }
             Message::UseTimezoneLocation => {
-                self.lat_input.clear();
-                self.lon_input.clear();
-                self.custom_location = None;
+                self.auto.lat_input.clear();
+                self.auto.lon_input.clear();
+                self.auto.custom_location = None;
                 self.save_location();
                 return self.location_changed();
             }
@@ -966,7 +973,7 @@ impl cosmic::Application for Nightlight {
                 return self.check_schedule();
             }
             Message::Tick => {
-                return if self.auto_on {
+                return if self.auto.on {
                     self.check_auto()
                 } else {
                     self.check_schedule()
@@ -1025,15 +1032,15 @@ impl cosmic::Application for Nightlight {
                             }
                             content = content.add(settings::item(
                                 "Auto (sunrise/sunset)",
-                                toggler(state.auto_on).on_toggle(Message::AutoOn),
+                                toggler(state.auto.on).on_toggle(Message::AutoOn),
                             ));
-                            let note = match (state.location(), state.custom_location) {
+                            let note = match (state.location(), state.auto.custom_location) {
                                 (None, _) => Some(
                                     "No location found for this timezone: enter latitude and \
                                      longitude to use Auto."
                                         .to_string(),
                                 ),
-                                (Some((lat, lon)), custom) if state.auto_on => Some(format!(
+                                (Some((lat, lon)), custom) if state.auto.on => Some(format!(
                                     "Ramps over {} min centred on sunrise and sunset, \
                                      to the temperature above. Location: {lat:.2}, {lon:.2} \
                                      ({}).",
@@ -1045,19 +1052,19 @@ impl cosmic::Application for Nightlight {
                             if let Some(note) = note {
                                 content = content.add(text(note));
                             }
-                            if state.auto_on || state.location().is_none() {
+                            if state.auto.on || state.location().is_none() {
                                 content = content
                                     .add(settings::item(
                                         "Latitude",
-                                        cosmic::widget::text_input("e.g. 48.85", &state.lat_input)
+                                        cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
                                             .on_input(Message::LatInput),
                                     ))
                                     .add(settings::item(
                                         "Longitude",
-                                        cosmic::widget::text_input("e.g. 2.35", &state.lon_input)
+                                        cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
                                             .on_input(Message::LonInput),
                                     ));
-                                if state.custom_location.is_some() {
+                                if state.auto.custom_location.is_some() {
                                     content = content.add(
                                         cosmic::widget::button::standard("Use timezone location")
                                             .on_press(Message::UseTimezoneLocation),
@@ -1083,7 +1090,7 @@ impl cosmic::Application for Nightlight {
                     schedule_last_after_reply(self.schedule_last, want, result.is_ok());
                 if result.is_err() {
                     // Forget the step so the next tick applies it again.
-                    self.auto_last = None;
+                    self.auto.last = None;
                 }
                 let (enabled, save) = applied(self.enabled, want, result.is_ok());
                 self.enabled = enabled;
@@ -1093,7 +1100,7 @@ impl cosmic::Application for Nightlight {
                     }
                 }
                 let pending = std::mem::take(&mut self.retune_pending);
-                if self.auto_on {
+                if self.auto.on {
                     if pending {
                         return self.check_auto();
                     }
