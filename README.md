@@ -125,10 +125,28 @@ On a trusted machine:
 ```sh
 gpg --quick-generate-key "cosmic-ext-nightlight releases <you@example.com>" ed25519 sign 2y
 gpg --list-keys --with-colons --fingerprint you@example.com   # the "fpr" line is the full fingerprint
-gpg --armor --export-secret-keys KEYID                        # for the GPG_PRIVATE_KEY secret
 ```
 
-Paste the full 40-character fingerprint into the code block under
+Set a passphrase when gpg asks for one. gpg also saves a revocation certificate
+at `~/.gnupg/openpgp-revocs.d/<FINGERPRINT>.rev`; copy it somewhere offline.
+
+Send the private key straight into the environment secret (after creating the
+`release` environment, see below), so it never appears on screen or in
+scrollback:
+
+```sh
+gpg --armor --export-secret-keys KEYID | gh secret set GPG_PRIVATE_KEY --env release
+```
+
+Without `gh`, write it to a protected file, paste it into GitHub's secret form,
+and destroy the file:
+
+```sh
+(umask 077; gpg --armor --export-secret-keys KEYID > private.asc)
+shred -u private.asc
+```
+
+Never print the private key to the terminal. Paste the full 40-character fingerprint into the code block under
 [Verify a download](#verify-a-download), replacing the placeholder line. The
 release workflow refuses to run while that placeholder is still in this file.
 Keep a backup of the private key and its revocation certificate offline. The key
@@ -154,14 +172,14 @@ environment (not repository secrets, which every workflow run can read):
 
 | Secret | Contents |
 | --- | --- |
-| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (`gpg --armor --export-secret-keys KEYID`) |
+| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (export it as in [Create the signing key](#create-the-signing-key-maintainers-once); never print it) |
 | `GPG_KEY_ID` | Key ID or fingerprint to sign with |
 | `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
 
 Also add a tag ruleset protecting `v*` (restrict who can create, update and
-delete those tags). The build
-tools are installed at fixed versions (`just` 1.59.0, `cargo-deb` 3.8.0) in the
-workflow; bump them by hand in a reviewed change.
+delete those tags). The build tools are installed at fixed versions (`just`
+1.59.0, `cargo-deb` 3.8.0) in the workflow; bump them by hand in a reviewed
+change.
 
 ## Add it to the panel
 
