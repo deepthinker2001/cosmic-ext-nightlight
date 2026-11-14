@@ -1,24 +1,24 @@
 Architectures: amd64
 Codename: stable
 Components: main
-Date: Sat, 14 Nov 2026 15:41:08 +0000
+Date: Sat, 14 Nov 2026 16:35:59 +0000
 Description: Night Light for COSMIC: a panel applet that toggles a night light
 Label: Night Light for COSMIC
 Origin: deepthinker2001
 Suite: stable
 MD5Sum:
- a30be60613a8e3eed3e1184469b8d650             1178 Release
- 42eeae35f0e2eb18cb5a8efa33b32d3d             1684 main/binary-amd64/Packages
- a51c608a61cb538f5e7a3da01a273802              737 main/binary-amd64/Packages.gz
+ 397258afe0325d61b030657577474d42             1550 Release
+ 2119502bfd8916515cc6831bf62803d8             2526 main/binary-amd64/Packages
+ 0371ce96d3fa313f3b1605c217b66192              925 main/binary-amd64/Packages.gz
 SHA1:
- 3d3512f9ad10c9623301843cfad3223fcdab0a15             1178 Release
- 1f13a7bb7fff918cad7bd6fcd40fda3c71e09c25             1684 main/binary-amd64/Packages
- 4afc0c2b456269fe006f959c5031fd7bae909fc4              737 main/binary-amd64/Packages.gz
+ 61bcffb6f7a665e60de2aa4e338cd02ec9428837             1550 Release
+ 16065dbaaa40b65a15dbff0044f69fd31509d964             2526 main/binary-amd64/Packages
+ 1df342265bc402a99bc91b7ad7b4d93997cbaa8b              925 main/binary-amd64/Packages.gz
 SHA256:
- 510ff10a19dbed035dce5ddfd65c014ce8aa7652dc2380621341058be4e88d61             1178 Release
- e7dfb6f24890cb837caf04388b80efa25c6c513251ce195dc5979f3794e8110e             1684 main/binary-amd64/Packages
- b83b6c34c4801352e55fca19b369f6b4042b722ddeaa38263e3ca5c7eaa0f574              737 main/binary-amd64/Packages.gz
+ 11f6940b95921c135410d930338c60e95fc156387492aebc6024dcd2e6f08d73             1550 Release
+ a97adeea4515865060942021e84a9ba32d921effbf329cc4d973b3791d58a2f8             2526 main/binary-amd64/Packages
+ 96f11de60afd3cfc97d9e09be900a755d2758c8fb0c89164784e3b96d1cbf633              925 main/binary-amd64/Packages.gz
 SHA512:
- 421cf93d22b0494432848cf34ca406c0765871630a9953fb2b68187ec0d535459bc7069525272c8f2e3bafc5f6f07089558544c1ffd7649055a5dd8b5b8ec2d1             1178 Release
- c07aec229874e90838627a655681c7ad38c8a9c74ce31563c5e9af16634241221822735a132bdee1c7ff4cc4ee7529c3774cabe86aa9094e3bad85d6637aaf41             1684 main/binary-amd64/Packages
- 69133dc2c45aac065669a5401b1e1dd31a1df4ed82798bcbe5d9a4eedb2968a8af52ee11672864ffe94ab0f0ed578db41ce56833bc6d983c7dbc56a524fce660              737 main/binary-amd64/Packages.gz
+ 998b0f874409c8be51d591e5ad6c3e8cee11bab977a9e29ec48f4b37a3dc2edaadb53b6fea70123eeae06153f5b1f92d6e1353996ce5ea676c2fe683c81d0065             1550 Release
+ e87635887f4dd4d82378e77d5aadad606b23ee31861045fcb521c57ae55ee072cdb8cd687bd1393768147aa8129e7aca58d668f7da9aa97e5ff357ed691d986f             2526 main/binary-amd64/Packages
+ 994235ea22b2e7d86283e16483b26509221e66609d415a5277488ac9cda38bb1504146890f1b15d0cd5e3894a339f69f59c3981b90f5ac0002d17fc93b5adda9              925 main/binary-amd64/Packages.gz
