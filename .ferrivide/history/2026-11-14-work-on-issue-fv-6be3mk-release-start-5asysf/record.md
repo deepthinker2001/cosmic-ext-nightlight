@@ -1,6 +1,6 @@
 # Work on issue FV-6BE3MK: Release: start on a v* tag push, no manual release step
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-6be3mk-release-start-on-a-v-tag-push-no-manual` · FV-6BE3MK: Release: a plain git push of main starts the release
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-6be3mk-release-start-on-a-v-tag-push-no-manual` · FV-6BE3MK: Release: a plain git push of main starts the release
 
 About $0.00, 0 tokens in, 0 out
 
@@ -78,16 +78,29 @@ No test runs were reported.
 Progress reports:
 
 - Fixed #2 (manual tag checked against Cargo version); #1, #3, #4 declined: they follow the superseded issue text, the PM's later instruction set the main-push design.
+- Fixed cyber #1-#3 and quick #4 (plan folded into build; three jobs again). YAML parses; not run on GitHub.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Round 3 review. All four findings from round 2 are fixed. #4 (three jobs) is done: `plan` is folded into `build`, and the workflow has build, attach and apt. #1 (tag creation open to collaborators) is fixed in the docs: the environment's Tag rule is gone, and the ruleset restricts create, update and delete to admins with the Actions app as bypass. #2 (dispatch tag not checked against main) is fixed: the checkout uses a fully qualified refs/tags ref with fetch-depth 0, and `build` fails unless the tag's commit is an ancestor of origin/main. #3 (tag/commit mismatch) is fixed: `attach` compares the tag's commit to the built SHA before any upload, and the YAML parses with jobs build, attach, apt. I found nothing new in the changed lines.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): All four findings from the last round are fixed. I read the diff only: no live run is possible, and I didn't run the Rust build, tests, fmt or clippy.
+
+- **#1:** `docs/RELEASING.md` now says the `release` environment has a branch `main` rule and no Tag rule. It also says `v*` tag creation is limited to admins, with a bypass for the Actions app or another controlled way to create the tag.
+- **#2:** `build` checks out `refs/tags/<tag>` with full history. A manual rerun fails unless the tag's commit is an ancestor of `origin/main`.
+- **#3:** `attach` fails before any upload unless the tag's commit equals the SHA that was built. The check runs after the release is created or found.
+- **#4:** `plan` is folded into `build`, so the workflow is back to three jobs. The cargo steps are guarded by `if:`, and `attach` and `apt` run only on a release.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): All three earlier security findings are fixed. The docs now allow only branch main on the release environment and restrict v* tag creation to admins plus a bypass for the workflow. A manual rerun checks out refs/tags/<tag> fully qualified, with full history, and fails unless the tag's commit is on origin/main. attach compares the tag's commit to the built SHA before any upload. The quick reviewer's #4 is also resolved: plan is folded into build behind step-level ifs, so there are three jobs again. The YAML parses (build, attach, apt), and cargo test gives 46 passed, 1 ignored.
 
 ## Summary
 
-I fixed finding #2 and left #1, #3 and #4 as they are, because they review the old issue text, not the design the project manager gave later. Nothing ran on GitHub. The YAML parses, and I didn't run `cargo fmt` or clippy since no Rust changed.
+I fixed all four findings and committed. Nothing has run on GitHub; the only check is that the YAML parses and the job dependencies come out as `build`, then `attach`, then `apt`. I didn't run `cargo fmt` or clippy, since no Rust changed.
 
-- **#2 (fixed):** a manual run with a `tag` input now fails unless the tag equals `v` plus the package version. The check is in the `plan` job and is committed.
-- **#1, #4 (declined):** these ask for the tag-push trigger and for docs that say to push a tag. The project manager replaced that, at the user's request, with: a push to `main` releases when `v<version>` has no tag yet. Going back would need the user to say so.
-- **#3 (declined):** the `plan` job is how a plain push to `main` releases nothing: it stops the run before `build` and the write-token jobs. The `build`, `attach` and `apt` split is unchanged.
-
-I recorded #1, #3 and #4 as declined with the reason `needs_user_decision`. The main-push design also means the `release` environment must allow the branch `main`. `docs/RELEASING.md` says this and where to check it.
+- **Cyber #2, tag not checked against `main`:** a manual run now checks out `refs/tags/<tag>`, so a branch of the same name can't stand in for it. It fetches full history and fails unless the tag's commit is an ancestor of `origin/main`.
+- **Cyber #3, tag created in between:** `attach` now compares the tag's commit with the commit that was built, after creating or finding the release. It stops before any upload if they differ. This also covers a redo whose release already exists.
+- **Cyber #1, tag rules:** `docs/RELEASING.md` now says the `release` environment allows only the branch `main`, with no tag rule. Creating or changing `v*` tags stays restricted to admins, with the GitHub Actions app as a bypass actor. If the Actions app can't be given that bypass, the docs say to create the tag some other way that isn't open to every collaborator, such as a deploy key or a GitHub App token. I couldn't check on GitHub whether the bypass works.
+- **Quick #4, fourth job:** the `plan` job is folded into `build`. `build` reads the version in its first step and skips the build steps if the tag already exists. It outputs `release`, `tag` and `sha`, and `attach` and `apt` run only when `release` is true. The docs and the workflow header comment describe three jobs again.
 
 ## Contract
 
@@ -97,4 +110,4 @@ The clauses this work was bound by:
 
 ---
 
-From `c62b1d0632` to `7d7c1643be`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `c62b1d0632` to `f392440bfa`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
