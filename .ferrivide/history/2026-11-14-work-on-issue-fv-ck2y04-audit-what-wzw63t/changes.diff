@@ -1,0 +1,21 @@
+diff --git a/docs/RELEASING.md b/docs/RELEASING.md
+index 6925dd1..35b20a3 100644
+--- a/docs/RELEASING.md
++++ b/docs/RELEASING.md
+@@ -139,7 +139,15 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
+ A release is a commit on `main` that raises the version. There is no tag to
+ push and no release to create by hand.
+ 
+-1. Make sure CI is green on `main`.
++1. Make sure CI is green on `main`. Before merging the version change, check
++   that the signing key's full primary fingerprint (`gpg --list-keys
++   --with-colons --fingerprint` on the trusted signing machine) and the
++   `release` environment's `APT_SIGNING_KEY_ID` both match the fingerprint
++   published in the [README verification steps](../README.md#with-apt-recommended):
++   `0472CEF01CE0E79EC118662D34A06EB979E58584`. Ignore spaces when comparing
++   the README's grouped form. If they differ, stop and resolve the mismatch
++   before releasing; do not replace the documented fingerprint just to match
++   a downloaded key.
+ 2. In a change to `main`, set `version` in `Cargo.toml` (for example `0.2.0`)
+    and commit the updated `Cargo.lock` (CI builds with `--locked`). A version
+    is never reused: apt caches packages by version, so a fix is a new
