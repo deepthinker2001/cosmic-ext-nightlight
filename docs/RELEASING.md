@@ -137,7 +137,10 @@ required), and so should `gh-pages` against pushes by anyone but the workflow.
 ## Cut a release
 
 A release is a commit on `main` that raises the version. There is no tag to
-push and no release to create by hand.
+push and no release to create by hand. This intentionally replaces the earlier
+tag-push release procedure: pushing a `v*` tag does not start a release. The
+workflow creates the tag itself after building the pushed `main` commit; keep
+the `release` environment limited to branch `main`, as described above.
 
 1. Make sure CI is green on `main`. Before merging the version change, check
    that the signing key's full primary fingerprint (`gpg --list-keys

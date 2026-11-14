@@ -180,7 +180,7 @@ jobs:
     needs: [build, attach]
     runs-on: ubuntu-latest
     # The signing key and its id live in this environment (required reviewer,
-    # limited to v* tags and main), not in repository secrets.
+    # limited to branch main, no tag rule), not in repository secrets.
     environment: release
     permissions:
       contents: write # to push the gh-pages branch
