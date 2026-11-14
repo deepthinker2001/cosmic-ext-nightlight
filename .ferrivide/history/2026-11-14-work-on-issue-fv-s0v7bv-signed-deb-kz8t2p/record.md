@@ -1,6 +1,6 @@
 # Work on issue FV-S0V7BV: Signed .deb release workflow
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-s0v7bv-signed-deb-release-workflow` · FV-S0V7BV: Signed .deb release workflow
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-s0v7bv-signed-deb-release-workflow` · FV-S0V7BV: Signed .deb release workflow
 
 About $0.00, 0 tokens in, 0 out
 
@@ -57,23 +57,27 @@ Then:
 
 No test runs were reported.
 
+Progress reports:
+
+- Release workflow split into build/sign/publish; README verifies with gpgv against the release key; build fails until the fingerprint placeholder is filled. Not run on GitHub.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): Round 3 check. Finding #1 is fixed: the README now verifies with `gpgv` against a dearmored release key, and the hash check runs only after `gpgv` succeeds. I tested it with a throwaway key. A genuine checksum file and .deb pass. A checksum file signed by an unknown key makes gpgv exit 2, so the hash check never runs. A tampered .deb makes gpgv exit 1. Finding #2 is the placeholder fingerprint. The engineer's reason (the maintainer has to create the signing key, which needs a user decision) holds, and the build job now fails any tag push while the placeholder is still in the README, so no release can go out before it's filled in. I'm accepting that reason, so it goes to a backlog issue.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): #1 is fixed: the README verifies with `gpgv` against the release key alone, and the hash check only runs if `gpgv` succeeds. #2's reason is accepted. The fingerprint depends on a key only the maintainer has, and the release's build job now refuses to run while the placeholder is in the README.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): #1 is fixed. The README now checks the hashes only after `gpgv --keyring ./signing-key.gpg` passes, against the release key alone, and the `.deb` signature is checked the same way. This matches the command I tested last round: `gpgv` fails on the tampered file, so the hash check never runs. I accept the deferral of #2, since the fingerprint depends on a key only the user holds. The new build step fails any release while the placeholder is still in the README, so no tag can publish without it. The new lines raise no new security issue.
+
 ## Summary
 
-I split the release workflow into three jobs and committed it. I haven't run it on GitHub, and `release.yml` has only been checked to parse as YAML. I fixed findings #1–#10 and declined none.
+I fixed the cyber reviewer's remaining finding (#5 on the README's verification), and committed it. I couldn't fill in the signing key's fingerprint (#2), so I'm declining that one. Nothing has run on GitHub.
 
-**Still to do before the first release:** the README has a placeholder where the signing key's full fingerprint goes. I don't have the key, so the maintainer must fill it in. There is no committed public key either (#7). The sign job exports the public key as `signing-key.asc` and attaches it to each release. The README tells users to check its fingerprint against the one in the README, so the release copy isn't trusted on its own.
+- **#5, verification:** the README now verifies against the release key alone with `gpgv`, so a bad signature stops the check. You first check the fingerprint of `signing-key.asc` and convert it with `gpg --dearmor`. Then `gpgv … --output SHA256SUMS.verified SHA256SUMS.asc && sha256sum -c --ignore-missing SHA256SUMS.verified` checks the hashes, and `gpgv` checks the `.deb` the same way. The README warns not to use `SHA256SUMS.verified` or the `.deb` if `gpgv` fails. I didn't run these commands myself; they follow the cyber reviewer's suggested fix.
+- **#2, fingerprint:** I'm declining it as needs_user_decision, because the real 40-character fingerprint belongs to a key you choose or create. The README keeps the placeholder. I added a first step to the `build` job in `release.yml` that fails while the placeholder is still in `README.md`, so no release can go out without the fingerprint.
 
-**Workflow (`.github/workflows/release.yml`)**
-- **`build` job (#1, #2, #3, #9, #10):** it has a read-only token and no secrets. It has no `rust-cache` step. It installs `just@1.59.0` and `cargo-deb@3.8.0` at fixed versions, and uploads the `.deb` as an artifact.
-- **`sign` job (#1, #4, #6, #8):** it runs in `environment: release`, with no checkout, no cache and no cargo. It calls `/usr/bin/gpg` by absolute path. A `trap` kills the gpg agent and deletes the temporary keyring on any exit, including failure. It then uploads the signed set as a second artifact.
-- **`publish` job (#1):** it is the only job with `contents: write`, and it runs only `gh release create`.
-- The upload and download artifact actions are pinned to full SHAs: `upload-artifact` v4.6.2 and `download-artifact` v4.3.0. I confirmed both against upstream with `git ls-remote`.
-
-**README**
-- **#4:** the secrets (`GPG_PRIVATE_KEY`, `GPG_KEY_ID`, `GPG_PASSPHRASE`) are now environment secrets of a `release` environment. The README says to restrict that environment to `v*` tags, add a required reviewer, and add a `v*` tag ruleset. I can't configure these from the repo, so a maintainer has to do it in GitHub.
-- **#5:** verification now runs `gpg --decrypt SHA256SUMS.asc | sha256sum -c --ignore-missing -`, which hashes from the signed text rather than the unsigned file. It also tells users to check that the key's fingerprint matches the one in the README.
-- **#7:** the README now says where to get the public key and how to import it.
+Before the first release, a maintainer has to put the real fingerprint in the README. They also have to set up the `release` environment and the tag ruleset described there.
 
 ---
 
-From `9d2c10e0b2` to `f203fb2ad9`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `9d2c10e0b2` to `1c7e89d5c1`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
