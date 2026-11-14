@@ -99,7 +99,10 @@ impl Worker {
 
 /// Serve one worker request, connecting the backend on first use (or after
 /// a broken connection). Kept out of the worker's loop body so the loop only
-/// receives and replies.
+/// receives and replies. Not a hot path: `GammaBackend::new` runs only while
+/// the backend is `None`, i.e. once per connection (and its `Vec::new` does
+/// not allocate until an output is pushed); requests on a live connection
+/// reuse the cached backend.
 fn handle_request(
     backend: &mut Option<gamma::GammaBackend>,
     target: Option<u32>,
@@ -718,6 +721,9 @@ impl Nightlight {
     }
 
     /// Kelvin for a manual switch-on: the current ramp step while auto is on.
+    /// At 0% (daytime) the ramp itself is neutral, but a person pressing the
+    /// button wants the warm tint, so the full target is used; the next ramp
+    /// step then takes over (documented in the README).
     fn manual_kelvin(&self) -> u32 {
         match self.location().filter(|_| self.auto.on) {
             Some(coords) => match auto_percent_now(coords) {
@@ -793,6 +799,85 @@ enum Message {
     UseTimezoneLocation,
     /// Time to check the schedule.
     Tick,
+}
+
+/// The settings popup's content.
+fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
+    let kelvin = state.temperature;
+    let mut content = list_column()
+        .add(settings::item(
+            "Night light",
+            toggler(state.enabled).on_toggle(|_| Message::Toggle),
+        ))
+        .add(settings::item(
+            format!("Colour temperature: {kelvin} K"),
+            text(temperature_hint(kelvin)),
+        ))
+        .add(
+            slider(
+                gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
+                kelvin,
+                Message::Temperature,
+            )
+            .step(100_u32),
+        )
+        .add(settings::item(
+            "Schedule: custom times",
+            toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
+        ));
+    if state.schedule_on {
+        let (start, end) = (state.schedule_start, state.schedule_end);
+        content = content
+            .add(settings::item(
+                "Start",
+                time_picker(start, Message::ScheduleStart),
+            ))
+            .add(settings::item(
+                "End",
+                time_picker(end, Message::ScheduleEnd),
+            ));
+    }
+    content = content.add(settings::item(
+        "Auto (sunrise/sunset)",
+        toggler(state.auto.on).on_toggle(Message::AutoOn),
+    ));
+    let note = match (state.location(), state.auto.custom_location) {
+        (None, _) => Some(
+            "No location found for this timezone: enter latitude and \
+             longitude to use Auto."
+                .to_string(),
+        ),
+        (Some((lat, lon)), custom) if state.auto.on => Some(format!(
+            "Ramps over {} min centred on sunrise and sunset, \
+             to the temperature above. Location: {lat:.2}, {lon:.2} \
+             ({}).",
+            solar::RAMP_WINDOW_MINUTES,
+            if custom.is_some() { "custom" } else { "timezone" },
+        )),
+        _ => None,
+    };
+    if let Some(note) = note {
+        content = content.add(text(note));
+    }
+    content = content
+        .add(settings::item(
+            "Latitude",
+            cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
+                .on_input(Message::LatInput),
+        ))
+        .add(settings::item(
+            "Longitude",
+            cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
+                .on_input(Message::LonInput),
+        ));
+    if state.auto.custom_location.is_some() {
+        content = content.add(
+            cosmic::widget::button::standard("Use timezone location")
+                .on_press(Message::UseTimezoneLocation),
+        );
+    }
+    Element::from(state.core.applet.popup_container(content))
+        .map(cosmic::Action::App)
 }
 
 impl cosmic::Application for Nightlight {
@@ -995,85 +1080,7 @@ impl cosmic::Application for Nightlight {
                                 None,
                             )
                         },
-                        Some(Box::new(|state: &Nightlight| {
-                            let kelvin = state.temperature;
-                            let mut content = list_column()
-                                .add(settings::item(
-                                    "Night light",
-                                    toggler(state.enabled).on_toggle(|_| Message::Toggle),
-                                ))
-                                .add(settings::item(
-                                    format!("Colour temperature: {kelvin} K"),
-                                    text(temperature_hint(kelvin)),
-                                ))
-                                .add(
-                                    slider(
-                                        gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
-                                        kelvin,
-                                        Message::Temperature,
-                                    )
-                                    .step(100_u32),
-                                )
-                                .add(settings::item(
-                                    "Schedule: custom times",
-                                    toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
-                                ));
-                            if state.schedule_on {
-                                let (start, end) = (state.schedule_start, state.schedule_end);
-                                content = content
-                                    .add(settings::item(
-                                        "Start",
-                                        time_picker(start, Message::ScheduleStart),
-                                    ))
-                                    .add(settings::item(
-                                        "End",
-                                        time_picker(end, Message::ScheduleEnd),
-                                    ));
-                            }
-                            content = content.add(settings::item(
-                                "Auto (sunrise/sunset)",
-                                toggler(state.auto.on).on_toggle(Message::AutoOn),
-                            ));
-                            let note = match (state.location(), state.auto.custom_location) {
-                                (None, _) => Some(
-                                    "No location found for this timezone: enter latitude and \
-                                     longitude to use Auto."
-                                        .to_string(),
-                                ),
-                                (Some((lat, lon)), custom) if state.auto.on => Some(format!(
-                                    "Ramps over {} min centred on sunrise and sunset, \
-                                     to the temperature above. Location: {lat:.2}, {lon:.2} \
-                                     ({}).",
-                                    solar::RAMP_WINDOW_MINUTES,
-                                    if custom.is_some() { "custom" } else { "timezone" },
-                                )),
-                                _ => None,
-                            };
-                            if let Some(note) = note {
-                                content = content.add(text(note));
-                            }
-                            if state.auto.on || state.location().is_none() {
-                                content = content
-                                    .add(settings::item(
-                                        "Latitude",
-                                        cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
-                                            .on_input(Message::LatInput),
-                                    ))
-                                    .add(settings::item(
-                                        "Longitude",
-                                        cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
-                                            .on_input(Message::LonInput),
-                                    ));
-                                if state.auto.custom_location.is_some() {
-                                    content = content.add(
-                                        cosmic::widget::button::standard("Use timezone location")
-                                            .on_press(Message::UseTimezoneLocation),
-                                    );
-                                }
-                            }
-                            Element::from(state.core.applet.popup_container(content))
-                                .map(cosmic::Action::App)
-                        })),
+                        Some(Box::new(popup_content)),
                     ),
                 };
                 return cosmic::task::message(cosmic::Action::Surface(action));

@@ -31,7 +31,9 @@ instead of switching at a fixed time:
 - A step is applied only when the whole percent changes, checked every 20
   seconds, so it also catches up after the computer wakes from sleep. Moving
   the slider applies the new target at once. The panel button still switches
-  night light on or off by hand; that holds until the next step.
+  night light on or off by hand; that holds until the next step. Switching
+  on by hand uses the current ramp temperature, or your full target when the
+  ramp is at 0% (daytime); the next 1% step then takes over.
 - **Location**: by default the coordinates of the system timezone, read from
   `/usr/share/zoneinfo/zone.tab` (or `zone1970.tab`). You can type a latitude
   and longitude in the popup instead (they win once both are valid), and

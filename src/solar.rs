@@ -69,6 +69,13 @@ pub fn ramp_percent(sun: Sun, now: f64, window: f64) -> u8 {
         Sun::PolarNight => 1.0,
         Sun::Rises { sunrise, sunset } => {
             let half = window / 2.0;
+            // Far from its zone's meridian a sunrise can fall before 0 or a
+            // sunset after 1440. Events repeat daily, so take sunrise into
+            // 0..1440 and look at `now` within the one cycle that starts a
+            // half window before it.
+            let sunset = sunset - sunrise + sunrise.rem_euclid(1440.0);
+            let sunrise = sunrise.rem_euclid(1440.0);
+            let now = sunrise - half + (now - (sunrise - half)).rem_euclid(1440.0);
             let morning = 1.0 - ease((now - (sunrise - half)) / window);
             let evening = ease((now - (sunset - half)) / window);
             // Where the windows overlap (a very short day) the stronger wins.
@@ -172,6 +179,23 @@ mod tests {
         assert_eq!(ramp_percent(SUN, 1200.0, w), 50); // sunset: halfway up
         assert_eq!(ramp_percent(SUN, 1231.0, w), 100);
         assert_eq!(ramp_percent(SUN, 1439.0, w), 100);
+    }
+
+    #[test]
+    fn events_outside_the_day_wrap() {
+        let w = RAMP_WINDOW_MINUTES;
+        // Sunrise at -20 (23:40 the evening before), sunset at 1000.
+        let sun = Sun::Rises { sunrise: -20.0, sunset: 1000.0 };
+        assert_eq!(ramp_percent(sun, 1420.0, w), 50); // sunrise
+        assert_eq!(ramp_percent(sun, 500.0, w), 0); // day
+        assert_eq!(ramp_percent(sun, 1000.0, w), 50); // sunset
+        assert_eq!(ramp_percent(sun, 1300.0, w), 100); // night
+        // Sunset at 1500 (01:00 the next morning), sunrise at 400.
+        let sun = Sun::Rises { sunrise: 400.0, sunset: 1500.0 };
+        assert_eq!(ramp_percent(sun, 1500.0 - 1440.0, w), 50);
+        assert_eq!(ramp_percent(sun, 10.0, w), 0); // still day
+        assert_eq!(ramp_percent(sun, 1440.0 - 10.0, w), 0);
+        assert_eq!(ramp_percent(sun, 200.0, w), 100); // night
     }
 
     #[test]

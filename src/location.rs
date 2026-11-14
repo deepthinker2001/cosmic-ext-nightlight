@@ -48,7 +48,9 @@ fn parse_part(part: &str, deg_digits: usize) -> Option<f64> {
 /// Parse the coordinates column of a zone table: `+3114+12128`, `-3352+15113`
 /// or with seconds `+404251-0740023`.
 pub fn parse_iso6709(text: &str) -> Option<Coords> {
-    let split = text[1.min(text.len())..].find(['+', '-'])? + 1;
+    // The sign is one ASCII byte, so `split` is always a character boundary.
+    let rest = text.strip_prefix(['+', '-'])?;
+    let split = rest.find(['+', '-'])? + 1;
     let (lat, lon) = text.split_at(split);
     let coords = (parse_part(lat, 2)?, parse_part(lon, 3)?);
     valid(coords.0, coords.1).then_some(coords)
@@ -126,7 +128,7 @@ mod tests {
 
     #[test]
     fn rejects_garbage() {
-        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128"] {
+        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128", "é+3114+12128"] {
             assert_eq!(parse_iso6709(bad), None, "{bad}");
         }
     }

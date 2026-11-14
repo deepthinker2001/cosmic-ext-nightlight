@@ -1,8 +1,8 @@
 diff --git a/README.md b/README.md
-index 9f567a8..ee66597 100644
+index 9f567a8..58ef12c 100644
 --- a/README.md
 +++ b/README.md
-@@ -13,6 +13,35 @@ tint) with one click.
+@@ -13,6 +13,37 @@ tint) with one click.
  - The on/off state is saved and restored the next time the applet starts.
  - Gamma is set directly through the Wayland protocol; no other daemon is needed.
  
@@ -24,7 +24,9 @@ index 9f567a8..ee66597 100644
 +- A step is applied only when the whole percent changes, checked every 20
 +  seconds, so it also catches up after the computer wakes from sleep. Moving
 +  the slider applies the new target at once. The panel button still switches
-+  night light on or off by hand; that holds until the next step.
++  night light on or off by hand; that holds until the next step. Switching
++  on by hand uses the current ramp temperature, or your full target when the
++  ramp is at 0% (daytime); the next 1% step then takes over.
 +- **Location**: by default the coordinates of the system timezone, read from
 +  `/usr/share/zoneinfo/zone.tab` (or `zone1970.tab`). You can type a latitude
 +  and longitude in the popup instead (they win once both are valid), and
@@ -40,10 +42,10 @@ index 9f567a8..ee66597 100644
  - A Wayland compositor that supports `wlr-gamma-control`
 diff --git a/src/location.rs b/src/location.rs
 new file mode 100644
-index 0000000..27e48a0
+index 0000000..c6dd26a
 --- /dev/null
 +++ b/src/location.rs
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,163 @@
 +//! The default location: the coordinates of the system timezone, read from
 +//! the local tz database tables. No network, no IP lookup.
 +
@@ -94,7 +96,9 @@ index 0000000..27e48a0
 +/// Parse the coordinates column of a zone table: `+3114+12128`, `-3352+15113`
 +/// or with seconds `+404251-0740023`.
 +pub fn parse_iso6709(text: &str) -> Option<Coords> {
-+    let split = text[1.min(text.len())..].find(['+', '-'])? + 1;
++    // The sign is one ASCII byte, so `split` is always a character boundary.
++    let rest = text.strip_prefix(['+', '-'])?;
++    let split = rest.find(['+', '-'])? + 1;
 +    let (lat, lon) = text.split_at(split);
 +    let coords = (parse_part(lat, 2)?, parse_part(lon, 3)?);
 +    valid(coords.0, coords.1).then_some(coords)
@@ -172,7 +176,7 @@ index 0000000..27e48a0
 +
 +    #[test]
 +    fn rejects_garbage() {
-+        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128"] {
++        for bad in ["", "+", "+31", "3114+12128", "+3114", "+31x4+12128", "+9914+12128", "+3114+18128", "é+3114+12128"] {
 +            assert_eq!(parse_iso6709(bad), None, "{bad}");
 +        }
 +    }
@@ -206,7 +210,7 @@ index 0000000..27e48a0
 +    }
 +}
 diff --git a/src/main.rs b/src/main.rs
-index bb6dd86..d4dc8f3 100644
+index bb6dd86..4c3d9d7 100644
 --- a/src/main.rs
 +++ b/src/main.rs
 @@ -1,6 +1,8 @@
@@ -267,13 +271,16 @@ index bb6dd86..d4dc8f3 100644
              }
          });
          Self { tx }
-@@ -111,6 +97,35 @@ impl Worker {
+@@ -111,6 +97,38 @@ impl Worker {
      }
  }
  
 +/// Serve one worker request, connecting the backend on first use (or after
 +/// a broken connection). Kept out of the worker's loop body so the loop only
-+/// receives and replies.
++/// receives and replies. Not a hot path: `GammaBackend::new` runs only while
++/// the backend is `None`, i.e. once per connection (and its `Vec::new` does
++/// not allocate until an output is pushed); requests on a live connection
++/// reuse the cached backend.
 +fn handle_request(
 +    backend: &mut Option<gamma::GammaBackend>,
 +    target: Option<u32>,
@@ -303,7 +310,7 @@ index bb6dd86..d4dc8f3 100644
  /// What a toggle press asks for: `None` while a request is in flight.
  fn toggle_request(enabled: bool, busy: bool) -> Option<bool> {
      (!busy).then_some(!enabled)
-@@ -235,6 +250,33 @@ fn local_time_of_day() -> TimeOfDay {
+@@ -235,6 +253,33 @@ fn local_time_of_day() -> TimeOfDay {
      TimeOfDay::from_minutes(now.hour() * 60 + now.minute())
  }
  
@@ -337,7 +344,7 @@ index bb6dd86..d4dc8f3 100644
  /// What a slider move asks of the backend.
  #[derive(Debug, PartialEq)]
  enum Retune {
-@@ -346,6 +388,25 @@ mod tests {
+@@ -346,6 +391,25 @@ mod tests {
          assert_eq!(schedule_step(Schedule::Off, t(1, 0), Some(true)), (None, None));
      }
  
@@ -363,7 +370,7 @@ index bb6dd86..d4dc8f3 100644
      #[test]
      fn hints_cover_the_range() {
          assert_eq!(temperature_hint(1900), "Very warm");
-@@ -461,6 +522,10 @@ struct Settings {
+@@ -461,6 +525,10 @@ struct Settings {
      schedule_on: bool,
      schedule_start: TimeOfDay,
      schedule_end: TimeOfDay,
@@ -374,7 +381,7 @@ index bb6dd86..d4dc8f3 100644
  }
  
  const DEFAULT_SCHEDULE_START: TimeOfDay = TimeOfDay(21 * 60);
-@@ -474,6 +539,8 @@ impl Default for Settings {
+@@ -474,6 +542,8 @@ impl Default for Settings {
              schedule_on: false,
              schedule_start: DEFAULT_SCHEDULE_START,
              schedule_end: DEFAULT_SCHEDULE_END,
@@ -383,7 +390,7 @@ index bb6dd86..d4dc8f3 100644
          }
      }
  }
-@@ -494,7 +561,35 @@ impl Settings {
+@@ -494,7 +564,35 @@ impl Settings {
              schedule_end: config
                  .get::<u16>(CONFIG_KEY_SCHEDULE_END)
                  .map_or(DEFAULT_SCHEDULE_END, |m| TimeOfDay::from_minutes(m.into())),
@@ -419,7 +426,7 @@ index bb6dd86..d4dc8f3 100644
      }
  
      fn save_schedule(
-@@ -535,9 +630,104 @@ struct Nightlight {
+@@ -535,9 +633,107 @@ struct Nightlight {
      schedule_end: TimeOfDay,
      /// Window state seen by the last schedule check (see `schedule_step`).
      schedule_last: Option<bool>,
@@ -511,6 +518,9 @@ index bb6dd86..d4dc8f3 100644
 +    }
 +
 +    /// Kelvin for a manual switch-on: the current ramp step while auto is on.
++    /// At 0% (daytime) the ramp itself is neutral, but a person pressing the
++    /// button wants the warm tint, so the full target is used; the next ramp
++    /// step then takes over (documented in the README).
 +    fn manual_kelvin(&self) -> u32 {
 +        match self.location().filter(|_| self.auto.on) {
 +            Some(coords) => match auto_percent_now(coords) {
@@ -524,7 +534,7 @@ index bb6dd86..d4dc8f3 100644
      fn schedule(&self) -> Schedule {
          if self.schedule_on {
              Schedule::Custom {
-@@ -595,6 +785,12 @@ enum Message {
+@@ -595,10 +791,95 @@ enum Message {
      ScheduleOn(bool),
      ScheduleStart(TimeOfDay),
      ScheduleEnd(TimeOfDay),
@@ -537,7 +547,90 @@ index bb6dd86..d4dc8f3 100644
      /// Time to check the schedule.
      Tick,
  }
-@@ -627,22 +823,43 @@ impl cosmic::Application for Nightlight {
+ 
++/// The settings popup's content.
++fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
++    let kelvin = state.temperature;
++    let mut content = list_column()
++        .add(settings::item(
++            "Night light",
++            toggler(state.enabled).on_toggle(|_| Message::Toggle),
++        ))
++        .add(settings::item(
++            format!("Colour temperature: {kelvin} K"),
++            text(temperature_hint(kelvin)),
++        ))
++        .add(
++            slider(
++                gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
++                kelvin,
++                Message::Temperature,
++            )
++            .step(100_u32),
++        )
++        .add(settings::item(
++            "Schedule: custom times",
++            toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
++        ));
++    if state.schedule_on {
++        let (start, end) = (state.schedule_start, state.schedule_end);
++        content = content
++            .add(settings::item(
++                "Start",
++                time_picker(start, Message::ScheduleStart),
++            ))
++            .add(settings::item(
++                "End",
++                time_picker(end, Message::ScheduleEnd),
++            ));
++    }
++    content = content.add(settings::item(
++        "Auto (sunrise/sunset)",
++        toggler(state.auto.on).on_toggle(Message::AutoOn),
++    ));
++    let note = match (state.location(), state.auto.custom_location) {
++        (None, _) => Some(
++            "No location found for this timezone: enter latitude and \
++             longitude to use Auto."
++                .to_string(),
++        ),
++        (Some((lat, lon)), custom) if state.auto.on => Some(format!(
++            "Ramps over {} min centred on sunrise and sunset, \
++             to the temperature above. Location: {lat:.2}, {lon:.2} \
++             ({}).",
++            solar::RAMP_WINDOW_MINUTES,
++            if custom.is_some() { "custom" } else { "timezone" },
++        )),
++        _ => None,
++    };
++    if let Some(note) = note {
++        content = content.add(text(note));
++    }
++    content = content
++        .add(settings::item(
++            "Latitude",
++            cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
++                .on_input(Message::LatInput),
++        ))
++        .add(settings::item(
++            "Longitude",
++            cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
++                .on_input(Message::LonInput),
++        ));
++    if state.auto.custom_location.is_some() {
++        content = content.add(
++            cosmic::widget::button::standard("Use timezone location")
++                .on_press(Message::UseTimezoneLocation),
++        );
++    }
++    Element::from(state.core.applet.popup_container(content))
++        .map(cosmic::Action::App)
++}
++
+ impl cosmic::Application for Nightlight {
+     type Executor = cosmic::SingleThreadExecutor;
+     type Flags = ();
+@@ -627,22 +908,43 @@ impl cosmic::Application for Nightlight {
          };
          let (schedule_last, scheduled) = schedule_step(schedule, local_time_of_day(), None);
          let saved = scheduled.unwrap_or(settings.enabled);
@@ -587,7 +680,7 @@ index bb6dd86..d4dc8f3 100644
                  schedule_start: settings.schedule_start,
                  schedule_end: settings.schedule_end,
                  schedule_last,
-@@ -652,7 +869,7 @@ impl cosmic::Application for Nightlight {
+@@ -652,7 +954,7 @@ impl cosmic::Application for Nightlight {
      }
  
      fn subscription(&self) -> Subscription<Message> {
@@ -596,7 +689,7 @@ index bb6dd86..d4dc8f3 100644
              cosmic::iced::time::every(SCHEDULE_TICK).map(|_| Message::Tick)
          } else {
              Subscription::none()
-@@ -670,7 +887,7 @@ impl cosmic::Application for Nightlight {
+@@ -670,7 +972,7 @@ impl cosmic::Application for Nightlight {
                      return Task::none();
                  };
                  self.busy = true;
@@ -605,7 +698,7 @@ index bb6dd86..d4dc8f3 100644
              }
              Message::Temperature(kelvin) => {
                  let kelvin = gamma::clamp_temperature(kelvin);
-@@ -683,6 +900,17 @@ impl cosmic::Application for Nightlight {
+@@ -683,6 +985,17 @@ impl cosmic::Application for Nightlight {
                          eprintln!("nightlight: cannot save temperature: {e}");
                      }
                  }
@@ -623,7 +716,7 @@ index bb6dd86..d4dc8f3 100644
                  match retune_on_slider(self.enabled, self.busy) {
                      Retune::Now => {
                          self.busy = true;
-@@ -695,9 +923,43 @@ impl cosmic::Application for Nightlight {
+@@ -695,9 +1008,43 @@ impl cosmic::Application for Nightlight {
              Message::ScheduleOn(on) => {
                  self.schedule_on = on;
                  self.schedule_last = None;
@@ -667,7 +760,7 @@ index bb6dd86..d4dc8f3 100644
              Message::ScheduleStart(time) => {
                  self.schedule_start = time;
                  self.schedule_last = None;
-@@ -710,7 +972,13 @@ impl cosmic::Application for Nightlight {
+@@ -710,7 +1057,13 @@ impl cosmic::Application for Nightlight {
                  self.save_schedule();
                  return self.check_schedule();
              }
@@ -682,55 +775,53 @@ index bb6dd86..d4dc8f3 100644
              Message::ToggleSettings => {
                  let action = match self.popup {
                      Some(id) => destroy_popup(id),
-@@ -762,6 +1030,47 @@ impl cosmic::Application for Nightlight {
-                                         time_picker(end, Message::ScheduleEnd),
-                                     ));
-                             }
-+                            content = content.add(settings::item(
-+                                "Auto (sunrise/sunset)",
-+                                toggler(state.auto.on).on_toggle(Message::AutoOn),
-+                            ));
-+                            let note = match (state.location(), state.auto.custom_location) {
-+                                (None, _) => Some(
-+                                    "No location found for this timezone: enter latitude and \
-+                                     longitude to use Auto."
-+                                        .to_string(),
-+                                ),
-+                                (Some((lat, lon)), custom) if state.auto.on => Some(format!(
-+                                    "Ramps over {} min centred on sunrise and sunset, \
-+                                     to the temperature above. Location: {lat:.2}, {lon:.2} \
-+                                     ({}).",
-+                                    solar::RAMP_WINDOW_MINUTES,
-+                                    if custom.is_some() { "custom" } else { "timezone" },
-+                                )),
-+                                _ => None,
-+                            };
-+                            if let Some(note) = note {
-+                                content = content.add(text(note));
-+                            }
-+                            if state.auto.on || state.location().is_none() {
-+                                content = content
-+                                    .add(settings::item(
-+                                        "Latitude",
-+                                        cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
-+                                            .on_input(Message::LatInput),
-+                                    ))
-+                                    .add(settings::item(
-+                                        "Longitude",
-+                                        cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
-+                                            .on_input(Message::LonInput),
-+                                    ));
-+                                if state.auto.custom_location.is_some() {
-+                                    content = content.add(
-+                                        cosmic::widget::button::standard("Use timezone location")
-+                                            .on_press(Message::UseTimezoneLocation),
-+                                    );
-+                                }
-+                            }
-                             Element::from(state.core.applet.popup_container(content))
-                                 .map(cosmic::Action::App)
-                         })),
-@@ -779,6 +1088,10 @@ impl cosmic::Application for Nightlight {
+@@ -727,44 +1080,7 @@ impl cosmic::Application for Nightlight {
+                                 None,
+                             )
+                         },
+-                        Some(Box::new(|state: &Nightlight| {
+-                            let kelvin = state.temperature;
+-                            let mut content = list_column()
+-                                .add(settings::item(
+-                                    "Night light",
+-                                    toggler(state.enabled).on_toggle(|_| Message::Toggle),
+-                                ))
+-                                .add(settings::item(
+-                                    format!("Colour temperature: {kelvin} K"),
+-                                    text(temperature_hint(kelvin)),
+-                                ))
+-                                .add(
+-                                    slider(
+-                                        gamma::MIN_TEMPERATURE..=gamma::MAX_TEMPERATURE,
+-                                        kelvin,
+-                                        Message::Temperature,
+-                                    )
+-                                    .step(100_u32),
+-                                )
+-                                .add(settings::item(
+-                                    "Schedule: custom times",
+-                                    toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
+-                                ));
+-                            if state.schedule_on {
+-                                let (start, end) = (state.schedule_start, state.schedule_end);
+-                                content = content
+-                                    .add(settings::item(
+-                                        "Start",
+-                                        time_picker(start, Message::ScheduleStart),
+-                                    ))
+-                                    .add(settings::item(
+-                                        "End",
+-                                        time_picker(end, Message::ScheduleEnd),
+-                                    ));
+-                            }
+-                            Element::from(state.core.applet.popup_container(content))
+-                                .map(cosmic::Action::App)
+-                        })),
++                        Some(Box::new(popup_content)),
+                     ),
+                 };
+                 return cosmic::task::message(cosmic::Action::Surface(action));
+@@ -779,6 +1095,10 @@ impl cosmic::Application for Nightlight {
                  }
                  self.schedule_last =
                      schedule_last_after_reply(self.schedule_last, want, result.is_ok());
@@ -741,7 +832,7 @@ index bb6dd86..d4dc8f3 100644
                  let (enabled, save) = applied(self.enabled, want, result.is_ok());
                  self.enabled = enabled;
                  if let (Some(v), Some(c)) = (save, config()) {
-@@ -787,7 +1100,11 @@ impl cosmic::Application for Nightlight {
+@@ -787,7 +1107,11 @@ impl cosmic::Application for Nightlight {
                      }
                  }
                  let pending = std::mem::take(&mut self.retune_pending);
@@ -756,10 +847,10 @@ index bb6dd86..d4dc8f3 100644
                  }
 diff --git a/src/solar.rs b/src/solar.rs
 new file mode 100644
-index 0000000..8fd4269
+index 0000000..5ac673b
 --- /dev/null
 +++ b/src/solar.rs
-@@ -0,0 +1,216 @@
+@@ -0,0 +1,240 @@
 +//! Sunrise/sunset times and the smooth ramp around them. Pure functions: no
 +//! clock, no files; the caller passes the date, time and location in.
 +
@@ -831,6 +922,13 @@ index 0000000..8fd4269
 +        Sun::PolarNight => 1.0,
 +        Sun::Rises { sunrise, sunset } => {
 +            let half = window / 2.0;
++            // Far from its zone's meridian a sunrise can fall before 0 or a
++            // sunset after 1440. Events repeat daily, so take sunrise into
++            // 0..1440 and look at `now` within the one cycle that starts a
++            // half window before it.
++            let sunset = sunset - sunrise + sunrise.rem_euclid(1440.0);
++            let sunrise = sunrise.rem_euclid(1440.0);
++            let now = sunrise - half + (now - (sunrise - half)).rem_euclid(1440.0);
 +            let morning = 1.0 - ease((now - (sunrise - half)) / window);
 +            let evening = ease((now - (sunset - half)) / window);
 +            // Where the windows overlap (a very short day) the stronger wins.
@@ -934,6 +1032,23 @@ index 0000000..8fd4269
 +        assert_eq!(ramp_percent(SUN, 1200.0, w), 50); // sunset: halfway up
 +        assert_eq!(ramp_percent(SUN, 1231.0, w), 100);
 +        assert_eq!(ramp_percent(SUN, 1439.0, w), 100);
++    }
++
++    #[test]
++    fn events_outside_the_day_wrap() {
++        let w = RAMP_WINDOW_MINUTES;
++        // Sunrise at -20 (23:40 the evening before), sunset at 1000.
++        let sun = Sun::Rises { sunrise: -20.0, sunset: 1000.0 };
++        assert_eq!(ramp_percent(sun, 1420.0, w), 50); // sunrise
++        assert_eq!(ramp_percent(sun, 500.0, w), 0); // day
++        assert_eq!(ramp_percent(sun, 1000.0, w), 50); // sunset
++        assert_eq!(ramp_percent(sun, 1300.0, w), 100); // night
++        // Sunset at 1500 (01:00 the next morning), sunrise at 400.
++        let sun = Sun::Rises { sunrise: 400.0, sunset: 1500.0 };
++        assert_eq!(ramp_percent(sun, 1500.0 - 1440.0, w), 50);
++        assert_eq!(ramp_percent(sun, 10.0, w), 0); // still day
++        assert_eq!(ramp_percent(sun, 1440.0 - 10.0, w), 0);
++        assert_eq!(ramp_percent(sun, 200.0, w), 100); // night
 +    }
 +
 +    #[test]
