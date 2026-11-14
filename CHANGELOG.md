@@ -28,6 +28,8 @@ next version.
 
 ### Changed
 
+- License: the project is GPL-3.0-only, matching `Cargo.toml` and the package metadata. The `LICENSE` file held the AGPL-3.0 text by mistake and is now the GPL-3.0 text. libcosmic's applet support links GPL-3.0-only cosmic-panel crates, so GPL-3.0-only is the compatible choice.
+
 - Described as a "panel applet for COSMIC" (package description included),
   in place of "COSMIC panel applet".
 - README: documents the settings, and lists what hasn't been checked on a

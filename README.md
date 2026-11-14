@@ -172,7 +172,7 @@ If it does not appear, log out and back in so the panel reloads its applet list.
 
 ## License
 
-GPL-3.0-only.
+GPL-3.0-only (see [LICENSE](LICENSE)). It is GPL-3.0-only because libcosmic's applet support links GPL-3.0-only cosmic-panel crates.
 
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
