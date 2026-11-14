@@ -1,6 +1,6 @@
 # Work on issue FV-0M34B1: Audit: what the reviews of Engineer 1's work on…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-0m34b1-audit-what-the-reviews-of-engineer-1-s-w` · FV-0M34B1: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Docs)
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `chatgpt:gpt-6.1-sol` · branch `fv-0m34b1-audit-what-the-reviews-of-engineer-1-s-w` · FV-0M34B1: Audit: what the reviews of Engineer 1's work on cosmic-ext-nightlight left for later (Docs)
 
 0 tokens in, 0 out
 
@@ -47,19 +47,41 @@ Out of scope:
 
 | File | Change | Lines | Why |
 |---|---|---|---|
-| `.github/workflows/release.yml` | modified | +9 −9 |  |
+| `.github/workflows/release.yml` | modified | +9 −9 | Reordered apt job steps so detached signature attachment follows successful repository publication. |
+
+### Decisions
+
+- **Move the unchanged signature-upload step after Publish the repository.**: GitHub Actions' default success gating prevents attachment after a failed publication. Turned down: Keep attachment before publication..
+- **Leave README unchanged because it already uses the requested quoted deb variable.**: Current instructions already select one download and chain verification and installation with &&; mocked shell checks confirmed behavior with multiple downloads and failed verification. Turned down: Rewrite already-correct instructions unnecessarily..
 
 ## Tested
 
+- `cargo test`: 47 passed, 0 failed, 1 skipped
 - `cargo test`: 47 passed, 0 failed, 1 skipped
 
 Progress reports:
 
 - Moved signature upload after apt publication; cargo tests pass, formatting is clean, and clippy reports no warnings. Checking workflow order and README shell behavior next.
+- Committed 1e0c92f210: signature upload now follows apt publication; confirmed README already selects one package safely. All local checks pass; no live GitHub release was run.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`chatgpt:gpt-6-luna`): The release signature upload now follows repository publication, and the README verification/install instructions already use one explicit `$deb` filename consistently. The release workflow parses as YAML and the changed files have no whitespace errors; no Rust build or tests are relevant to this workflow-only change.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The .asc upload now runs after 'Publish the repository'. The README already used a quoted $deb variable (lines 152-156), so no change was needed there. The unchanged-repository early `exit 0` ends only that step, so the upload still runs. The commit message is clean and adds no placeholder token.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): The only change moves the release workflow's .asc upload step, unchanged, to after "Publish the repository". Its token scope, environment and quoting are the same as before. Each step starts in the workspace root, so the `cd site` in the publish step doesn't affect it. The publish step's "unchanged" path ends with `exit 0`, so the upload still runs on a redo. The README finding was already resolved before this change (a quoted single "$deb" and no globs). YAML parses, cargo test passes (47 passed, 1 ignored), and the commit message follows C4.
 
 ## Summary
 
-The README already uses a quoted `$deb` variable throughout verification and installation, so that finding is resolved. I’ll preserve it and move the signature upload after repository publication.
+Committed as **`1e0c92f210`** — `Fixes FV-0M34B1`.
+
+- Moved the `.asc` upload after **Publish the repository**, so failed publication prevents signature attachment.
+- Confirmed the README already uses one quoted `$deb` variable for verification and installation; no README edit was needed. No fingerprint placeholder was added.
+
+**Validation:** 47 tests passed, 1 ignored; formatting and clippy passed. Workflow order and shell syntax checks passed. Mocked README commands confirmed that multiple downloads don’t affect package selection and failed signature or hash checks block installation.
+
+No live GitHub release was run.
 
 ## Contract
 
@@ -70,4 +92,4 @@ The clauses this work was bound by:
 
 ---
 
-From `bde86f2cf3` to uncommitted work. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `bde86f2cf3` to `1e0c92f210`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
