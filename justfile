@@ -16,6 +16,10 @@ check:
 deb:
     cargo deb --locked
 
+notices:
+    cargo fetch --locked
+    python3 -I scripts/gen-third-party-notices.py > THIRD-PARTY-NOTICES
+
 clean:
     cargo clean
 

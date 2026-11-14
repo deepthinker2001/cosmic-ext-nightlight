@@ -29,6 +29,11 @@ assets = [
     ["data/io.github.cosmic_ext.Nightlight.desktop", "usr/share/applications/", "644"],
     ["data/icons/io.github.cosmic_ext.Nightlight-on-symbolic.svg", "usr/share/icons/hicolor/scalable/status/", "644"],
     ["data/icons/io.github.cosmic_ext.Nightlight-off-symbolic.svg", "usr/share/icons/hicolor/scalable/status/", "644"],
+    ["LICENSE", "usr/share/doc/cosmic-ext-nightlight/", "644"],
+    ["THIRD-PARTY-NOTICES", "usr/share/doc/cosmic-ext-nightlight/", "644"],
+    ["docs/BUNDLED-ASSETS.md", "usr/share/doc/cosmic-ext-nightlight/", "644"],
+    ["data/licenses/OFL-OpenSans.txt", "usr/share/doc/cosmic-ext-nightlight/fonts/", "644"],
+    ["data/licenses/OFL-NotoSansMono.txt", "usr/share/doc/cosmic-ext-nightlight/fonts/", "644"],
 ]
 
 [profile.release]
