@@ -1,0 +1,46 @@
+# Work on issue FV-R21AS5: README: keep it user-facing, move maintainer release…
+
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-r21as5-readme-keep-it-user-facing-move-maintain` · FV-R21AS5: README: keep it user-facing, move maintainer release steps out
+
+About $0.00, 0 tokens in, 0 out
+
+## Asked
+
+> Work on issue FV-R21AS5: README: keep it user-facing, move maintainer release steps out
+>
+> The README is public and for people who want to use the applet. Keep in it: what it is, install (from the signed .deb release, and from source), how to add it to the panel, how to verify the download (with the key fingerprint), build from source, licence. Move the maintainer-only parts (creating the signing key, GitHub release environment and secrets, cutting a release, cargo-deb packaging details) into docs/RELEASING.md and drop them from the README, with at most one line linking to it. Keep release.yml working: it greps README.md for the fingerprint placeholder, so keep the placeholder where users read the fingerprint, or update the workflow's check and the README consistently. Fix any links and anchors that move. No code changes.
+>
+> Labels: Release
+
+Then:
+
+> [Event] Your reviewers approve, with findings to fix in this change before it merges:
+> #1 [suggestion] README.md:24: The install section ends with 'To build from source instead, read on.', but the 'Verify a download' section sits between the install steps and the build section, so 'read on' sends the reader through verification first. Reword it to point at the section by name, e.g. 'To build from source instead, see Build and install from source below.' (Quick reviewer (Haiku 5.5))
+> Fix each of these in this branch, whatever its severity (findings are fixed in the change that raised them, R24), and commit; your reviewers then check the fixes. Leave one for later only if it can't be resolved in this change: name it in report_status's `declined` (its number, the reason, and the detail), with one of these reasons: it needs a decision from the user (needs_user_decision); it depends on other work that isn't merged yet (waits_on_unmerged_work); it's in files or an area another engineer is changing now (area_being_changed); it's too large for this change (too_large). A finding too large for this change needs an estimate. "Out of scope" isn't a reason. Your reviewers accept or reject each reason in the next round.
+
+## Implemented
+
+| File | Change | Lines | Why |
+|---|---|---|---|
+| `README.md` | modified | +23 −110 |  |
+| `docs/RELEASING.md` | added | +98 −0 |  |
+
+## Tested
+
+No test runs were reported.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): The one change since the last round (df80488) rewords the build-from-source line in README.md to point at the section by name, as finding #1 asked. The new link target, #build-and-install-from-source, matches the existing "## Build and install from source" heading. No other lines changed, so the earlier approval still holds.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): The earlier suggestion is fixed: the install section now links to the "Build and install from source" section, and the anchor resolves.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): This change only touches documentation. The README's "Verify a download" section is unchanged apart from its heading level: it still says to check the fingerprint against the README and not to trust signing-key.asc on its own, it still uses gpgv against that one key, and it still checks hashes from the verified text. The FINGERPRINT-TO-BE-FILLED-IN placeholder is still in README.md, so release.yml's check still works. The maintainer guidance moved to docs/RELEASING.md without being weakened: environment secrets rather than repository secrets, the `v*` tag ruleset, piping the private key into gh, umask 077, and pinned tool versions. The new anchors (#secrets, #create-the-signing-key-once, ../README.md#verify-a-download) point at headings that exist. No code, workflow or dependency changes.
+
+## Summary
+
+I fixed finding #1 and committed it. In `README.md`, "To build from source instead, read on." now says "see [Build and install from source](#build-and-install-from-source) below." and links to that section. I didn't open the rendered README to check that the link works.
+
+---
+
+From `f571a7e98c` to `df80488969`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
