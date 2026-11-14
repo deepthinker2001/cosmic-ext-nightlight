@@ -35,6 +35,7 @@ assets = [
     ["docs/BUNDLED-ASSETS.md", "usr/share/doc/cosmic-ext-nightlight/", "644"],
     ["data/licenses/OFL-OpenSans.txt", "usr/share/doc/cosmic-ext-nightlight/fonts/", "644"],
     ["data/licenses/OFL-NotoSansMono.txt", "usr/share/doc/cosmic-ext-nightlight/fonts/", "644"],
+    ["data/licenses/OFL-FontAwesome.txt", "usr/share/doc/cosmic-ext-nightlight/fonts/", "644"],
 ]
 
 [profile.release]
