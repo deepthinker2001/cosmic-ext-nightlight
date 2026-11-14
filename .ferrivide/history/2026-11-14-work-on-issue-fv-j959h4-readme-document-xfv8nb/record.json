@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "agent-xfv8nb",
+  "title": "Work on issue FV-J959H4: README: document settings",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-j959h4-readme-document-settings",
+  "base_commit": "b04ef616140a6b25f8e6494c413c0091d326db82",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-J959H4",
+    "title": "README: document settings"
+  },
+  "started": 1794632580,
+  "finished": 1794632595,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-J959H4: README: document settings\n\nUpdate README.md: how to open the settings (right click), what the temperature and schedule settings do, and anything not verified on a live COSMIC session. Use the wording 'panel applet for COSMIC', not 'a COSMIC panel applet'.\n\nLabels: Docs\n\nThe auto sunrise/sunset mode already added a README section. Check the README covers everything accurately now (right-click popup, temperature slider, custom schedule, auto mode and location) and fill only the gaps. Don't rewrite what's right."
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 33,
+      "removed": 3
+    }
+  ],
+  "summary": ""
+}

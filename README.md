@@ -8,10 +8,40 @@ tint) with one click.
 ## What it does
 
 - Adds a panel button. Clicking it turns night light on or off.
-- When on, the screen gamma is set to a fixed warm tint of about 3500 K.
-  The colour temperature is not adjustable yet.
-- The on/off state is saved and restored the next time the applet starts.
+- When on, the screen gamma is set to a warm tint, 3500 K by default. You can
+  change it in the settings popup (see below).
+- Right-click the button for the settings popup.
+- The on/off state and all settings are saved and restored the next time the
+  applet starts.
 - Gamma is set directly through the Wayland protocol; no other daemon is needed.
+
+## Settings
+
+Right-click the panel button to open the settings popup (right-click again to
+close it). It has:
+
+- **Night light**: the same on/off switch as a left click.
+- **Colour temperature**: a slider from 1900 K (very warm) to 6500 K
+  (neutral, no tint) in steps of 100 K, with a hint (Very warm, Warm, Neutral
+  warm, Cool). Lower is warmer. The default is 3500 K. If night light is on,
+  the change applies at once.
+- **Schedule: custom times**: switch it on and pick a **Start** and **End**
+  time (24-hour, local time; the defaults are 21:00 and 07:00). Night light
+  turns on at the start and off at the end. The window may cross midnight;
+  equal times make an empty window. The clock is checked every 20 seconds, and
+  the schedule acts only when the window changes, so a manual click on the
+  panel button holds until the next start or end. When you switch the
+  schedule on, or the applet starts, the current window state is applied.
+- **Auto (sunrise/sunset)**, with **Latitude** and **Longitude**: see below.
+
+### Not verified on a live COSMIC session
+
+This was developed and unit-tested without a running COSMIC session. These
+parts have not been checked on a real panel and compositor: that right-click
+opens the popup in the panel, the popup's layout, the real gamma output of the
+slider and of the auto ramp (including on several monitors), and how the
+settings behave after suspend and resume. Please report anything that
+differs.
 
 ### Auto (sunrise/sunset)
 
