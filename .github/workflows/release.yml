@@ -43,7 +43,7 @@ jobs:
       sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
       # Third-party actions are pinned by commit, not by movable tag.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.TAG }} # the release's own source, also when run by hand
           persist-credentials: false
@@ -130,12 +130,12 @@ jobs:
     steps:
       # The publishing script from the default branch, which may be newer
       # than the release being packaged.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: gh-pages
           path: site
