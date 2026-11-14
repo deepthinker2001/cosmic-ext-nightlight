@@ -94,13 +94,83 @@ fn system_timezone() -> Option<String> {
     (!tz.is_empty()).then(|| tz.to_string())
 }
 
-/// The system timezone's coordinates, if the zone and a table are found.
-pub fn timezone_location() -> Option<Coords> {
+/// The system timezone and its coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Timezone {
+    /// The zone's name, e.g. `Europe/Paris`.
+    pub zone: String,
+    pub coords: Coords,
+}
+
+/// The system timezone, if the zone and a table listing it are found.
+pub fn timezone_location() -> Option<Timezone> {
     let zone = system_timezone()?;
-    ZONE_TABS
+    let coords = ZONE_TABS
         .iter()
         .filter_map(|path| fs::read_to_string(path).ok())
-        .find_map(|table| find_zone(&table, &zone))
+        .find_map(|table| find_zone(&table, &zone))?;
+    Some(Timezone { zone, coords })
+}
+
+/// The place a zone is named after, for people: `America/New_York` gives
+/// `New York`, `UTC` gives `UTC`.
+pub fn place_name(zone: &str) -> String {
+    zone.rsplit('/').next().unwrap_or(zone).replace('_', " ")
+}
+
+/// The user's location setting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Setting {
+    /// Use the system timezone's coordinates (the default).
+    pub from_timezone: bool,
+    /// Coordinates the user typed in; kept while `from_timezone` is on, so
+    /// switching it off brings them back.
+    pub custom: Option<Coords>,
+}
+
+impl Default for Setting {
+    fn default() -> Self {
+        Self {
+            from_timezone: true,
+            custom: None,
+        }
+    }
+}
+
+/// Where the location in use comes from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Source<'a> {
+    /// The system timezone (the latitude/longitude entry is hidden).
+    Timezone(&'a Timezone),
+    /// The coordinates typed in, if any yet.
+    Custom(Option<Coords>),
+    /// The timezone was asked for but couldn't be resolved: the typed
+    /// coordinates, if any, are used instead.
+    TimezoneUnresolved(Option<Coords>),
+}
+
+impl Source<'_> {
+    /// The coordinates in use, if any.
+    pub fn coords(self) -> Option<Coords> {
+        match self {
+            Source::Timezone(tz) => Some(tz.coords),
+            Source::Custom(c) | Source::TimezoneUnresolved(c) => c,
+        }
+    }
+
+    /// Whether the latitude/longitude entry is shown.
+    pub fn shows_entry(self) -> bool {
+        !matches!(self, Source::Timezone(_))
+    }
+}
+
+/// Pick the location source from the setting and the timezone found.
+pub fn choose<'a>(setting: &Setting, timezone: Option<&'a Timezone>) -> Source<'a> {
+    match (setting.from_timezone, timezone) {
+        (true, Some(tz)) => Source::Timezone(tz),
+        (true, None) => Source::TimezoneUnresolved(setting.custom),
+        (false, _) => Source::Custom(setting.custom),
+    }
 }
 
 #[cfg(test)]
@@ -174,6 +244,73 @@ mod tests {
         );
         assert_eq!(zone_from_link("../usr/share/zoneinfo/UTC"), Some("UTC"));
         assert_eq!(zone_from_link("/etc/other"), None);
+    }
+
+    fn paris() -> Timezone {
+        Timezone {
+            zone: "Europe/Paris".to_string(),
+            coords: (48.8667, 2.3333),
+        }
+    }
+
+    #[test]
+    fn place_names() {
+        assert_eq!(place_name("America/New_York"), "New York");
+        assert_eq!(place_name("America/Argentina/Buenos_Aires"), "Buenos Aires");
+        assert_eq!(place_name("UTC"), "UTC");
+    }
+
+    #[test]
+    fn default_setting_uses_the_timezone() {
+        let tz = paris();
+        let source = choose(&Setting::default(), Some(&tz));
+        assert_eq!(source, Source::Timezone(&tz));
+        assert_eq!(source.coords(), Some(tz.coords));
+        assert!(!source.shows_entry());
+    }
+
+    #[test]
+    fn timezone_wins_over_typed_coordinates_while_on() {
+        let tz = paris();
+        let setting = Setting {
+            from_timezone: true,
+            custom: Some((10.0, 20.0)),
+        };
+        assert_eq!(choose(&setting, Some(&tz)).coords(), Some(tz.coords));
+    }
+
+    #[test]
+    fn toggle_off_uses_the_typed_coordinates() {
+        let tz = paris();
+        let setting = Setting {
+            from_timezone: false,
+            custom: Some((10.0, 20.0)),
+        };
+        let source = choose(&setting, Some(&tz));
+        assert_eq!(source, Source::Custom(Some((10.0, 20.0))));
+        assert!(source.shows_entry());
+        // Nothing typed yet: no location, and the entry is shown.
+        let source = choose(
+            &Setting {
+                custom: None,
+                ..setting
+            },
+            Some(&tz),
+        );
+        assert_eq!(source.coords(), None);
+        assert!(source.shows_entry());
+    }
+
+    #[test]
+    fn unresolved_timezone_falls_back_to_the_entry() {
+        let source = choose(&Setting::default(), None);
+        assert_eq!(source, Source::TimezoneUnresolved(None));
+        assert!(source.shows_entry());
+        let setting = Setting {
+            from_timezone: true,
+            custom: Some((10.0, 20.0)),
+        };
+        assert_eq!(choose(&setting, None).coords(), Some((10.0, 20.0)));
     }
 
     #[test]

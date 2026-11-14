@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use cosmic::cosmic_config::Config;
 
-use crate::{location, Settings, TimeOfDay};
+use crate::{location, Settings};
 
 /// How long the settings must stay unchanged before they are written.
 const QUIET: Duration = Duration::from_millis(250);
@@ -22,13 +22,9 @@ const QUIET: Duration = Duration::from_millis(250);
 pub enum Save {
     Enabled(bool),
     Temperature(u32),
-    Schedule {
-        on: bool,
-        start: TimeOfDay,
-        end: TimeOfDay,
-    },
     Auto(bool),
-    Location(Option<location::Coords>),
+    /// The "From time zone" toggle and the typed coordinates.
+    Location(location::Setting),
 }
 
 impl Save {
@@ -37,7 +33,6 @@ impl Save {
         match self {
             Save::Enabled(_) => "state",
             Save::Temperature(_) => "temperature",
-            Save::Schedule { .. } => "schedule",
             Save::Auto(_) => "auto setting",
             Save::Location(_) => "location",
         }
@@ -61,7 +56,6 @@ fn write(config: &Config, save: &Save) -> Result<(), cosmic::cosmic_config::Erro
     match *save {
         Save::Enabled(on) => Settings::save_enabled(config, on),
         Save::Temperature(kelvin) => Settings::save_temperature(config, kelvin),
-        Save::Schedule { on, start, end } => Settings::save_schedule(config, on, start, end),
         Save::Auto(on) => Settings::save_auto(config, on),
         Save::Location(custom) => Settings::save_location(config, custom),
     }
@@ -166,7 +160,11 @@ mod tests {
 
     #[test]
     fn kind_names_the_setting_without_its_value() {
-        let kind = Save::Location(Some((48.8566, 2.3522))).kind();
+        let kind = Save::Location(location::Setting {
+            from_timezone: false,
+            custom: Some((48.8566, 2.3522)),
+        })
+        .kind();
         assert_eq!(kind, "location");
         assert!(!kind.contains("48"));
     }
@@ -198,22 +196,24 @@ mod tests {
         let saves = [
             Save::Enabled(true),
             Save::Temperature(2800),
-            Save::Schedule {
-                on: true,
-                start: TimeOfDay(20 * 60),
-                end: TimeOfDay(6 * 60),
-            },
             Save::Auto(true),
-            Save::Location(Some((48.85, 2.35))),
+            Save::Location(location::Setting {
+                from_timezone: false,
+                custom: Some((48.85, 2.35)),
+            }),
         ];
         for save in &saves {
             write(&config, save).expect("write");
         }
         let s = Settings::load(&config);
-        assert!(s.enabled && s.schedule_on && s.auto_on);
+        assert!(s.enabled && s.auto_on);
         assert_eq!(s.temperature, 2800);
-        assert_eq!(s.schedule_start, TimeOfDay(20 * 60));
-        assert_eq!(s.schedule_end, TimeOfDay(6 * 60));
-        assert_eq!(s.custom_location, Some((48.85, 2.35)));
+        assert_eq!(
+            s.location,
+            location::Setting {
+                from_timezone: false,
+                custom: Some((48.85, 2.35)),
+            }
+        );
     }
 }

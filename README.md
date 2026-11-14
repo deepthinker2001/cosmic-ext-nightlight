@@ -25,14 +25,9 @@ close it). It has:
   (neutral, no tint) in steps of 100 K, with a hint (Very warm, Warm, Neutral
   warm, Cool). Lower is warmer. The default is 3500 K. If night light is on,
   the change applies at once.
-- **Schedule: custom times**: switch it on and pick a **Start** and **End**
-  time (24-hour, local time; the defaults are 21:00 and 07:00). Night light
-  turns on at the start and off at the end. The window may cross midnight;
-  equal times make an empty window. The clock is checked every 20 seconds, and
-  the schedule acts only when the window changes, so a manual click on the
-  panel button holds until the next start or end. When you switch the
-  schedule on, or the applet starts, the current window state is applied.
-- **Auto (sunrise/sunset)**, with **Latitude** and **Longitude**: see below.
+- **Auto (sunrise/sunset)**: see below.
+- **From time zone**: where Auto takes your location from (see below). When
+  it is off, **Latitude** and **Longitude** boxes are shown instead.
 
 ### Not verified on a live COSMIC session
 
@@ -64,14 +59,14 @@ instead of switching at a fixed time:
   night light on or off by hand; that holds until the next step. Switching
   on by hand uses the current ramp temperature, or your full target when the
   ramp is at 0% (daytime); the next 1% step then takes over.
-- **Location**: by default the coordinates of the system timezone, read from
-  `/usr/share/zoneinfo/zone.tab` (or `zone1970.tab`). You can type a latitude
-  and longitude in the popup instead (they win once both are valid), and
-  **Use timezone location** goes back to the default. If neither works, the
-  popup shows a note and Auto stays off. There is no IP lookup and no network
-  access.
-- Auto and the custom schedule exclude each other: switching one on switches
-  the other off.
+- **Location**: with **From time zone** on (the default), the coordinates of
+  the system time zone, read from `/usr/share/zoneinfo/zone.tab` (or
+  `zone1970.tab`). The popup shows the zone and place used, e.g. `Paris
+  (Europe/Paris): 48.87, 2.33`. Switch **From time zone** off to type a
+  latitude and longitude instead (they apply once both are valid); they are
+  kept when you switch it back on. If the time zone's location can't be
+  found, the popup says so and shows the boxes. Without any location Auto
+  stays off. There is no IP lookup and no network access.
 - The settings are saved with the others.
 
 ## Requirements

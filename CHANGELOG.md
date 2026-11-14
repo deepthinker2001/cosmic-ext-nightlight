@@ -5,6 +5,14 @@ What changed in each release, for users. Maintainers: see
 
 ## Unreleased
 
+- The custom-times schedule (and its Start and End pickers) is removed; use
+  Auto (sunrise/sunset). Saved schedule settings are ignored.
+- New **From time zone** switch in the popup, on by default: Auto takes its
+  location from the system time zone, and the popup shows which zone and
+  place it used. Switch it off to type a latitude and longitude instead.
+  If you had typed a location before, the switch starts off and your
+  location is kept. If the time zone's location can't be found, the popup
+  says so and shows the latitude and longitude boxes.
 - Apt setup instructions now specify `arch=amd64` to avoid the harmless
   missing-i386 notice on multiarch systems; the README explains how existing
   users can update their sources line.
