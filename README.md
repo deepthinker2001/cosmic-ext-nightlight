@@ -63,28 +63,54 @@ install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
 ## Signed releases
 
 Pushing a tag like `v0.1.0` (it must equal the `version` in `Cargo.toml`) runs
-`.github/workflows/release.yml`. It builds the `.deb` with `just deb`, signs it
-and publishes a GitHub Release containing:
+`.github/workflows/release.yml`. It builds the `.deb` with `just deb` in a job
+that has no secrets, signs it in a separate job, and publishes a GitHub Release
+in a third. The release contains:
 
 - `cosmic-ext-nightlight_*.deb`
 - `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
 - `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
+- `signing-key.asc` (the public key, for convenience only)
 
-Verify a download with:
+### Verify a download
+
+The releases are signed with the key whose full fingerprint is:
+
+```
+FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
+```
+
+Import `signing-key.asc` (`gpg --import signing-key.asc`) and check that the
+fingerprint `gpg --fingerprint` shows matches the one above. Do not trust the
+key by itself: the copy in the release is only as good as the release. Then,
+in the folder with the downloaded files:
 
 ```sh
-gpg --verify SHA256SUMS.asc && sha256sum -c SHA256SUMS
+gpg --decrypt SHA256SUMS.asc | sha256sum -c --ignore-missing -
 gpg --verify cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
 ```
 
-Repository secrets the workflow needs (Settings → Secrets and variables →
-Actions); the key is never committed:
+The first command checks the hashes from the signed text itself, not from the
+unsigned `SHA256SUMS` file. Check that `gpg` reports a good signature from the
+key with the fingerprint above.
+
+### Secrets (maintainers)
+
+The signing key is never committed. Create a GitHub environment named
+`release` (Settings → Environments), limit its deployment branches and tags to
+`v*`, add a required reviewer, and add these as **environment secrets** of that
+environment (not repository secrets, which every workflow run can read):
 
 | Secret | Contents |
 | --- | --- |
 | `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (`gpg --armor --export-secret-keys KEYID`) |
 | `GPG_KEY_ID` | Key ID or fingerprint to sign with |
 | `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
+
+Also add a tag ruleset protecting `v*` (restrict who can create, update and
+delete those tags), and put the key's fingerprint in this README. The build
+tools are installed at fixed versions (`just` 1.59.0, `cargo-deb` 3.8.0) in the
+workflow; bump them by hand in a reviewed change.
 
 ## Add it to the panel
 

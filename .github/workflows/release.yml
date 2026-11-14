@@ -1,5 +1,11 @@
 name: Release
 
+# Three jobs so that no code from the build ever shares a runner with the
+# signing key, and the write token is held only by the job that publishes:
+#   build   - runs untrusted build code; no secrets, read-only token, no cache
+#   sign    - holds the key (environment `release`); runs no cargo, no checkout
+#   publish - holds the write token; runs nothing but `gh release create`
+
 on:
   push:
     tags:
@@ -12,11 +18,10 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
-    # Only this job may write, and only to create the release.
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -39,19 +44,41 @@ jobs:
             build-essential pkg-config cmake \
             libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgbm-dev \
             libdrm-dev libinput-dev libudev-dev libseat-dev libssl-dev \
-            libfontconfig-dev libfreetype-dev libexpat1-dev gnupg
+            libfontconfig-dev libfreetype-dev libexpat1-dev
 
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-
+      # No rust-cache here on purpose: a release is built clean.
+      # Exact versions, bumped by hand in a reviewed change (Dependabot does
+      # not track crates installed this way).
       - name: Install just and cargo-deb
-        run: cargo install --locked just cargo-deb
+        run: cargo install --locked just@1.59.0 cargo-deb@3.8.0
 
       - name: Build the .deb
         run: just deb
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deb
+          path: target/debian/*.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    # The GPG secrets live in this environment (restricted to v* tags, with a
+    # required reviewer), not in repository secrets.
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: deb
+          path: release
 
       - name: Sign
         env:
@@ -60,19 +87,19 @@ jobs:
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
           set -euo pipefail
+          GPG=/usr/bin/gpg
           if [ -z "${GPG_PRIVATE_KEY}" ] || [ -z "${GPG_KEY_ID}" ]; then
             echo "GPG_PRIVATE_KEY and GPG_KEY_ID secrets must be set" >&2
             exit 1
           fi
           export GNUPGHOME="$(mktemp -d)"
           chmod 700 "${GNUPGHOME}"
-          printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
-          mkdir release
-          cp target/debian/*.deb release/
+          trap '/usr/bin/gpgconf --kill gpg-agent || true; rm -rf "${GNUPGHOME}"' EXIT
+          printf '%s' "${GPG_PRIVATE_KEY}" | "${GPG}" --batch --import
           cd release
           sha256sum -- *.deb > SHA256SUMS
           sign() {
-            gpg --batch --yes --pinentry-mode loopback \
+            "${GPG}" --batch --yes --pinentry-mode loopback \
               --passphrase-fd 3 --local-user "${GPG_KEY_ID}" "$@" \
               3<<<"${GPG_PASSPHRASE:-}"
           }
@@ -80,14 +107,35 @@ jobs:
             sign --armor --detach-sign --output "${f}.asc" "${f}"
           done
           sign --clear-sign --output SHA256SUMS.asc SHA256SUMS
-          gpg --batch --verify SHA256SUMS.asc
-          rm -rf "${GNUPGHOME}"
+          "${GPG}" --batch --verify SHA256SUMS.asc
+          # The public half, for convenience; users must check its fingerprint
+          # against the one in the README, not trust this copy by itself.
+          "${GPG}" --batch --armor --export "${GPG_KEY_ID}" > signing-key.asc
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signed
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: signed
+          path: release
 
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
           gh release create "${TAG}" release/* \
-            --repo "${GITHUB_REPOSITORY}" \
+            --repo "${REPO}" \
             --title "${TAG}" --generate-notes --verify-tag

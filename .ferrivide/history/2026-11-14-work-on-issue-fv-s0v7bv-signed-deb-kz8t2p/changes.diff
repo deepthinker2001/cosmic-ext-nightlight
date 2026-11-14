@@ -1,10 +1,16 @@
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
 new file mode 100644
-index 0000000..f41ef6a
+index 0000000..1de34c5
 --- /dev/null
 +++ b/.github/workflows/release.yml
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,141 @@
 +name: Release
++
++# Three jobs so that no code from the build ever shares a runner with the
++# signing key, and the write token is held only by the job that publishes:
++#   build   - runs untrusted build code; no secrets, read-only token, no cache
++#   sign    - holds the key (environment `release`); runs no cargo, no checkout
++#   publish - holds the write token; runs nothing but `gh release create`
 +
 +on:
 +  push:
@@ -18,11 +24,10 @@ index 0000000..f41ef6a
 +  CARGO_TERM_COLOR: always
 +
 +jobs:
-+  release:
++  build:
 +    runs-on: ubuntu-latest
-+    # Only this job may write, and only to create the release.
 +    permissions:
-+      contents: write
++      contents: read
 +    steps:
 +      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 +        with:
@@ -45,19 +50,41 @@ index 0000000..f41ef6a
 +            build-essential pkg-config cmake \
 +            libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgbm-dev \
 +            libdrm-dev libinput-dev libudev-dev libseat-dev libssl-dev \
-+            libfontconfig-dev libfreetype-dev libexpat1-dev gnupg
++            libfontconfig-dev libfreetype-dev libexpat1-dev
 +
 +      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 +        with:
 +          toolchain: stable
 +
-+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-+
++      # No rust-cache here on purpose: a release is built clean.
++      # Exact versions, bumped by hand in a reviewed change (Dependabot does
++      # not track crates installed this way).
 +      - name: Install just and cargo-deb
-+        run: cargo install --locked just cargo-deb
++        run: cargo install --locked just@1.59.0 cargo-deb@3.8.0
 +
 +      - name: Build the .deb
 +        run: just deb
++
++      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
++        with:
++          name: deb
++          path: target/debian/*.deb
++          if-no-files-found: error
++          retention-days: 7
++
++  sign:
++    needs: build
++    runs-on: ubuntu-latest
++    # The GPG secrets live in this environment (restricted to v* tags, with a
++    # required reviewer), not in repository secrets.
++    environment: release
++    permissions:
++      contents: read
++    steps:
++      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
++        with:
++          name: deb
++          path: release
 +
 +      - name: Sign
 +        env:
@@ -66,19 +93,19 @@ index 0000000..f41ef6a
 +          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
 +        run: |
 +          set -euo pipefail
++          GPG=/usr/bin/gpg
 +          if [ -z "${GPG_PRIVATE_KEY}" ] || [ -z "${GPG_KEY_ID}" ]; then
 +            echo "GPG_PRIVATE_KEY and GPG_KEY_ID secrets must be set" >&2
 +            exit 1
 +          fi
 +          export GNUPGHOME="$(mktemp -d)"
 +          chmod 700 "${GNUPGHOME}"
-+          printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
-+          mkdir release
-+          cp target/debian/*.deb release/
++          trap '/usr/bin/gpgconf --kill gpg-agent || true; rm -rf "${GNUPGHOME}"' EXIT
++          printf '%s' "${GPG_PRIVATE_KEY}" | "${GPG}" --batch --import
 +          cd release
 +          sha256sum -- *.deb > SHA256SUMS
 +          sign() {
-+            gpg --batch --yes --pinentry-mode loopback \
++            "${GPG}" --batch --yes --pinentry-mode loopback \
 +              --passphrase-fd 3 --local-user "${GPG_KEY_ID}" "$@" \
 +              3<<<"${GPG_PASSPHRASE:-}"
 +          }
@@ -86,50 +113,97 @@ index 0000000..f41ef6a
 +            sign --armor --detach-sign --output "${f}.asc" "${f}"
 +          done
 +          sign --clear-sign --output SHA256SUMS.asc SHA256SUMS
-+          gpg --batch --verify SHA256SUMS.asc
-+          rm -rf "${GNUPGHOME}"
++          "${GPG}" --batch --verify SHA256SUMS.asc
++          # The public half, for convenience; users must check its fingerprint
++          # against the one in the README, not trust this copy by itself.
++          "${GPG}" --batch --armor --export "${GPG_KEY_ID}" > signing-key.asc
++
++      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
++        with:
++          name: signed
++          path: release/*
++          if-no-files-found: error
++          retention-days: 7
++
++  publish:
++    needs: sign
++    runs-on: ubuntu-latest
++    permissions:
++      contents: write
++    steps:
++      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
++        with:
++          name: signed
++          path: release
 +
 +      - name: Publish the GitHub Release
 +        env:
 +          GH_TOKEN: ${{ github.token }}
 +          TAG: ${{ github.ref_name }}
++          REPO: ${{ github.repository }}
 +        run: |
 +          gh release create "${TAG}" release/* \
-+            --repo "${GITHUB_REPOSITORY}" \
++            --repo "${REPO}" \
 +            --title "${TAG}" --generate-notes --verify-tag
 diff --git a/README.md b/README.md
-index 5c8195f..bf408c6 100644
+index 5c8195f..697a477 100644
 --- a/README.md
 +++ b/README.md
-@@ -60,6 +60,32 @@ without it the toggle will not work. The libc6 minimum is taken from the
+@@ -60,6 +60,58 @@ without it the toggle will not work. The libc6 minimum is taken from the
  machine that builds the package, so build on the oldest release you want it to
  install on. Remove it with `sudo apt remove cosmic-ext-nightlight`.
  
 +## Signed releases
 +
 +Pushing a tag like `v0.1.0` (it must equal the `version` in `Cargo.toml`) runs
-+`.github/workflows/release.yml`. It builds the `.deb` with `just deb`, signs it
-+and publishes a GitHub Release containing:
++`.github/workflows/release.yml`. It builds the `.deb` with `just deb` in a job
++that has no secrets, signs it in a separate job, and publishes a GitHub Release
++in a third. The release contains:
 +
 +- `cosmic-ext-nightlight_*.deb`
 +- `cosmic-ext-nightlight_*.deb.asc` (detached GPG signature)
 +- `SHA256SUMS` and `SHA256SUMS.asc` (the checksums, clear-signed)
++- `signing-key.asc` (the public key, for convenience only)
 +
-+Verify a download with:
++### Verify a download
++
++The releases are signed with the key whose full fingerprint is:
++
++```
++FINGERPRINT-TO-BE-FILLED-IN-BY-THE-MAINTAINER-BEFORE-THE-FIRST-RELEASE
++```
++
++Import `signing-key.asc` (`gpg --import signing-key.asc`) and check that the
++fingerprint `gpg --fingerprint` shows matches the one above. Do not trust the
++key by itself: the copy in the release is only as good as the release. Then,
++in the folder with the downloaded files:
 +
 +```sh
-+gpg --verify SHA256SUMS.asc && sha256sum -c SHA256SUMS
++gpg --decrypt SHA256SUMS.asc | sha256sum -c --ignore-missing -
 +gpg --verify cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
 +```
 +
-+Repository secrets the workflow needs (Settings → Secrets and variables →
-+Actions); the key is never committed:
++The first command checks the hashes from the signed text itself, not from the
++unsigned `SHA256SUMS` file. Check that `gpg` reports a good signature from the
++key with the fingerprint above.
++
++### Secrets (maintainers)
++
++The signing key is never committed. Create a GitHub environment named
++`release` (Settings → Environments), limit its deployment branches and tags to
++`v*`, add a required reviewer, and add these as **environment secrets** of that
++environment (not repository secrets, which every workflow run can read):
 +
 +| Secret | Contents |
 +| --- | --- |
 +| `GPG_PRIVATE_KEY` | ASCII-armoured private signing key (`gpg --armor --export-secret-keys KEYID`) |
 +| `GPG_KEY_ID` | Key ID or fingerprint to sign with |
 +| `GPG_PASSPHRASE` | The key's passphrase (leave empty if it has none) |
++
++Also add a tag ruleset protecting `v*` (restrict who can create, update and
++delete those tags), and put the key's fingerprint in this README. The build
++tools are installed at fixed versions (`just` 1.59.0, `cargo-deb` 3.8.0) in the
++workflow; bump them by hand in a reviewed change.
 +
  ## Add it to the panel
  
