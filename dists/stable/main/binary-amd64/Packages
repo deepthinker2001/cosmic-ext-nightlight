@@ -17,3 +17,22 @@ Description: Panel applet for COSMIC to toggle night light
  A panel applet for COSMIC that toggles night light by setting display gamma
  through the Wayland wlr-gamma-control protocol.
 
+Package: cosmic-ext-nightlight
+Architecture: amd64
+Version: 0.2.1-1
+Priority: optional
+Section: utils
+Maintainer: cosmic-ext-nightlight contributors
+Installed-Size: 19121
+Depends: cosmic-panel, libc6 (>= 2.39), libxkbcommon0 (>= 0.5.0)
+Recommends: cosmic-comp
+Filename: pool/main/c/cosmic-ext-nightlight/cosmic-ext-nightlight_0.2.1-1_amd64.deb
+Size: 4910264
+MD5sum: fcb92e68561e05a37f2a72b9cfbc67ec
+SHA1: c30345a53d9d00175940aeab79bb1b5122b979e6
+SHA256: b447b53f61f2db96a5e18c3b3a0852764d95cf08db5315e9d4d048d421e778c3
+SHA512: 83cf57ab198e49f4c8b91ab762101d7731b3f5adb454e8bf0e0d026ff2e98dcf45d0d1aa33dd4d827f0ffdf0df8206ddc9b83dde69f4ef83e0b9f55d88737c46
+Description: Panel applet for COSMIC to toggle night light
+ A panel applet for COSMIC that toggles night light by setting display gamma
+ through the Wayland wlr-gamma-control protocol.
+
