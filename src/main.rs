@@ -218,6 +218,17 @@ fn schedule_step(
     }
 }
 
+/// The window state to remember after a reply to a request for `want`. A
+/// failed request for the state the schedule asked for is forgotten, so the
+/// next check applies it again instead of waiting for the next window edge.
+fn schedule_last_after_reply(last: Option<bool>, want: bool, ok: bool) -> Option<bool> {
+    if !ok && last == Some(want) {
+        None
+    } else {
+        last
+    }
+}
+
 /// The local time of day now.
 fn local_time_of_day() -> TimeOfDay {
     let now = chrono::Local::now();
@@ -313,6 +324,21 @@ mod tests {
         // Window edge, e.g. seen late after a resume from sleep.
         assert_eq!(schedule_step(s, t(6, 5), Some(true)), (Some(false), Some(false)));
         assert_eq!(schedule_step(s, t(22, 5), Some(false)), (Some(true), Some(true)));
+    }
+
+    #[test]
+    fn failed_scheduled_switch_is_retried() {
+        let s = Schedule::Custom { start: t(21, 0), end: t(7, 0) };
+        let (last, apply) = schedule_step(s, t(21, 0), Some(false));
+        assert_eq!(apply, Some(true));
+        // The request fails: the window state is forgotten ...
+        let last = schedule_last_after_reply(last, true, false);
+        assert_eq!(last, None);
+        // ... so the next check asks again.
+        assert_eq!(schedule_step(s, t(21, 0), last), (Some(true), Some(true)));
+        // Success, or a failed request for another state, changes nothing.
+        assert_eq!(schedule_last_after_reply(Some(true), true, true), Some(true));
+        assert_eq!(schedule_last_after_reply(Some(true), false, false), Some(true));
     }
 
     #[test]
@@ -751,6 +777,8 @@ impl cosmic::Application for Nightlight {
                 if let Err(e) = &result {
                     eprintln!("nightlight: {e}");
                 }
+                self.schedule_last =
+                    schedule_last_after_reply(self.schedule_last, want, result.is_ok());
                 let (enabled, save) = applied(self.enabled, want, result.is_ok());
                 self.enabled = enabled;
                 if let (Some(v), Some(c)) = (save, config()) {

@@ -23,7 +23,7 @@ index d9733dc..7eabf55 100644
  
  [package.metadata.deb]
 diff --git a/src/main.rs b/src/main.rs
-index 2478541..7e73bd8 100644
+index 2478541..bb6dd86 100644
 --- a/src/main.rs
 +++ b/src/main.rs
 @@ -12,7 +12,9 @@ use cosmic::iced::core::window;
@@ -50,7 +50,7 @@ index 2478541..7e73bd8 100644
  
  fn main() -> cosmic::iced::Result {
      cosmic::applet::run::<Nightlight>(())
-@@ -140,6 +148,82 @@ fn temperature_hint(kelvin: u32) -> &'static str {
+@@ -140,6 +148,93 @@ fn temperature_hint(kelvin: u32) -> &'static str {
      }
  }
  
@@ -124,6 +124,17 @@ index 2478541..7e73bd8 100644
 +    }
 +}
 +
++/// The window state to remember after a reply to a request for `want`. A
++/// failed request for the state the schedule asked for is forgotten, so the
++/// next check applies it again instead of waiting for the next window edge.
++fn schedule_last_after_reply(last: Option<bool>, want: bool, ok: bool) -> Option<bool> {
++    if !ok && last == Some(want) {
++        None
++    } else {
++        last
++    }
++}
++
 +/// The local time of day now.
 +fn local_time_of_day() -> TimeOfDay {
 +    let now = chrono::Local::now();
@@ -133,7 +144,7 @@ index 2478541..7e73bd8 100644
  /// What a slider move asks of the backend.
  #[derive(Debug, PartialEq)]
  enum Retune {
-@@ -172,6 +256,70 @@ fn retune_needed(enabled: bool, pending: bool) -> bool {
+@@ -172,6 +267,85 @@ fn retune_needed(enabled: bool, pending: bool) -> bool {
  mod tests {
      use super::*;
  
@@ -197,6 +208,21 @@ index 2478541..7e73bd8 100644
 +    }
 +
 +    #[test]
++    fn failed_scheduled_switch_is_retried() {
++        let s = Schedule::Custom { start: t(21, 0), end: t(7, 0) };
++        let (last, apply) = schedule_step(s, t(21, 0), Some(false));
++        assert_eq!(apply, Some(true));
++        // The request fails: the window state is forgotten ...
++        let last = schedule_last_after_reply(last, true, false);
++        assert_eq!(last, None);
++        // ... so the next check asks again.
++        assert_eq!(schedule_step(s, t(21, 0), last), (Some(true), Some(true)));
++        // Success, or a failed request for another state, changes nothing.
++        assert_eq!(schedule_last_after_reply(Some(true), true, true), Some(true));
++        assert_eq!(schedule_last_after_reply(Some(true), false, false), Some(true));
++    }
++
++    #[test]
 +    fn step_forgets_when_schedule_is_off() {
 +        assert_eq!(schedule_step(Schedule::Off, t(1, 0), Some(true)), (None, None));
 +    }
@@ -204,7 +230,7 @@ index 2478541..7e73bd8 100644
      #[test]
      fn hints_cover_the_range() {
          assert_eq!(temperature_hint(1900), "Very warm");
-@@ -238,6 +386,38 @@ mod tests {
+@@ -238,6 +412,38 @@ mod tests {
      }
  }
  
@@ -243,7 +269,7 @@ index 2478541..7e73bd8 100644
  fn config() -> Option<Config> {
      Config::new(APP_ID, CONFIG_VERSION).ok()
  }
-@@ -251,13 +431,23 @@ struct Settings {
+@@ -251,13 +457,23 @@ struct Settings {
      enabled: bool,
      /// Colour temperature in Kelvin.
      temperature: u32,
@@ -267,7 +293,7 @@ index 2478541..7e73bd8 100644
          }
      }
  }
-@@ -271,9 +461,27 @@ impl Settings {
+@@ -271,9 +487,27 @@ impl Settings {
                      .get::<u32>(CONFIG_KEY_TEMPERATURE)
                      .unwrap_or(gamma::DEFAULT_TEMPERATURE),
              ),
@@ -295,7 +321,7 @@ index 2478541..7e73bd8 100644
      fn save_temperature(config: &Config, kelvin: u32) -> Result<(), cosmic::cosmic_config::Error> {
          config.set(CONFIG_KEY_TEMPERATURE, kelvin)
      }
-@@ -296,6 +504,56 @@ struct Nightlight {
+@@ -296,6 +530,56 @@ struct Nightlight {
      temperature: u32,
      /// The slider moved while a request was in flight.
      retune_pending: bool,
@@ -352,7 +378,7 @@ index 2478541..7e73bd8 100644
  }
  
  #[derive(Clone, Debug)]
-@@ -307,6 +565,12 @@ enum Message {
+@@ -307,6 +591,12 @@ enum Message {
      Applied(bool, Result<(), String>),
      /// The temperature slider moved.
      Temperature(u32),
@@ -365,7 +391,7 @@ index 2478541..7e73bd8 100644
  }
  
  impl cosmic::Application for Nightlight {
-@@ -325,7 +589,18 @@ impl cosmic::Application for Nightlight {
+@@ -325,7 +615,18 @@ impl cosmic::Application for Nightlight {
  
      fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Message>) {
          let settings = config().map(|c| Settings::load(&c)).unwrap_or_default();
@@ -385,7 +411,7 @@ index 2478541..7e73bd8 100644
          let worker = Worker::spawn();
          let task = if saved {
              worker.request(true, settings.temperature)
-@@ -341,11 +616,23 @@ impl cosmic::Application for Nightlight {
+@@ -341,11 +642,23 @@ impl cosmic::Application for Nightlight {
                  popup: None,
                  temperature: settings.temperature,
                  retune_pending: false,
@@ -409,7 +435,7 @@ index 2478541..7e73bd8 100644
      fn on_close_requested(&self, id: window::Id) -> Option<Message> {
          Some(Message::PopupClosed(id))
      }
-@@ -379,6 +666,25 @@ impl cosmic::Application for Nightlight {
+@@ -379,6 +692,25 @@ impl cosmic::Application for Nightlight {
                      Retune::Never => {}
                  }
              }
@@ -435,7 +461,7 @@ index 2478541..7e73bd8 100644
              Message::ToggleSettings => {
                  let action = match self.popup {
                      Some(id) => destroy_popup(id),
-@@ -397,7 +703,7 @@ impl cosmic::Application for Nightlight {
+@@ -397,7 +729,7 @@ impl cosmic::Application for Nightlight {
                          },
                          Some(Box::new(|state: &Nightlight| {
                              let kelvin = state.temperature;
@@ -444,7 +470,7 @@ index 2478541..7e73bd8 100644
                                  .add(settings::item(
                                      "Night light",
                                      toggler(state.enabled).on_toggle(|_| Message::Toggle),
-@@ -413,7 +719,23 @@ impl cosmic::Application for Nightlight {
+@@ -413,7 +745,23 @@ impl cosmic::Application for Nightlight {
                                          Message::Temperature,
                                      )
                                      .step(100_u32),
@@ -469,3 +495,12 @@ index 2478541..7e73bd8 100644
                              Element::from(state.core.applet.popup_container(content))
                                  .map(cosmic::Action::App)
                          })),
+@@ -429,6 +777,8 @@ impl cosmic::Application for Nightlight {
+                 if let Err(e) = &result {
+                     eprintln!("nightlight: {e}");
+                 }
++                self.schedule_last =
++                    schedule_last_after_reply(self.schedule_last, want, result.is_ok());
+                 let (enabled, save) = applied(self.enabled, want, result.is_ok());
+                 self.enabled = enabled;
+                 if let (Some(v), Some(c)) = (save, config()) {
