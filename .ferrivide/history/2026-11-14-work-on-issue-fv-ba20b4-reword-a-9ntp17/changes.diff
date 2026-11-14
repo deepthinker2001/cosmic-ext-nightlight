@@ -1,0 +1,35 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index b574f37..d9733dc 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -2,7 +2,7 @@
+ name = "cosmic-ext-nightlight"
+ version = "0.1.0"
+ edition = "2021"
+-description = "COSMIC panel applet to toggle night light"
++description = "Panel applet for COSMIC to toggle night light"
+ license = "GPL-3.0-only"
+ 
+ [dependencies]
+@@ -16,7 +16,7 @@ name = "cosmic-ext-nightlight"
+ maintainer = "cosmic-ext-nightlight contributors"
+ section = "utils"
+ priority = "optional"
+-extended-description = "A COSMIC panel applet that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
++extended-description = "A panel applet for COSMIC that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
+ # $auto adds the shared libraries the binary actually links (libc6 and
+ # libxkbcommon0 today; wayland-client uses the pure-Rust backend).
+ # cosmic-panel hosts the applet, so it is required. cosmic-comp provides the
+diff --git a/README.md b/README.md
+index 9ed0119..9f567a8 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,7 @@
+ 
+ [![CI](https://github.com/deepthinker2001/cosmic-ext-nightlight/actions/workflows/ci.yml/badge.svg)](https://github.com/deepthinker2001/cosmic-ext-nightlight/actions/workflows/ci.yml)
+ 
+-A COSMIC panel applet that toggles a night light (a warmer, lower-blue screen
++A panel applet for COSMIC that toggles a night light (a warmer, lower-blue screen
+ tint) with one click.
+ 
+ ## What it does

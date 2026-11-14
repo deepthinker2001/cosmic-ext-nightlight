@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/deepthinker2001/cosmic-ext-nightlight/actions/workflows/ci.yml/badge.svg)](https://github.com/deepthinker2001/cosmic-ext-nightlight/actions/workflows/ci.yml)
 
-A COSMIC panel applet that toggles a night light (a warmer, lower-blue screen
+A panel applet for COSMIC that toggles a night light (a warmer, lower-blue screen
 tint) with one click.
 
 ## What it does

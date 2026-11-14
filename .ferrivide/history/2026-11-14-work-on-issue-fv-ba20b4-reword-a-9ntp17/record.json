@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "id": "agent-9ntp17",
+  "title": "Work on issue FV-BA20B4: Reword \"a COSMIC panel applet\" (trademark)",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-ba20b4-reword-a-cosmic-panel-applet-trademark",
+  "base_commit": "2cb5cb58cadbe3329a3afc90e66406414e81d0e2",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-BA20B4",
+    "title": "Reword \"a COSMIC panel applet\" (trademark)"
+  },
+  "started": 1794630272,
+  "finished": 1794630315,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-BA20B4: Reword \"a COSMIC panel applet\" (trademark)\n\nCOSMIC is a trademark, so we can't call the project \"a COSMIC panel applet\". Reword it as \"a panel applet for COSMIC\" everywhere it appears in files we ship or show: README.md line 5, Cargo.toml `description` (line 5) and the `[package.metadata.deb]` `extended-description` (line 19). Also check the .desktop file, data/ and docs/ for the same phrase. Keep the other uses that merely name the desktop environment (e.g. \"COSMIC's compositor\"). Don't edit .ferrivide/history. Run the tests.\n\nLabels: Docs"
+  ],
+  "files": [
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 2,
+      "removed": 2
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "added": 1,
+      "removed": 1
+    }
+  ],
+  "summary": ""
+}

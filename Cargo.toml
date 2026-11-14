@@ -2,7 +2,7 @@
 name = "cosmic-ext-nightlight"
 version = "0.1.0"
 edition = "2021"
-description = "COSMIC panel applet to toggle night light"
+description = "Panel applet for COSMIC to toggle night light"
 license = "GPL-3.0-only"
 
 [dependencies]
@@ -16,7 +16,7 @@ name = "cosmic-ext-nightlight"
 maintainer = "cosmic-ext-nightlight contributors"
 section = "utils"
 priority = "optional"
-extended-description = "A COSMIC panel applet that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
+extended-description = "A panel applet for COSMIC that toggles night light by setting display gamma through the Wayland wlr-gamma-control protocol."
 # $auto adds the shared libraries the binary actually links (libc6 and
 # libxkbcommon0 today; wayland-client uses the pure-Rust backend).
 # cosmic-panel hosts the applet, so it is required. cosmic-comp provides the
