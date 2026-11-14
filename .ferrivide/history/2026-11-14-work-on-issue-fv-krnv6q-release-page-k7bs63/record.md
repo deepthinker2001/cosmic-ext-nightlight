@@ -1,6 +1,6 @@
 # Work on issue FV-KRNV6Q: Release-page .deb has no signature users can verify…
 
-**In progress** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-krnv6q-release-page-deb-has-no-signature-users` · FV-KRNV6Q: Release-page .deb has no signature users can verify (R14)
+**Merged** 2026-11-14 · Engineer 1 (project agent) · `claude-sonnet-5-5` · branch `fv-krnv6q-release-page-deb-has-no-signature-users` · FV-KRNV6Q: Release-page .deb has no signature users can verify (R14)
 
 About $0.00, 0 tokens in, 0 out
 
@@ -57,15 +57,23 @@ Progress reports:
 
 - Waiting for the user to choose between signing the release-page .deb and documenting that only apt is signed; nothing is committed yet.
 - Per the user's choice, the release job now signs the release-page .deb, and the README has a gpgv step. The workflow hasn't run; I only checked that the YAML parses.
+- I fixed all three review findings and committed them. Nothing has run on GitHub; the only check was that the workflow YAML parses.
+
+## Reviewed
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-haiku-5-5`): All three earlier findings are fixed in commit 99a6edc. The README's install block now chains the dearmor, gpgv, sha256sum and apt install with &&, so nothing installs unless the signature and hash both pass, and it uses a `deb` variable instead of globs. The workflow dearmors the key once, before the loop, with --yes. The workflow still parses. The new commit message is about the change and names no agent, which meets C4. No Rust code changed, so C2 doesn't apply. As before, your confirmation that you chose the detached signature is still needed before merge.
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-sonnet-5-5`): All three earlier findings are fixed. The README chains gpgv, sha256sum and apt install with `&&` and uses a `deb` variable. The workflow dearmors the key once with `--yes`, before the loop. The commit message names no agents (C4).
+
+**Approved** by the cosmic-ext-nightlight reviewer (`claude-opus-5-5`): All three findings are fixed. In the README, the gpgv, sha256sum and apt install commands are now joined with &&, so nothing is installed if a check fails. The commands name one file through $deb instead of a glob, and the warning comes before the commands. The workflow converts the key once, before the signing loop, with --yes. The new commit message names no agents (C4), and the changed lines raise no new security issues.
 
 ## Summary
 
-The release-page .deb now gets a detached signature, as you chose. I committed the change. Nothing has run on GitHub; the only check was that `release.yml` parses as YAML.
+I fixed all three review findings and committed them. I haven't run the workflow on GitHub. The only check was that `release.yml` parses as YAML.
 
-- **Workflow (`.github/workflows/release.yml`):** The `apt` job already holds the signing key and has `contents: write`. After it publishes the apt repository, it makes a detached `.deb.asc` with the same key. It checks that signature with `gpgv` against the `key.gpg` it just published, then uploads the `.asc` to the release.
-- **README (`README.md`):** The "From a release" section now has you download the .deb, `.asc` and `.sha256`. You then check the key fingerprint (the same one the apt steps pin) and run `gpgv` on the `.asc`. The `sha256sum -c` check stays. The text says the `.sha256` only catches a broken download and the `.asc` proves the file is ours.
-
-One thing to know: the `.asc` is uploaded by the `apt` job, after the `attach` job has attached the .deb and `.sha256`. So the `.asc` appears on the release page a little later than the .deb.
+- **#1 (README):** The README's verify-and-install block chains `gpg --dearmor`, `gpgv`, `sha256sum -c` and `sudo apt install` with `&&`. A bad signature or hash now stops the install. The "must say Good signature, otherwise don't install" note is now part of the same section. I also added the cleanup (`rm -r "$dir"`) to the wrong-fingerprint case.
+- **#3 (README):** The block now sets `deb=cosmic-ext-nightlight_X.Y.Z_amd64.deb`, where you fill in the real version. It uses `"$deb"`, `"$deb.asc"` and `"$deb.sha256"` instead of globs. That way `gpgv` and `apt install` only ever see the one file.
+- **#2 (`.github/workflows/release.yml`):** `gpg --dearmor` now runs once, with `--yes`, before the signing loop. Only the sign and `gpgv` lines stay inside the loop, so a second .deb wouldn't fail on an existing file.
 
 ## Contract
 
@@ -76,4 +84,4 @@ The clauses this work was bound by:
 
 ---
 
-From `626aa5bb40` to `cf4aedf138`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
+From `626aa5bb40` to `99a6edc099`. The whole diff is in [changes.diff](changes.diff). The conversation, shortened, is in [transcript.jsonl](transcript.jsonl); [the README](../README.md) explains the files.
