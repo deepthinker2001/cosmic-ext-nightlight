@@ -31,26 +31,30 @@ tint) with one click.
 ### With apt (recommended)
 
 Add the signed repository once; updates then arrive with your normal system
-updates:
+updates. First download the key to a temporary file and check its fingerprint
+before you trust it:
 
 ```sh
-curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg \
-  | sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg
+curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg -o /tmp/nightlight-key.gpg
+gpg --show-keys --with-fingerprint /tmp/nightlight-key.gpg
+```
+
+The fingerprint printed must be exactly:
+
+```text
+0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584
+```
+
+If it differs, run `rm /tmp/nightlight-key.gpg` and stop. If it matches,
+trust the key and add the repository:
+
+```sh
+sudo gpg --dearmor -o /usr/share/keyrings/cosmic-ext-nightlight.gpg /tmp/nightlight-key.gpg
+rm /tmp/nightlight-key.gpg
 echo "deb [signed-by=/usr/share/keyrings/cosmic-ext-nightlight.gpg] https://deepthinker2001.github.io/cosmic-ext-nightlight stable main" \
   | sudo tee /etc/apt/sources.list.d/cosmic-ext-nightlight.list
 sudo apt update
 sudo apt install cosmic-ext-nightlight
-```
-
-To check that the key you downloaded is the project's, compare its fingerprint
-with this one before running `apt update`:
-
-```sh
-gpg --show-keys --with-fingerprint /usr/share/keyrings/cosmic-ext-nightlight.gpg
-```
-
-```text
-0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584
 ```
 
 Then [add it to the panel](#add-it-to-the-panel).
