@@ -18,7 +18,7 @@ use cosmic::iced::futures::channel::oneshot;
 use cosmic::iced::window::Id;
 use cosmic::iced::Subscription;
 use cosmic::surface::action::{app_popup, destroy_popup};
-use cosmic::widget::{list_column, mouse_area, settings, slider, spin_button, text, toggler};
+use cosmic::widget::{list_column, mouse_area, settings, slider, text, toggler};
 use cosmic::Element;
 use requests::{Requests, Target};
 use saver::{Save, Saver};
@@ -29,16 +29,18 @@ const ICON_OFF: &str = "io.github.cosmic_ext.Nightlight-off-symbolic";
 const CONFIG_VERSION: u64 = 1;
 const CONFIG_KEY_ENABLED: &str = "enabled";
 const CONFIG_KEY_TEMPERATURE: &str = "temperature";
-const CONFIG_KEY_SCHEDULE_ON: &str = "schedule_on";
-const CONFIG_KEY_SCHEDULE_START: &str = "schedule_start";
-const CONFIG_KEY_SCHEDULE_END: &str = "schedule_end";
+// Keys from older versions, no longer read: `schedule_on`, `schedule_start`
+// and `schedule_end` (the custom-times schedule, removed). They are left in
+// place and ignored. `location_custom` is read only while
+// `location_from_timezone` hasn't been saved yet (see `Settings::load`).
 const CONFIG_KEY_AUTO_ON: &str = "auto_on";
+const CONFIG_KEY_LOCATION_FROM_TIMEZONE: &str = "location_from_timezone";
 const CONFIG_KEY_LOCATION_CUSTOM: &str = "location_custom";
 const CONFIG_KEY_LOCATION_LAT: &str = "location_lat";
 const CONFIG_KEY_LOCATION_LON: &str = "location_lon";
-/// How often the schedule is checked. Also bounds how late it catches up
+/// How often the auto ramp is checked. Also bounds how late it catches up
 /// after the machine resumes from sleep.
-const SCHEDULE_TICK: Duration = Duration::from_secs(20);
+const TICK: Duration = Duration::from_secs(20);
 
 fn main() -> cosmic::iced::Result {
     cosmic::applet::run::<Nightlight>(())
@@ -155,93 +157,6 @@ fn temperature_hint(kelvin: u32) -> &'static str {
     }
 }
 
-/// A time of day, in whole minutes since local midnight (0..1440).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct TimeOfDay(u16);
-
-impl TimeOfDay {
-    const MINUTES_PER_DAY: u16 = 24 * 60;
-
-    /// Out-of-range values wrap into a day.
-    fn from_minutes(minutes: u32) -> Self {
-        Self((minutes % u32::from(Self::MINUTES_PER_DAY)) as u16)
-    }
-
-    fn hour(self) -> u16 {
-        self.0 / 60
-    }
-
-    fn minute(self) -> u16 {
-        self.0 % 60
-    }
-
-    fn with_hour(self, hour: u16) -> Self {
-        Self::from_minutes(u32::from(hour.min(23)) * 60 + u32::from(self.minute()))
-    }
-
-    fn with_minute(self, minute: u16) -> Self {
-        Self::from_minutes(u32::from(self.hour()) * 60 + u32::from(minute.min(59)))
-    }
-}
-
-/// The automatic schedule: manual only, or custom start and end times.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Schedule {
-    Off,
-    Custom { start: TimeOfDay, end: TimeOfDay },
-}
-
-impl Schedule {
-    /// Whether night light should be on at `now`, or `None` when there is no
-    /// schedule. The window runs from `start` up to (not including) `end`
-    /// and may cross midnight; equal times make an empty window.
-    fn wants_on(self, now: TimeOfDay) -> Option<bool> {
-        match self {
-            Schedule::Off => None,
-            Schedule::Custom { start, end } => Some(if start.0 <= end.0 {
-                start.0 <= now.0 && now.0 < end.0
-            } else {
-                now.0 >= start.0 || now.0 < end.0
-            }),
-        }
-    }
-}
-
-/// One schedule check. `last` is the window state seen by the previous check
-/// (`None` before the first one, or while the schedule is off). Returns the
-/// new `last` and, when the window changed since then, the state to apply.
-/// Acting only on changes is what lets a manual toggle hold until the next
-/// schedule change; the first check after start-up, after the schedule is
-/// switched on, or after resume from sleep applies the current window state.
-fn schedule_step(
-    schedule: Schedule,
-    now: TimeOfDay,
-    last: Option<bool>,
-) -> (Option<bool>, Option<bool>) {
-    match schedule.wants_on(now) {
-        None => (None, None),
-        Some(w) if last == Some(w) => (last, None),
-        Some(w) => (Some(w), Some(w)),
-    }
-}
-
-/// The window state to remember after a reply to a request for `want`. A
-/// failed request for the state the schedule asked for is forgotten, so the
-/// next check applies it again instead of waiting for the next window edge.
-fn schedule_last_after_reply(last: Option<bool>, want: bool, ok: bool) -> Option<bool> {
-    if !ok && last == Some(want) {
-        None
-    } else {
-        last
-    }
-}
-
-/// The local time of day now.
-fn local_time_of_day() -> TimeOfDay {
-    let now = chrono::Local::now();
-    TimeOfDay::from_minutes(now.hour() * 60 + now.minute())
-}
-
 /// The ramp percent right now at `coords`, from the local date and time.
 fn auto_percent_now(coords: location::Coords) -> u8 {
     let now = chrono::Local::now();
@@ -272,115 +187,6 @@ fn auto_action(percent: u8, target: u32, enabled: bool) -> Option<(bool, u32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn t(h: u16, m: u16) -> TimeOfDay {
-        TimeOfDay::from_minutes(u32::from(h) * 60 + u32::from(m))
-    }
-
-    #[test]
-    fn time_parts_round_trip() {
-        assert_eq!(t(22, 30).hour(), 22);
-        assert_eq!(t(22, 30).minute(), 30);
-        assert_eq!(t(22, 30).with_hour(7), t(7, 30));
-        assert_eq!(t(22, 30).with_minute(5), t(22, 5));
-        assert_eq!(TimeOfDay::from_minutes(1440), t(0, 0));
-    }
-
-    #[test]
-    fn schedule_off_wants_nothing() {
-        assert_eq!(Schedule::Off.wants_on(t(12, 0)), None);
-    }
-
-    #[test]
-    fn same_day_window() {
-        let s = Schedule::Custom {
-            start: t(9, 0),
-            end: t(17, 0),
-        };
-        assert_eq!(s.wants_on(t(8, 59)), Some(false));
-        assert_eq!(s.wants_on(t(9, 0)), Some(true));
-        assert_eq!(s.wants_on(t(16, 59)), Some(true));
-        assert_eq!(s.wants_on(t(17, 0)), Some(false));
-    }
-
-    #[test]
-    fn window_across_midnight() {
-        let s = Schedule::Custom {
-            start: t(22, 0),
-            end: t(6, 30),
-        };
-        assert_eq!(s.wants_on(t(21, 59)), Some(false));
-        assert_eq!(s.wants_on(t(22, 0)), Some(true));
-        assert_eq!(s.wants_on(t(23, 59)), Some(true));
-        assert_eq!(s.wants_on(t(0, 0)), Some(true));
-        assert_eq!(s.wants_on(t(6, 29)), Some(true));
-        assert_eq!(s.wants_on(t(6, 30)), Some(false));
-        assert_eq!(s.wants_on(t(12, 0)), Some(false));
-    }
-
-    #[test]
-    fn equal_times_are_an_empty_window() {
-        let s = Schedule::Custom {
-            start: t(8, 0),
-            end: t(8, 0),
-        };
-        assert_eq!(s.wants_on(t(8, 0)), Some(false));
-        assert_eq!(s.wants_on(t(20, 0)), Some(false));
-    }
-
-    #[test]
-    fn step_applies_first_check_then_only_changes() {
-        let s = Schedule::Custom {
-            start: t(22, 0),
-            end: t(6, 0),
-        };
-        // First check (start-up or schedule switched on) applies the state.
-        assert_eq!(schedule_step(s, t(23, 0), None), (Some(true), Some(true)));
-        assert_eq!(schedule_step(s, t(12, 0), None), (Some(false), Some(false)));
-        // Unchanged window: nothing to do, so a manual toggle holds.
-        assert_eq!(schedule_step(s, t(23, 30), Some(true)), (Some(true), None));
-        // Window edge, e.g. seen late after a resume from sleep.
-        assert_eq!(
-            schedule_step(s, t(6, 5), Some(true)),
-            (Some(false), Some(false))
-        );
-        assert_eq!(
-            schedule_step(s, t(22, 5), Some(false)),
-            (Some(true), Some(true))
-        );
-    }
-
-    #[test]
-    fn failed_scheduled_switch_is_retried() {
-        let s = Schedule::Custom {
-            start: t(21, 0),
-            end: t(7, 0),
-        };
-        let (last, apply) = schedule_step(s, t(21, 0), Some(false));
-        assert_eq!(apply, Some(true));
-        // The request fails: the window state is forgotten ...
-        let last = schedule_last_after_reply(last, true, false);
-        assert_eq!(last, None);
-        // ... so the next check asks again.
-        assert_eq!(schedule_step(s, t(21, 0), last), (Some(true), Some(true)));
-        // Success, or a failed request for another state, changes nothing.
-        assert_eq!(
-            schedule_last_after_reply(Some(true), true, true),
-            Some(true)
-        );
-        assert_eq!(
-            schedule_last_after_reply(Some(true), false, false),
-            Some(true)
-        );
-    }
-
-    #[test]
-    fn step_forgets_when_schedule_is_off() {
-        assert_eq!(
-            schedule_step(Schedule::Off, t(1, 0), Some(true)),
-            (None, None)
-        );
-    }
 
     #[test]
     fn auto_action_ramps_and_goes_neutral() {
@@ -425,6 +231,102 @@ mod tests {
         assert!(Settings::load(&config).enabled);
     }
 
+    fn temp_config() -> (tempfile::TempDir, Config) {
+        // A private temp folder, removed on drop: the user's settings are never touched.
+        let dir = tempfile::tempdir().expect("temp dir");
+        let config = Config::with_custom_path(APP_ID, CONFIG_VERSION, dir.path().to_path_buf())
+            .expect("config in temp dir");
+        (dir, config)
+    }
+
+    #[test]
+    fn from_timezone_migrates_from_location_custom() {
+        // Nothing saved: on.
+        assert!(from_timezone_setting(None, None));
+        // Older versions: typed coordinates in use means the toggle is off.
+        assert!(!from_timezone_setting(None, Some(true)));
+        assert!(from_timezone_setting(None, Some(false)));
+        // Once saved, the new key wins over the old one.
+        assert!(from_timezone_setting(Some(true), Some(true)));
+        assert!(!from_timezone_setting(Some(false), Some(false)));
+    }
+
+    #[test]
+    fn old_custom_location_loads_with_the_toggle_off() {
+        let (_dir, config) = temp_config();
+        config.set(CONFIG_KEY_LOCATION_CUSTOM, true).unwrap();
+        config.set(CONFIG_KEY_LOCATION_LAT, 48.85_f64).unwrap();
+        config.set(CONFIG_KEY_LOCATION_LON, 2.35_f64).unwrap();
+        let s = Settings::load(&config);
+        assert_eq!(
+            s.location,
+            location::Setting {
+                from_timezone: false,
+                custom: Some((48.85, 2.35)),
+            }
+        );
+        // Saving the toggle on keeps the coordinates for later.
+        Settings::save_location(
+            &config,
+            location::Setting {
+                from_timezone: true,
+                ..s.location
+            },
+        )
+        .unwrap();
+        let s = Settings::load(&config);
+        assert!(s.location.from_timezone);
+        assert_eq!(s.location.custom, Some((48.85, 2.35)));
+    }
+
+    #[test]
+    fn old_timezone_choice_and_bad_coordinates_load_with_the_toggle_on() {
+        let (_dir, config) = temp_config();
+        config.set(CONFIG_KEY_LOCATION_CUSTOM, false).unwrap();
+        config.set(CONFIG_KEY_LOCATION_LAT, 123.0_f64).unwrap();
+        config.set(CONFIG_KEY_LOCATION_LON, 2.35_f64).unwrap();
+        assert_eq!(
+            Settings::load(&config).location,
+            location::Setting::default()
+        );
+    }
+
+    #[test]
+    fn old_schedule_keys_are_ignored() {
+        let (_dir, config) = temp_config();
+        config.set("schedule_on", true).unwrap();
+        config.set("schedule_start", 21_u16 * 60).unwrap();
+        config.set("schedule_end", 7_u16 * 60).unwrap();
+        config.set(CONFIG_KEY_AUTO_ON, true).unwrap();
+        let s = Settings::load(&config);
+        assert_eq!(
+            s,
+            Settings {
+                auto_on: true,
+                ..Settings::default()
+            }
+        );
+    }
+
+    #[test]
+    fn location_notes() {
+        use location::{Source, Timezone};
+        let tz = Timezone {
+            zone: "America/New_York".to_string(),
+            coords: (40.7142, -74.0064),
+        };
+        assert_eq!(
+            location_note(Source::Timezone(&tz)).as_deref(),
+            Some("New York (America/New_York): 40.71, -74.01")
+        );
+        for unresolved in [None, Some((1.0, 2.0))] {
+            let note = location_note(Source::TimezoneUnresolved(unresolved)).unwrap();
+            assert!(note.contains("wasn't found"), "{note}");
+        }
+        assert!(location_note(Source::Custom(None)).is_some());
+        assert_eq!(location_note(Source::Custom(Some((1.0, 2.0)))), None);
+    }
+
     #[test]
     fn closing_matching_popup_clears_it() {
         let id = Id::unique();
@@ -443,31 +345,6 @@ mod tests {
     }
 }
 
-/// Hour and minute spin buttons for one time of day.
-fn time_picker(time: TimeOfDay, on_change: fn(TimeOfDay) -> Message) -> Element<'static, Message> {
-    cosmic::widget::row::with_capacity(3)
-        .spacing(8)
-        .push(spin_button(
-            format!("{:02}", time.hour()),
-            time.hour(),
-            1,
-            0,
-            23,
-            move |h| on_change(time.with_hour(h)),
-        ))
-        .push(text(":"))
-        .push(spin_button(
-            format!("{:02}", time.minute()),
-            time.minute(),
-            5,
-            0,
-            59,
-            move |m| on_change(time.with_minute(m)),
-        ))
-        .align_y(cosmic::iced::Alignment::Center)
-        .into()
-}
-
 fn config() -> Option<Config> {
     Config::new(APP_ID, CONFIG_VERSION).ok()
 }
@@ -481,31 +358,29 @@ struct Settings {
     enabled: bool,
     /// Colour temperature in Kelvin.
     temperature: u32,
-    /// Automatic schedule on (custom times) or off (manual only).
-    schedule_on: bool,
-    schedule_start: TimeOfDay,
-    schedule_end: TimeOfDay,
     /// Automatic sunrise/sunset ramp on.
     auto_on: bool,
-    /// Coordinates the user typed in; they win over the timezone's.
-    custom_location: Option<location::Coords>,
+    /// Where the location comes from, and the coordinates typed in.
+    location: location::Setting,
 }
-
-const DEFAULT_SCHEDULE_START: TimeOfDay = TimeOfDay(21 * 60);
-const DEFAULT_SCHEDULE_END: TimeOfDay = TimeOfDay(7 * 60);
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             enabled: false,
             temperature: gamma::DEFAULT_TEMPERATURE,
-            schedule_on: false,
-            schedule_start: DEFAULT_SCHEDULE_START,
-            schedule_end: DEFAULT_SCHEDULE_END,
             auto_on: false,
-            custom_location: None,
+            location: location::Setting::default(),
         }
     }
+}
+
+/// Whether the location comes from the timezone, from the saved
+/// `location_from_timezone` and, before that key existed, the older
+/// `location_custom` (typed coordinates in use means the toggle is off).
+/// Neither saved: on.
+fn from_timezone_setting(saved: Option<bool>, old_custom: Option<bool>) -> bool {
+    saved.or(old_custom.map(|custom| !custom)).unwrap_or(true)
 }
 
 impl Settings {
@@ -517,27 +392,20 @@ impl Settings {
                     .get::<u32>(CONFIG_KEY_TEMPERATURE)
                     .unwrap_or(gamma::DEFAULT_TEMPERATURE),
             ),
-            schedule_on: config.get::<bool>(CONFIG_KEY_SCHEDULE_ON).unwrap_or(false),
-            schedule_start: config
-                .get::<u16>(CONFIG_KEY_SCHEDULE_START)
-                .map_or(DEFAULT_SCHEDULE_START, |m| {
-                    TimeOfDay::from_minutes(m.into())
-                }),
-            schedule_end: config
-                .get::<u16>(CONFIG_KEY_SCHEDULE_END)
-                .map_or(DEFAULT_SCHEDULE_END, |m| TimeOfDay::from_minutes(m.into())),
             auto_on: config.get::<bool>(CONFIG_KEY_AUTO_ON).unwrap_or(false),
-            custom_location: config
-                .get::<bool>(CONFIG_KEY_LOCATION_CUSTOM)
-                .unwrap_or(false)
-                .then(|| {
-                    Some((
-                        config.get::<f64>(CONFIG_KEY_LOCATION_LAT).ok()?,
-                        config.get::<f64>(CONFIG_KEY_LOCATION_LON).ok()?,
-                    ))
-                })
-                .flatten()
-                .filter(|&(lat, lon)| location::valid(lat, lon)),
+            location: location::Setting {
+                from_timezone: from_timezone_setting(
+                    config.get::<bool>(CONFIG_KEY_LOCATION_FROM_TIMEZONE).ok(),
+                    config.get::<bool>(CONFIG_KEY_LOCATION_CUSTOM).ok(),
+                ),
+                // Loaded even while the timezone is used, so switching the
+                // toggle off brings back what was typed.
+                custom: config
+                    .get::<f64>(CONFIG_KEY_LOCATION_LAT)
+                    .ok()
+                    .zip(config.get::<f64>(CONFIG_KEY_LOCATION_LON).ok())
+                    .filter(|&(lat, lon)| location::valid(lat, lon)),
+            },
         }
     }
 
@@ -547,25 +415,14 @@ impl Settings {
 
     fn save_location(
         config: &Config,
-        custom: Option<location::Coords>,
+        setting: location::Setting,
     ) -> Result<(), cosmic::cosmic_config::Error> {
-        config.set(CONFIG_KEY_LOCATION_CUSTOM, custom.is_some())?;
-        if let Some((lat, lon)) = custom {
+        config.set(CONFIG_KEY_LOCATION_FROM_TIMEZONE, setting.from_timezone)?;
+        if let Some((lat, lon)) = setting.custom {
             config.set(CONFIG_KEY_LOCATION_LAT, lat)?;
             config.set(CONFIG_KEY_LOCATION_LON, lon)?;
         }
         Ok(())
-    }
-
-    fn save_schedule(
-        config: &Config,
-        on: bool,
-        start: TimeOfDay,
-        end: TimeOfDay,
-    ) -> Result<(), cosmic::cosmic_config::Error> {
-        config.set(CONFIG_KEY_SCHEDULE_ON, on)?;
-        config.set(CONFIG_KEY_SCHEDULE_START, start.0)?;
-        config.set(CONFIG_KEY_SCHEDULE_END, end.0)
     }
 
     fn save_temperature(config: &Config, kelvin: u32) -> Result<(), cosmic::cosmic_config::Error> {
@@ -588,21 +445,16 @@ struct Nightlight {
     popup: Option<Id>,
     /// Chosen colour temperature in Kelvin.
     temperature: u32,
-    schedule_on: bool,
-    schedule_start: TimeOfDay,
-    schedule_end: TimeOfDay,
-    /// Window state seen by the last schedule check (see `schedule_step`).
-    schedule_last: Option<bool>,
     auto: AutoState,
 }
 
 /// State of the sunrise/sunset mode.
 struct AutoState {
     on: bool,
-    /// Coordinates typed by the user, if any.
-    custom_location: Option<location::Coords>,
-    /// Coordinates of the system timezone, read once at start-up.
-    tz_location: Option<location::Coords>,
+    /// The "From time zone" toggle and the coordinates typed in.
+    location: location::Setting,
+    /// The system timezone, read once at start-up.
+    timezone: Option<location::Timezone>,
     /// Text in the latitude and longitude boxes.
     lat_input: String,
     lon_input: String,
@@ -610,10 +462,17 @@ struct AutoState {
     last: Option<u8>,
 }
 
+impl AutoState {
+    /// Where the location in use comes from.
+    fn source(&self) -> location::Source<'_> {
+        location::choose(&self.location, self.timezone.as_ref())
+    }
+}
+
 impl Nightlight {
-    /// The location in use: the user's, else the timezone's.
+    /// The location in use, if any.
     fn location(&self) -> Option<location::Coords> {
-        self.auto.custom_location.or(self.auto.tz_location)
+        self.auto.source().coords()
     }
 
     fn save_auto(&self) {
@@ -642,18 +501,18 @@ impl Nightlight {
     }
 
     fn save_location(&self) {
-        self.saver.save(Save::Location(self.auto.custom_location));
+        self.saver.save(Save::Location(self.auto.location));
     }
 
     /// The text boxes changed: once both hold valid degrees they become the
-    /// location. Half-typed or out-of-range text changes nothing.
+    /// typed location. Half-typed or out-of-range text changes nothing.
     fn location_edited(&mut self) -> Task<Message> {
         let coords = location::parse_degrees(&self.auto.lat_input)
             .zip(location::parse_degrees(&self.auto.lon_input))
             .filter(|&(lat, lon)| location::valid(lat, lon));
         match coords {
-            Some(c) if self.auto.custom_location != Some(c) => {
-                self.auto.custom_location = Some(c);
+            Some(c) if self.auto.location.custom != Some(c) => {
+                self.auto.location.custom = Some(c);
                 self.save_location();
                 self.location_changed()
             }
@@ -661,8 +520,18 @@ impl Nightlight {
         }
     }
 
-    /// The location in use changed: recompute at once, or switch auto off
-    /// when there is none left.
+    /// The "From time zone" toggle changed.
+    fn timezone_toggled(&mut self, on: bool) -> Task<Message> {
+        if on == self.auto.location.from_timezone {
+            return Task::none();
+        }
+        self.auto.location.from_timezone = on;
+        self.save_location();
+        self.location_changed()
+    }
+
+    /// The location in use may have changed: recompute at once, or switch
+    /// auto off when there is none left.
     fn location_changed(&mut self) -> Task<Message> {
         if self.auto.on && self.location().is_none() {
             self.auto.on = false;
@@ -683,37 +552,6 @@ impl Nightlight {
                 p => solar::kelvin_for_percent(p, self.temperature, gamma::NEUTRAL_TEMPERATURE),
             },
             None => self.temperature,
-        }
-    }
-
-    fn schedule(&self) -> Schedule {
-        if self.schedule_on {
-            Schedule::Custom {
-                start: self.schedule_start,
-                end: self.schedule_end,
-            }
-        } else {
-            Schedule::Off
-        }
-    }
-
-    /// Save the schedule settings.
-    fn save_schedule(&self) {
-        self.saver.save(Save::Schedule {
-            on: self.schedule_on,
-            start: self.schedule_start,
-            end: self.schedule_end,
-        });
-    }
-
-    /// Check the schedule against the clock and ask for its state if the
-    /// window changed.
-    fn check_schedule(&mut self) -> Task<Message> {
-        let (last, apply) = schedule_step(self.schedule(), local_time_of_day(), self.schedule_last);
-        self.schedule_last = last;
-        match apply {
-            Some(on) if on != self.requests.is_on() => self.want(on.then_some(self.temperature)),
-            _ => Task::none(),
         }
     }
 
@@ -747,7 +585,6 @@ impl Nightlight {
         }
         let replied = self.requests.replied(ok);
         if let Some(sent) = replied.sent {
-            self.schedule_last = schedule_last_after_reply(self.schedule_last, sent.is_some(), ok);
             // Only a success is saved: a failed startup restore deliberately
             // keeps the saved flag set, so the next start retries (e.g. the
             // compositor wasn't ready at login) instead of forgetting it.
@@ -773,18 +610,41 @@ enum Message {
     Applied(Result<(), String>),
     /// The temperature slider moved.
     Temperature(u32),
-    /// The schedule was switched on or off.
-    ScheduleOn(bool),
-    ScheduleStart(TimeOfDay),
-    ScheduleEnd(TimeOfDay),
     /// Auto (sunrise/sunset) was switched on or off.
     AutoOn(bool),
+    /// The "From time zone" toggle changed.
+    FromTimezone(bool),
     LatInput(String),
     LonInput(String),
-    /// Go back to the timezone's coordinates.
-    UseTimezoneLocation,
-    /// Time to check the schedule.
+    /// Time to check the auto ramp.
     Tick,
+}
+
+/// The popup's line about the location in use, if it needs one.
+fn location_note(source: location::Source<'_>) -> Option<String> {
+    use location::Source;
+    match source {
+        Source::Timezone(tz) => {
+            let (lat, lon) = tz.coords;
+            Some(format!(
+                "{} ({}): {lat:.2}, {lon:.2}",
+                location::place_name(&tz.zone),
+                tz.zone
+            ))
+        }
+        Source::TimezoneUnresolved(Some(_)) => Some(
+            "The system time zone's location wasn't found: using the \
+             latitude and longitude below."
+                .to_string(),
+        ),
+        Source::TimezoneUnresolved(None) => Some(
+            "The system time zone's location wasn't found: enter latitude \
+             and longitude to use Auto."
+                .to_string(),
+        ),
+        Source::Custom(None) => Some("Enter latitude and longitude to use Auto.".to_string()),
+        Source::Custom(Some(_)) => None,
+    }
 }
 
 /// The settings popup's content.
@@ -808,63 +668,36 @@ fn popup_content(state: &Nightlight) -> Element<'_, cosmic::Action<Message>> {
             .step(100_u32),
         )
         .add(settings::item(
-            "Schedule: custom times",
-            toggler(state.schedule_on).on_toggle(Message::ScheduleOn),
+            "Auto (sunrise/sunset)",
+            toggler(state.auto.on).on_toggle(Message::AutoOn),
         ));
-    if state.schedule_on {
-        let (start, end) = (state.schedule_start, state.schedule_end);
-        content = content
-            .add(settings::item(
-                "Start",
-                time_picker(start, Message::ScheduleStart),
-            ))
-            .add(settings::item(
-                "End",
-                time_picker(end, Message::ScheduleEnd),
-            ));
+    if state.auto.on {
+        content = content.add(text(format!(
+            "Ramps over {} min centred on sunrise and sunset, to the \
+             temperature above.",
+            solar::RAMP_WINDOW_MINUTES
+        )));
     }
     content = content.add(settings::item(
-        "Auto (sunrise/sunset)",
-        toggler(state.auto.on).on_toggle(Message::AutoOn),
+        "From time zone",
+        toggler(state.auto.location.from_timezone).on_toggle(Message::FromTimezone),
     ));
-    let note = match (state.location(), state.auto.custom_location) {
-        (None, _) => Some(
-            "No location found for this timezone: enter latitude and \
-             longitude to use Auto."
-                .to_string(),
-        ),
-        (Some((lat, lon)), custom) if state.auto.on => Some(format!(
-            "Ramps over {} min centred on sunrise and sunset, \
-             to the temperature above. Location: {lat:.2}, {lon:.2} \
-             ({}).",
-            solar::RAMP_WINDOW_MINUTES,
-            if custom.is_some() {
-                "custom"
-            } else {
-                "timezone"
-            },
-        )),
-        _ => None,
-    };
-    if let Some(note) = note {
+    let source = state.auto.source();
+    if let Some(note) = location_note(source) {
         content = content.add(text(note));
     }
-    content = content
-        .add(settings::item(
-            "Latitude",
-            cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
-                .on_input(Message::LatInput),
-        ))
-        .add(settings::item(
-            "Longitude",
-            cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
-                .on_input(Message::LonInput),
-        ));
-    if state.auto.custom_location.is_some() {
-        content = content.add(
-            cosmic::widget::button::standard("Use timezone location")
-                .on_press(Message::UseTimezoneLocation),
-        );
+    if source.shows_entry() {
+        content = content
+            .add(settings::item(
+                "Latitude",
+                cosmic::widget::text_input("e.g. 48.85", &state.auto.lat_input)
+                    .on_input(Message::LatInput),
+            ))
+            .add(settings::item(
+                "Longitude",
+                cosmic::widget::text_input("e.g. 2.35", &state.auto.lon_input)
+                    .on_input(Message::LonInput),
+            ));
     }
     Element::from(state.core.applet.popup_container(content)).map(cosmic::Action::App)
 }
@@ -885,22 +718,10 @@ impl cosmic::Application for Nightlight {
 
     fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Message>) {
         let settings = config().map(|c| Settings::load(&c)).unwrap_or_default();
-        // With a schedule on, the clock decides the state at start-up;
-        // otherwise the saved choice is restored.
-        let schedule = if settings.schedule_on {
-            Schedule::Custom {
-                start: settings.schedule_start,
-                end: settings.schedule_end,
-            }
-        } else {
-            Schedule::Off
-        };
-        let (schedule_last, scheduled) = schedule_step(schedule, local_time_of_day(), None);
-        let saved = scheduled.unwrap_or(settings.enabled);
-        let tz_location = location::timezone_location();
-        let coords = settings.custom_location.or(tz_location);
-        // Auto needs a location and excludes the custom schedule.
-        let auto_coords = coords.filter(|_| settings.auto_on && !settings.schedule_on);
+        let timezone = location::timezone_location();
+        let coords = location::choose(&settings.location, timezone.as_ref()).coords();
+        // Auto needs a location; without one the saved choice is restored.
+        let auto_coords = coords.filter(|_| settings.auto_on);
         let (auto_last, auto_apply) = match auto_coords {
             Some(c) => solar::auto_step(auto_percent_now(c), None),
             None => (None, None),
@@ -908,11 +729,12 @@ impl cosmic::Application for Nightlight {
         let start = if auto_coords.is_some() {
             auto_apply.and_then(|p| auto_action(p, settings.temperature, false))
         } else {
-            saved.then_some((true, settings.temperature))
+            settings.enabled.then_some((true, settings.temperature))
         };
         let worker = Worker::spawn();
         let mut requests = Requests::default();
         let task = worker.send(start.and_then(|(on, kelvin)| requests.want(on.then_some(kelvin))));
+        let custom = settings.location.custom;
         let fmt = |v: f64| format!("{v}");
         (
             Self {
@@ -921,33 +743,23 @@ impl cosmic::Application for Nightlight {
                 saver: Saver::spawn(),
                 auto: AutoState {
                     on: auto_coords.is_some(),
-                    custom_location: settings.custom_location,
-                    tz_location,
-                    lat_input: settings
-                        .custom_location
-                        .map(|c| fmt(c.0))
-                        .unwrap_or_default(),
-                    lon_input: settings
-                        .custom_location
-                        .map(|c| fmt(c.1))
-                        .unwrap_or_default(),
+                    location: settings.location,
+                    timezone,
+                    lat_input: custom.map(|c| fmt(c.0)).unwrap_or_default(),
+                    lon_input: custom.map(|c| fmt(c.1)).unwrap_or_default(),
                     last: auto_last,
                 },
                 worker,
                 popup: None,
                 temperature: settings.temperature,
-                schedule_on: settings.schedule_on && auto_coords.is_none(),
-                schedule_start: settings.schedule_start,
-                schedule_end: settings.schedule_end,
-                schedule_last,
             },
             task,
         )
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.schedule_on || self.auto.on {
-            cosmic::iced::time::every(SCHEDULE_TICK).map(|_| Message::Tick)
+        if self.auto.on {
+            cosmic::iced::time::every(TICK).map(|_| Message::Tick)
         } else {
             Subscription::none()
         }
@@ -966,31 +778,15 @@ impl cosmic::Application for Nightlight {
                 return self.want(target);
             }
             Message::Temperature(kelvin) => return self.temperature_changed(kelvin),
-            Message::ScheduleOn(on) => {
-                self.schedule_on = on;
-                self.schedule_last = None;
-                if on && self.auto.on {
-                    // Auto and the custom schedule exclude each other.
-                    self.auto.on = false;
-                    self.auto.last = None;
-                    self.save_auto();
-                }
-                self.save_schedule();
-                return self.check_schedule();
-            }
             Message::AutoOn(on) => {
                 // No location: leave auto off (the popup shows a note).
                 let on = on && self.location().is_some();
                 self.auto.on = on;
                 self.auto.last = None;
                 self.save_auto();
-                if on && self.schedule_on {
-                    self.schedule_on = false;
-                    self.schedule_last = None;
-                    self.save_schedule();
-                }
                 return self.check_auto();
             }
+            Message::FromTimezone(on) => return self.timezone_toggled(on),
             Message::LatInput(text) => {
                 self.auto.lat_input = text;
                 return self.location_edited();
@@ -999,32 +795,7 @@ impl cosmic::Application for Nightlight {
                 self.auto.lon_input = text;
                 return self.location_edited();
             }
-            Message::UseTimezoneLocation => {
-                self.auto.lat_input.clear();
-                self.auto.lon_input.clear();
-                self.auto.custom_location = None;
-                self.save_location();
-                return self.location_changed();
-            }
-            Message::ScheduleStart(time) => {
-                self.schedule_start = time;
-                self.schedule_last = None;
-                self.save_schedule();
-                return self.check_schedule();
-            }
-            Message::ScheduleEnd(time) => {
-                self.schedule_end = time;
-                self.schedule_last = None;
-                self.save_schedule();
-                return self.check_schedule();
-            }
-            Message::Tick => {
-                return if self.auto.on {
-                    self.check_auto()
-                } else {
-                    self.check_schedule()
-                };
-            }
+            Message::Tick => return self.check_auto(),
             Message::ToggleSettings => {
                 let action = match self.popup {
                     Some(id) => destroy_popup(id),
