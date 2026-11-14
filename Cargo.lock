@@ -984,6 +984,7 @@ dependencies = [
 name = "cosmic-ext-nightlight"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "libcosmic",
  "rustix 1.1.6",
  "wayland-client",

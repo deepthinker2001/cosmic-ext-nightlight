@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "id": "agent-gxh4v6",
+  "title": "Work on issue FV-FK5E4X: Automatic schedule",
+  "outcome": "in_progress",
+  "project": "cosmic-ext-nightlight",
+  "agent": {
+    "name": "Engineer 1",
+    "kind": "project agent",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "role": "engineer"
+  },
+  "branch": "fv-fk5e4x-automatic-schedule",
+  "base_commit": "1f1dd02e27e1cd647c107938d91c54f72e0f419d",
+  "head_commit": "",
+  "issue": {
+    "id": "FV-FK5E4X",
+    "title": "Automatic schedule"
+  },
+  "started": 1794631293,
+  "finished": 1794631471,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "requests": [
+    "Work on issue FV-FK5E4X: Automatic schedule\n\nIn the popup, add a schedule: Off (manual only, the default) or Custom times, with start and end time pickers. When a schedule is on, night light turns on at the start time and off at the end time, including across midnight, and after resume from sleep or restart. Manual toggling still works and holds until the next schedule change. Saved with the other settings. Unit-test the time logic. Don't add location/sunset lookup in this issue.\n\nLabels: Applet"
+  ],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "status": "modified",
+      "added": 1,
+      "removed": 0
+    },
+    {
+      "path": "Cargo.toml",
+      "status": "modified",
+      "added": 1,
+      "removed": 0
+    },
+    {
+      "path": "src/main.rs",
+      "status": "modified",
+      "added": 326,
+      "removed": 4
+    }
+  ],
+  "summary": "Now write the code."
+}
