@@ -130,13 +130,30 @@ and `/usr/share/keyrings/cosmic-ext-nightlight.gpg`.
 
 ### From a release
 
-Download the `.deb` (and its `.sha256`, to check the download) from the
-[releases page](../../releases/latest), then:
+Download the `.deb`, its `.asc` signature and its `.sha256` from the
+[releases page](../../releases/latest). The `.sha256` only catches a broken
+download; the `.asc` is what proves the file is ours.
+
+Get the signing key and check its fingerprint, as in the apt steps above:
 
 ```sh
+dir=$(mktemp -d)
+curl -fsSL https://deepthinker2001.github.io/cosmic-ext-nightlight/key.gpg -o "$dir/key.asc"
+gpg --show-keys --with-fingerprint "$dir/key.asc"
+```
+
+It must be exactly `0472 CEF0 1CE0 E79E C118  662D 34A0 6EB9 79E5 8584`; if
+not, stop. Then verify and install:
+
+```sh
+gpg --dearmor -o "$dir/key.gpg" "$dir/key.asc"
+gpgv --keyring "$dir/key.gpg" cosmic-ext-nightlight_*.deb.asc cosmic-ext-nightlight_*.deb
 sha256sum -c cosmic-ext-nightlight_*.deb.sha256
 sudo apt install ./cosmic-ext-nightlight_*.deb
+rm -r "$dir"
 ```
+
+`gpgv` must say `Good signature`.
 
 This does not update itself; use the apt repository above for that.
 

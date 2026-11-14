@@ -225,6 +225,22 @@ jobs:
           trap 'rm -rf "$GNUPGHOME"' EXIT
           printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --quiet --import
           scripts/publish-apt.sh site "$KEY_ID" debs/cosmic-ext-nightlight_*.deb
+          # The release-page download gets a detached signature from the
+          # same key, checked against the key.gpg publish-apt.sh just verified.
+          for deb in debs/cosmic-ext-nightlight_*.deb; do
+            gpg --batch --yes --local-user "$KEY_ID" --armor --detach-sign -o "$deb.asc" "$deb"
+            gpg --batch --dearmor -o "$GNUPGHOME/check.gpg" site/key.gpg
+            gpgv --keyring "$GNUPGHOME/check.gpg" "$deb.asc" "$deb"
+          done
+
+      - name: Attach the detached signature to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          for asc in debs/cosmic-ext-nightlight_*.deb.asc; do
+            gh release upload "$TAG" "$asc" --clobber -R "$GITHUB_REPOSITORY"
+          done
 
       - name: Publish the repository
         env:
