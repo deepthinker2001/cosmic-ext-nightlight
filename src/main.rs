@@ -140,6 +140,28 @@ fn temperature_hint(kelvin: u32) -> &'static str {
     }
 }
 
+/// What a slider move asks of the backend.
+#[derive(Debug, PartialEq)]
+enum Retune {
+    /// Send a request now.
+    Now,
+    /// A request is in flight (it may carry an old Kelvin, e.g. a startup
+    /// restore or a toggle-on): remember, and decide when it replies.
+    Later,
+    /// Night light is off and idle: only the saved value changes.
+    Never,
+}
+
+fn retune_on_slider(enabled: bool, busy: bool) -> Retune {
+    if busy {
+        Retune::Later
+    } else if enabled {
+        Retune::Now
+    } else {
+        Retune::Never
+    }
+}
+
 /// Whether a retune must be sent after a reply: the slider moved while a
 /// request was in flight and night light is on.
 fn retune_needed(enabled: bool, pending: bool) -> bool {
@@ -163,6 +185,14 @@ mod tests {
         assert!(retune_needed(true, true));
         assert!(!retune_needed(true, false));
         assert!(!retune_needed(false, true));
+    }
+
+    #[test]
+    fn slider_move_while_busy_is_deferred_even_when_not_yet_enabled() {
+        assert_eq!(retune_on_slider(false, true), Retune::Later);
+        assert_eq!(retune_on_slider(true, true), Retune::Later);
+        assert_eq!(retune_on_slider(true, false), Retune::Now);
+        assert_eq!(retune_on_slider(false, false), Retune::Never);
     }
 
     #[test]
@@ -340,13 +370,13 @@ impl cosmic::Application for Nightlight {
                         eprintln!("nightlight: cannot save temperature: {e}");
                     }
                 }
-                if self.enabled {
-                    if self.busy {
-                        self.retune_pending = true;
-                    } else {
+                match retune_on_slider(self.enabled, self.busy) {
+                    Retune::Now => {
                         self.busy = true;
                         return self.worker.request(true, kelvin);
                     }
+                    Retune::Later => self.retune_pending = true,
+                    Retune::Never => {}
                 }
             }
             Message::ToggleSettings => {

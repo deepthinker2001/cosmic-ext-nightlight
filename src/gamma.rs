@@ -496,7 +496,7 @@ mod tests {
 
     #[test]
     fn range_ends_are_ordered_and_default_inside() {
-        assert!(MIN_TEMPERATURE < DEFAULT_TEMPERATURE && DEFAULT_TEMPERATURE < MAX_TEMPERATURE);
+        const { assert!(MIN_TEMPERATURE < DEFAULT_TEMPERATURE && DEFAULT_TEMPERATURE < MAX_TEMPERATURE) };
         let warm = temperature_to_rgb(MIN_TEMPERATURE);
         let cool = temperature_to_rgb(MAX_TEMPERATURE);
         assert!(warm[2] < cool[2] && warm[1] < cool[1]);

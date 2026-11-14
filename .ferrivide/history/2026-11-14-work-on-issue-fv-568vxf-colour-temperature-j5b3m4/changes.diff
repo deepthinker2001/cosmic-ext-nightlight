@@ -1,5 +1,5 @@
 diff --git a/src/gamma.rs b/src/gamma.rs
-index 0172884..c8a0297 100644
+index 0172884..f80c820 100644
 --- a/src/gamma.rs
 +++ b/src/gamma.rs
 @@ -21,6 +21,16 @@ use wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_v1::{
@@ -32,7 +32,7 @@ index 0172884..c8a0297 100644
 +
 +    #[test]
 +    fn range_ends_are_ordered_and_default_inside() {
-+        assert!(MIN_TEMPERATURE < DEFAULT_TEMPERATURE && DEFAULT_TEMPERATURE < MAX_TEMPERATURE);
++        const { assert!(MIN_TEMPERATURE < DEFAULT_TEMPERATURE && DEFAULT_TEMPERATURE < MAX_TEMPERATURE) };
 +        let warm = temperature_to_rgb(MIN_TEMPERATURE);
 +        let cool = temperature_to_rgb(MAX_TEMPERATURE);
 +        assert!(warm[2] < cool[2] && warm[1] < cool[1]);
@@ -51,7 +51,7 @@ index 0172884..c8a0297 100644
      fn ramp_degenerate_sizes() {
          assert!(build_ramp(0, 3500).is_empty());
 diff --git a/src/main.rs b/src/main.rs
-index 9020e5a..47a74cb 100644
+index 9020e5a..2478541 100644
 --- a/src/main.rs
 +++ b/src/main.rs
 @@ -12,7 +12,7 @@ use cosmic::iced::core::window;
@@ -118,7 +118,7 @@ index 9020e5a..47a74cb 100644
          Task::perform(
              async move {
                  if !sent {
-@@ -128,10 +130,46 @@ fn popup_after_close(popup: Option<Id>, closed: Id) -> Option<Id> {
+@@ -128,10 +130,76 @@ fn popup_after_close(popup: Option<Id>, closed: Id) -> Option<Id> {
      popup.filter(|id| *id != closed)
  }
  
@@ -129,6 +129,28 @@ index 9020e5a..47a74cb 100644
 +        2700..=3999 => "Warm",
 +        4000..=5199 => "Neutral warm",
 +        _ => "Cool",
++    }
++}
++
++/// What a slider move asks of the backend.
++#[derive(Debug, PartialEq)]
++enum Retune {
++    /// Send a request now.
++    Now,
++    /// A request is in flight (it may carry an old Kelvin, e.g. a startup
++    /// restore or a toggle-on): remember, and decide when it replies.
++    Later,
++    /// Night light is off and idle: only the saved value changes.
++    Never,
++}
++
++fn retune_on_slider(enabled: bool, busy: bool) -> Retune {
++    if busy {
++        Retune::Later
++    } else if enabled {
++        Retune::Now
++    } else {
++        Retune::Never
 +    }
 +}
 +
@@ -158,6 +180,14 @@ index 9020e5a..47a74cb 100644
 +    }
 +
 +    #[test]
++    fn slider_move_while_busy_is_deferred_even_when_not_yet_enabled() {
++        assert_eq!(retune_on_slider(false, true), Retune::Later);
++        assert_eq!(retune_on_slider(true, true), Retune::Later);
++        assert_eq!(retune_on_slider(true, false), Retune::Now);
++        assert_eq!(retune_on_slider(false, false), Retune::Never);
++    }
++
++    #[test]
 +    fn settings_default_temperature() {
 +        assert_eq!(Settings::default().temperature, gamma::DEFAULT_TEMPERATURE);
 +    }
@@ -165,7 +195,7 @@ index 9020e5a..47a74cb 100644
      #[test]
      fn closing_matching_popup_clears_it() {
          let id = Id::unique();
-@@ -177,19 +215,39 @@ fn config() -> Option<Config> {
+@@ -177,19 +245,39 @@ fn config() -> Option<Config> {
  /// Persisted settings, stored as one cosmic_config key per field. Adding a
  /// field with a default needs no version bump: a missing key reads as its
  /// default. Bump `CONFIG_VERSION` only when an existing key changes meaning.
@@ -206,7 +236,7 @@ index 9020e5a..47a74cb 100644
      fn save_enabled(config: &Config, enabled: bool) -> Result<(), cosmic::cosmic_config::Error> {
          config.set(CONFIG_KEY_ENABLED, enabled)
      }
-@@ -204,6 +262,10 @@ struct Nightlight {
+@@ -204,6 +292,10 @@ struct Nightlight {
      worker: Worker,
      /// The settings popup, while it is open.
      popup: Option<Id>,
@@ -217,7 +247,7 @@ index 9020e5a..47a74cb 100644
  }
  
  #[derive(Clone, Debug)]
-@@ -213,6 +275,8 @@ enum Message {
+@@ -213,6 +305,8 @@ enum Message {
      ToggleSettings,
      PopupClosed(Id),
      Applied(bool, Result<(), String>),
@@ -226,7 +256,7 @@ index 9020e5a..47a74cb 100644
  }
  
  impl cosmic::Application for Nightlight {
-@@ -230,10 +294,11 @@ impl cosmic::Application for Nightlight {
+@@ -230,10 +324,11 @@ impl cosmic::Application for Nightlight {
      }
  
      fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Message>) {
@@ -240,7 +270,7 @@ index 9020e5a..47a74cb 100644
          } else {
              Task::none()
          };
-@@ -244,6 +309,8 @@ impl cosmic::Application for Nightlight {
+@@ -244,6 +339,8 @@ impl cosmic::Application for Nightlight {
                  busy: saved,
                  worker,
                  popup: None,
@@ -249,7 +279,7 @@ index 9020e5a..47a74cb 100644
              },
              task,
          )
-@@ -260,7 +327,27 @@ impl cosmic::Application for Nightlight {
+@@ -260,7 +357,27 @@ impl cosmic::Application for Nightlight {
                      return Task::none();
                  };
                  self.busy = true;
@@ -267,18 +297,18 @@ index 9020e5a..47a74cb 100644
 +                        eprintln!("nightlight: cannot save temperature: {e}");
 +                    }
 +                }
-+                if self.enabled {
-+                    if self.busy {
-+                        self.retune_pending = true;
-+                    } else {
++                match retune_on_slider(self.enabled, self.busy) {
++                    Retune::Now => {
 +                        self.busy = true;
 +                        return self.worker.request(true, kelvin);
 +                    }
++                    Retune::Later => self.retune_pending = true,
++                    Retune::Never => {}
 +                }
              }
              Message::ToggleSettings => {
                  let action = match self.popup {
-@@ -279,10 +366,24 @@ impl cosmic::Application for Nightlight {
+@@ -279,10 +396,24 @@ impl cosmic::Application for Nightlight {
                              )
                          },
                          Some(Box::new(|state: &Nightlight| {
@@ -307,7 +337,7 @@ index 9020e5a..47a74cb 100644
                              Element::from(state.core.applet.popup_container(content))
                                  .map(cosmic::Action::App)
                          })),
-@@ -305,6 +406,11 @@ impl cosmic::Application for Nightlight {
+@@ -305,6 +436,11 @@ impl cosmic::Application for Nightlight {
                          eprintln!("nightlight: cannot save state: {e}");
                      }
                  }
