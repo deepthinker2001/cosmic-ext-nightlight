@@ -1,0 +1,234 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c127331..daf9a88 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -16,7 +16,9 @@ env:
+ 
+ jobs:
+   ci:
+-    runs-on: ubuntu-latest
++    # Match the oldest supported release build host so incompatibilities fail
++    # here before packaging; do not follow the moving ubuntu-latest image.
++    runs-on: ubuntu-24.04
+     steps:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+@@ -44,6 +46,9 @@ jobs:
+       - name: Clippy
+         run: cargo clippy --locked --all-targets -- -D warnings
+ 
++      - name: Test packaging compatibility guard
++        run: python3 scripts/test-check-deb-libc.py
++
+       - name: Test
+         run: cargo test --locked
+ 
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index ae30139..5d2a135 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -41,7 +41,9 @@ env:
+ 
+ jobs:
+   build:
+-    runs-on: ubuntu-latest
++    # Build on the oldest supported distro: cargo-deb derives the libc6 floor
++    # from the host. ubuntu-latest can produce packages unusable on 24.04.
++    runs-on: ubuntu-24.04
+     permissions:
+       contents: read
+     outputs:
+@@ -121,6 +123,10 @@ jobs:
+         if: steps.plan.outputs.release == 'true'
+         run: just deb
+ 
++      - name: Check Ubuntu 24.04 libc6 compatibility
++        if: steps.plan.outputs.release == 'true'
++        run: python3 scripts/check-deb-libc.py target/debian/cosmic-ext-nightlight_*.deb
++
+       - name: Hash the .deb
+         if: steps.plan.outputs.release == 'true'
+         id: hash
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ab5b7f0..f32b013 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,16 @@ What changed in each release, for users. Maintainers: see
+ 
+ ## Unreleased
+ 
++## 0.2.1 - 2026-11-14
++
++### Packaging
++
++- The `.deb` installs on Ubuntu 24.04 again. The 0.2.0 package was built on a
++  newer Ubuntu and required `libc6 (>= 2.43)`, so apt refused it on 24.04
++  (glibc 2.39). Releases are now built on Ubuntu 24.04, and the release fails
++  if the package asks for a libc6 newer than 2.39. No change to the applet
++  itself.
++
+ ## 0.2.0 - 2026-11-13
+ 
+ Everything since 0.1.0. The `v0.1.1` tag points into this work, but its
+diff --git a/Cargo.lock b/Cargo.lock
+index b13f38a..8b47062 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -982,7 +982,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "cosmic-ext-nightlight"
+-version = "0.2.0"
++version = "0.2.1"
+ dependencies = [
+  "chrono",
+  "libcosmic",
+diff --git a/Cargo.toml b/Cargo.toml
+index 462d473..e94a0cd 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "cosmic-ext-nightlight"
+-version = "0.2.0"
++version = "0.2.1"
+ edition = "2021"
+ description = "Panel applet for COSMIC to toggle night light"
+ license = "GPL-3.0-only"
+diff --git a/docs/RELEASING.md b/docs/RELEASING.md
+index 43d8216..8f0edf9 100644
+--- a/docs/RELEASING.md
++++ b/docs/RELEASING.md
+@@ -19,6 +19,20 @@ without it the toggle will not work. The libc6 minimum is taken from the
+ machine that builds the package, so build on the oldest release you want it to
+ install on.
+ 
++### Built on the oldest supported distro: Ubuntu 24.04
++
++The package must install on Ubuntu 24.04 (glibc 2.39) and newer. `cargo-deb`
++sets the `libc6 (>= ...)` dependency from the glibc of the machine that builds
++it, so a package built on a newer distro asks for a newer libc6 and apt refuses
++it on 24.04. Version 0.2.0 shipped this way, built on `ubuntu-latest`, and needed
++`libc6 (>= 2.43)`. So both the release `build` job and CI run on `ubuntu-24.04`,
++never `ubuntu-latest`, and after `cargo deb` the release checks the package's
++libc6 floor with `scripts/check-deb-libc.py`. The check fails the job if the
++floor is above 2.39, or if the libc6 dependency is missing or in an unexpected
++form. CI tests that check against sample packages
++(`scripts/test-check-deb-libc.py`). When 24.04 stops being the oldest supported
++release, change the runners and the 2.39 limit in the script together.
++
+ ## How a release is built
+ 
+ A push to `main` runs `.github/workflows/release.yml`. It has three
+diff --git a/scripts/check-deb-libc.py b/scripts/check-deb-libc.py
+new file mode 100644
+index 0000000..e95fa31
+--- /dev/null
++++ b/scripts/check-deb-libc.py
+@@ -0,0 +1,36 @@
++#!/usr/bin/env python3
++"""Reject packages whose auto-detected libc6 floor exceeds Ubuntu 24.04."""
++
++import re
++import subprocess
++import sys
++
++
++def check(deb):
++    depends = subprocess.check_output(
++        ["dpkg-deb", "-f", deb, "Depends"], text=True
++    ).strip()
++    print(f"{deb}: Depends: {depends}")
++    # cargo-deb emits one direct, versioned libc6 dependency. Fail closed if
++    # that changes, rather than silently accepting missing/ambiguous metadata.
++    entries = [entry.strip() for entry in depends.split(",")]
++    libc = [entry for entry in entries if re.search(r"\blibc6\b", entry)]
++    if len(libc) != 1:
++        raise ValueError("Expected exactly one versioned libc6 dependency")
++    match = re.fullmatch(r"libc6(?::[a-z0-9-]+)?\s*\(>=\s*([^\s()]+)\)", libc[0])
++    if not match:
++        raise ValueError(f"Unexpected libc6 dependency: {libc[0]}")
++    floor = match[1]
++    # Debian versions are not floats or lexically ordered strings.
++    subprocess.run(["dpkg", "--validate-version", floor], check=True)
++    if subprocess.run(["dpkg", "--compare-versions", floor, "le", "2.39"]).returncode:
++        raise ValueError(f"libc6 floor {floor} exceeds 2.39; build on Ubuntu 24.04")
++
++
++if __name__ == "__main__":
++    try:
++        if len(sys.argv) != 2:
++            raise ValueError("Expected exactly one .deb path")
++        check(sys.argv[1])
++    except (ValueError, subprocess.CalledProcessError, OSError) as error:
++        sys.exit(str(error))
+diff --git a/scripts/test-check-deb-libc.py b/scripts/test-check-deb-libc.py
+new file mode 100644
+index 0000000..419ea58
+--- /dev/null
++++ b/scripts/test-check-deb-libc.py
+@@ -0,0 +1,64 @@
++#!/usr/bin/env python3
++"""Integration tests using actual Debian control metadata, no Rust build needed."""
++
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import unittest
++
++SCRIPT = Path(__file__).with_name("check-deb-libc.py")
++
++
++class LibcFloorTests(unittest.TestCase):
++    def test_dependency_floors(self):
++        cases = [
++            ("libc6 (>= 2.39), cosmic-panel", True),
++            ("cosmic-panel, libc6 (>= 2.38), libxkbcommon0 (>= 1.0)", True),
++            ("libc6:amd64 (>= 2.9)", True),
++            ("libc6 (>= 2.43), cosmic-panel", False),
++            ("libc6 (>= 2.40)", False),
++            ("libc6 (>= 2.39.1)", False),
++            ("cosmic-panel", False),
++            ("libc6", False),
++            ("libc6 (>> 2.39)", False),
++            ("libc6 (>= 2.39) | other-libc", False),
++            ("libc6 (>= 2.39), libc6 (>= 2.43)", False),
++        ]
++        with tempfile.TemporaryDirectory(dir=os.environ.get("FERRIVIDE_SCRATCH")) as tmp:
++            root = Path(tmp)
++            control = root / "pkg" / "DEBIAN"
++            control.mkdir(parents=True)
++            deb = root / "test package.deb"
++            for depends, accepted in cases:
++                with self.subTest(depends=depends):
++                    (control / "control").write_text(
++                        "Package: libc-floor-test\nVersion: 1.0\nArchitecture: amd64\n"
++                        "Maintainer: Test <test@example.invalid>\nDescription: Test\n"
++                        f"Depends: {depends}\n"
++                    )
++                    subprocess.run(
++                        ["dpkg-deb", "--build", str(control.parent), str(deb)],
++                        check=True, capture_output=True,
++                    )
++                    result = subprocess.run(
++                        [sys.executable, str(SCRIPT), str(deb)], capture_output=True, text=True
++                    )
++                    self.assertEqual(result.returncode == 0, accepted, result.stdout + result.stderr)
++
++    def test_missing_package(self):
++        result = subprocess.run(
++            [sys.executable, str(SCRIPT), "nonexistent.deb"], capture_output=True
++        )
++        self.assertNotEqual(result.returncode, 0)
++
++    def test_requires_one_package(self):
++        for args in ([], ["one.deb", "two.deb"]):
++            with self.subTest(args=args):
++                result = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True)
++                self.assertNotEqual(result.returncode, 0)
++
++
++if __name__ == "__main__":
++    unittest.main()

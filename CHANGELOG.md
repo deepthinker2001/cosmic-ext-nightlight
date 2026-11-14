@@ -5,6 +5,16 @@ What changed in each release, for users. Maintainers: see
 
 ## Unreleased
 
+## 0.2.1 - 2026-11-14
+
+### Packaging
+
+- The `.deb` installs on Ubuntu 24.04 again. The 0.2.0 package was built on a
+  newer Ubuntu and required `libc6 (>= 2.43)`, so apt refused it on 24.04
+  (glibc 2.39). Releases are now built on Ubuntu 24.04, and the release fails
+  if the package asks for a libc6 newer than 2.39. No change to the applet
+  itself.
+
 ## 0.2.0 - 2026-11-13
 
 Everything since 0.1.0. The `v0.1.1` tag points into this work, but its

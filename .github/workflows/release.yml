@@ -41,7 +41,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Build on the oldest supported distro: cargo-deb derives the libc6 floor
+    # from the host. ubuntu-latest can produce packages unusable on 24.04.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -120,6 +122,10 @@ jobs:
       - name: Build the .deb
         if: steps.plan.outputs.release == 'true'
         run: just deb
+
+      - name: Check Ubuntu 24.04 libc6 compatibility
+        if: steps.plan.outputs.release == 'true'
+        run: python3 scripts/check-deb-libc.py target/debian/cosmic-ext-nightlight_*.deb
 
       - name: Hash the .deb
         if: steps.plan.outputs.release == 'true'

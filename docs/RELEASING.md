@@ -19,6 +19,20 @@ without it the toggle will not work. The libc6 minimum is taken from the
 machine that builds the package, so build on the oldest release you want it to
 install on.
 
+### Built on the oldest supported distro: Ubuntu 24.04
+
+The package must install on Ubuntu 24.04 (glibc 2.39) and newer. `cargo-deb`
+sets the `libc6 (>= ...)` dependency from the glibc of the machine that builds
+it, so a package built on a newer distro asks for a newer libc6 and apt refuses
+it on 24.04. Version 0.2.0 shipped this way, built on `ubuntu-latest`, and needed
+`libc6 (>= 2.43)`. So both the release `build` job and CI run on `ubuntu-24.04`,
+never `ubuntu-latest`, and after `cargo deb` the release checks the package's
+libc6 floor with `scripts/check-deb-libc.py`. The check fails the job if the
+floor is above 2.39, or if the libc6 dependency is missing or in an unexpected
+form. CI tests that check against sample packages
+(`scripts/test-check-deb-libc.py`). When 24.04 stops being the oldest supported
+release, change the runners and the 2.39 limit in the script together.
+
 ## How a release is built
 
 A push to `main` runs `.github/workflows/release.yml`. It has three
